@@ -1,0 +1,40 @@
+-- Run once in the Supabase SQL Editor after replacing the two placeholders:
+-- your deployment's URL and a newly generated random secret.
+-- Keep the generated secret private and set the same value as
+-- REMINDER_DISPATCH_SECRET in Vercel Production.
+
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
+select vault.create_secret(
+  'https://<your-project>.vercel.app/api/cron/reminder-dispatch',
+  'reminder_dispatch_url'
+);
+select vault.create_secret(
+  '<GENERATED_REMINDER_DISPATCH_SECRET>',
+  'reminder_dispatch_secret'
+);
+
+select cron.schedule(
+  'dispatch-telegram-reminders',
+  '* * * * *',
+  $$
+  select net.http_post(
+    url := (
+      select decrypted_secret
+      from vault.decrypted_secrets
+      where name = 'reminder_dispatch_url'
+    ),
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || (
+        select decrypted_secret
+        from vault.decrypted_secrets
+        where name = 'reminder_dispatch_secret'
+      )
+    ),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 30000
+  );
+  $$
+);
