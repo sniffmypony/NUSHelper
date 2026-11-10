@@ -153,8 +153,11 @@ async function readPdf(
         toDataURL: true,
       });
       images.push({ label: `${name} page ${page}`, url });
-    } catch {
+    } catch (error) {
       // Text still works without the renderer; say so instead of failing.
+      console.error(
+        `PDF page rendering failed (${error instanceof Error ? error.name : typeof error}); using text only`,
+      );
       note = "Page images could not be rendered; only the text was read.";
       break;
     }
