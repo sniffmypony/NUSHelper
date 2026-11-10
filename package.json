@@ -31,7 +31,7 @@
     "@types/node": "^20.19.43",
     "@vercel/node": "^30.0.0",
     "drizzle-kit": "^0.31.11",
-    "eslint": "^9.39.5",
+    "eslint": "^10.14.0",
     "prettier": "^3.9.10",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.72.2",
