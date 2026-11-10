@@ -24,7 +24,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
-    "@types/luxon": "^3.7.1",
+    "@types/luxon": "^3.7.6",
     "@types/node": "^20.14.15",
     "@vercel/node": "^3.2.0",
     "drizzle-kit": "^0.24.2",
