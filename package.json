@@ -13,25 +13,26 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vercel/functions": "^3.10.5",
-    "drizzle-orm": "^0.33.0",
-    "google-auth-library": "^10.3.0",
-    "googleapis": "^160.0.0",
+    "@vercel/functions": "^3.11.1",
+    "drizzle-orm": "^0.45.4",
+    "google-auth-library": "^10.9.1",
+    "googleapis": "^189.0.0",
     "luxon": "^3.7.2",
-    "openai": "^7.47.0",
-    "postgres": "^3.4.4",
+    "openai": "^7.55.0",
+    "postgres": "^3.4.9",
     "telegraf": "^4.16.3"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
-    "@types/luxon": "^3.7.1",
-    "@types/node": "^20.14.15",
-    "@vercel/node": "^3.2.0",
-    "drizzle-kit": "^0.24.2",
-    "eslint": "^9.39.1",
-    "prettier": "^3.6.2",
-    "typescript": "^5.5.4",
-    "typescript-eslint": "^8.46.2",
-    "vitest": "^3.2.4"
+    "@eslint/js": "^9.39.5",
+    "@types/luxon": "^3.7.6",
+    "@types/node": "^20.19.43",
+    "@vercel/node": "^30.0.0",
+    "drizzle-kit": "^0.31.11",
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.2",
+    "vite": "7.3.8",
+    "vitest": "^4.1.12"
   }
 }
