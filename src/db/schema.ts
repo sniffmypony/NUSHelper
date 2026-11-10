@@ -263,6 +263,29 @@ export const assistantMessages = pgTable(
   }),
 );
 
+// The /effort setting per chat.
+export const assistantSettings = pgTable("assistant_settings", {
+  chatId: text("chat_id").primaryKey(),
+  effort: text("effort").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Study questions answered, so "Think harder" can ask again (kept 7 days).
+export const assistantRequests = pgTable("assistant_requests", {
+  id: serial("id").primaryKey(),
+  chatId: text("chat_id").notNull(),
+  text: text("text").notNull(),
+  attachmentKind: text("attachment_kind"),
+  attachmentFileId: text("attachment_file_id"),
+  attachmentName: text("attachment_name"),
+  attachmentMimeType: text("attachment_mime_type"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 // Telegram's id for a Canvas file the bot has already uploaded. Re-sending by
 // this id skips the Canvas download and the upload. A changed Canvas file has
 // a new updated_at, which misses the cache.

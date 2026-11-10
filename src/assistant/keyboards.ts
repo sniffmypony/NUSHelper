@@ -18,6 +18,20 @@ export function confirmDeleteKeyboard(
   };
 }
 
+// Adds a "Think harder" button that re-runs a saved question at high effort.
+export function withThinkHarder(
+  keyboard: InlineKeyboard | undefined,
+  requestId: number | undefined,
+): InlineKeyboard | undefined {
+  if (requestId === undefined) return keyboard;
+  return {
+    inline_keyboard: [
+      ...(keyboard?.inline_keyboard ?? []),
+      [{ text: "Think harder", callback_data: `ai:think:${requestId}` }],
+    ],
+  };
+}
+
 export function undoKeyboard(refs: UndoRef[]): InlineKeyboard | undefined {
   if (refs.length === 0) return undefined;
   return {

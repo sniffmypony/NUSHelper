@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("../src/assistant/store.js", () => ({
   assistantStore: {},
   telegramFileCacheStore: {},
+  assistantSettingsStore: {},
 }));
 
 import {

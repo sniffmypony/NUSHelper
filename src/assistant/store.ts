@@ -2,10 +2,13 @@ import { and, desc, eq, gt, inArray, lt } from "drizzle-orm";
 import { db } from "../db/client.js";
 import {
   assistantMessages,
+  assistantRequests,
+  assistantSettings,
   assistantUpdateClaims,
   telegramFileCache,
 } from "../db/schema.js";
 import type { AssistantTurn } from "./agent.js";
+import { isEffortSetting, type EffortSetting } from "./effort.js";
 
 const HISTORY_LIMIT = 8;
 const HISTORY_WINDOW_MS = 6 * 60 * 60 * 1000;
@@ -95,6 +98,90 @@ export class DrizzleAssistantStore implements AssistantStore {
 }
 
 export const assistantStore = new DrizzleAssistantStore();
+
+export type StoredAttachment =
+  | { kind: "image"; fileId: string; mimeType: string }
+  | { kind: "file"; fileId: string; name: string; mimeType: string };
+
+export interface StoredRequest {
+  text: string;
+  attachment?: StoredAttachment;
+}
+
+// The /effort setting and the questions "Think harder" can re-run.
+export interface AssistantSettings {
+  effort(chatId: string): Promise<EffortSetting>;
+  setEffort(chatId: string, effort: EffortSetting): Promise<void>;
+  saveRequest(chatId: string, request: StoredRequest): Promise<number>;
+  findRequest(chatId: string, id: number): Promise<StoredRequest | null>;
+}
+
+export class DrizzleAssistantSettings implements AssistantSettings {
+  async effort(chatId: string): Promise<EffortSetting> {
+    const [row] = await db
+      .select({ effort: assistantSettings.effort })
+      .from(assistantSettings)
+      .where(eq(assistantSettings.chatId, chatId));
+    return row && isEffortSetting(row.effort) ? row.effort : "auto";
+  }
+
+  async setEffort(chatId: string, effort: EffortSetting): Promise<void> {
+    await db
+      .insert(assistantSettings)
+      .values({ chatId, effort, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: assistantSettings.chatId,
+        set: { effort, updatedAt: new Date() },
+      });
+  }
+
+  async saveRequest(chatId: string, request: StoredRequest): Promise<number> {
+    const { attachment } = request;
+    const [row] = await db
+      .insert(assistantRequests)
+      .values({
+        chatId,
+        text: request.text,
+        attachmentKind: attachment?.kind ?? null,
+        attachmentFileId: attachment?.fileId ?? null,
+        attachmentName: attachment?.kind === "file" ? attachment.name : null,
+        attachmentMimeType: attachment?.mimeType ?? null,
+      })
+      .returning({ id: assistantRequests.id });
+    await db
+      .delete(assistantRequests)
+      .where(
+        lt(assistantRequests.createdAt, new Date(Date.now() - RETENTION_MS)),
+      );
+    return row.id;
+  }
+
+  async findRequest(chatId: string, id: number): Promise<StoredRequest | null> {
+    const [row] = await db
+      .select()
+      .from(assistantRequests)
+      .where(
+        and(eq(assistantRequests.id, id), eq(assistantRequests.chatId, chatId)),
+      );
+    if (!row) return null;
+    const fileId = row.attachmentFileId;
+    const mimeType = row.attachmentMimeType ?? "";
+    const attachment: StoredAttachment | undefined =
+      fileId && row.attachmentKind === "image"
+        ? { kind: "image", fileId, mimeType }
+        : fileId && row.attachmentKind === "file"
+          ? {
+              kind: "file",
+              fileId,
+              name: row.attachmentName ?? "file",
+              mimeType,
+            }
+          : undefined;
+    return { text: row.text, attachment };
+  }
+}
+
+export const assistantSettingsStore = new DrizzleAssistantSettings();
 
 export interface CachedTelegramFile {
   canvasFileId: number;

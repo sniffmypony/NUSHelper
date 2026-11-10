@@ -8,6 +8,8 @@ import { DateTime } from "luxon";
 import { SINGAPORE_TIME_ZONE } from "../dates.js";
 import { cleanModelText, looksLikeToolMarkup } from "./format.js";
 import { ALL_FEATURES, toolsFor, type AssistantFeatures } from "./tools.js";
+import type { Effort } from "./effort.js";
+import { ModelTimeoutError, type CompletionOptions } from "./model-client.js";
 
 export const MAX_TOOL_ITERATIONS = 5;
 // Tool output kept with the reply so follow-ups ("send the second one") can resolve ids.
@@ -15,6 +17,7 @@ const MAX_TOOL_CONTEXT_CHARS = 3000;
 
 export type CreateCompletion = (
   body: ChatCompletionCreateParamsNonStreaming,
+  options?: CompletionOptions,
 ) => Promise<ChatCompletion>;
 
 export type ExecuteTool = (
@@ -219,6 +222,10 @@ export async function runAssistant(options: {
   takeImages?: () => PageImage[];
   execute: ExecuteTool;
   now?: Date;
+  // How hard the model thinks; omitted, the provider's default is used.
+  effort?: Effort;
+  // Aborted when this attempt's time is up; no new model call starts after.
+  signal?: AbortSignal;
 }): Promise<AssistantResult> {
   const features = options.features ?? ALL_FEATURES;
   const tools = toolsFor(features);
@@ -235,9 +242,13 @@ export async function runAssistant(options: {
     toolOutputs.join("\n").slice(-MAX_TOOL_CONTEXT_CHARS);
   const timings: AssistantTimings = { modelMs: 0, modelCalls: 0, tools: [] };
   const create: CreateCompletion = async (body) => {
+    if (options.signal?.aborted) throw new ModelTimeoutError();
     const started = Date.now();
     try {
-      return await options.create(body);
+      return await options.create(
+        options.effort ? { ...body, reasoning_effort: options.effort } : body,
+        { signal: options.signal },
+      );
     } finally {
       timings.modelMs += Date.now() - started;
       timings.modelCalls += 1;
@@ -286,7 +297,7 @@ export async function runAssistant(options: {
         call.type === "function",
     );
     if (toolCalls.length === 0) {
-      if (looksLikeToolMarkup(message.content)) {
+      if (looksLikeToolMarkup(cleanModelText(message.content))) {
         // The model wrote its tool call as text. Ask again rather than
         // forwarding the markup; the retry usually comes back well formed.
         console.error("Model returned tool-call markup as text; retrying");

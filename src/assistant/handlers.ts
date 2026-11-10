@@ -17,19 +17,57 @@ import {
   toPlainText,
 } from "./format.js";
 import {
+  assistantSettingsStore,
   assistantStore,
   telegramFileCacheStore,
+  type AssistantSettings,
   type AssistantStore,
+  type StoredAttachment,
   type TelegramFileCache,
 } from "./store.js";
 import type { OutgoingDocument } from "./file-sender.js";
 import type { BotActions } from "./bot-tools.js";
-import { undoKeyboard } from "./keyboards.js";
+import {
+  undoKeyboard,
+  withThinkHarder,
+  type InlineKeyboard,
+} from "./keyboards.js";
 import { AssistantToolbox, MAX_IMAGES_PER_REQUEST } from "./tools.js";
 import { describeDocument, documentKind, readDocument } from "./documents.js";
+import {
+  ASSISTANT_BUDGET_MS,
+  EFFORT_HELP,
+  attemptLimitMs,
+  chooseEffort,
+  describeEffortSetting,
+  fallbackChain,
+  fallbackNote,
+  isEffortSetting,
+  isStudyRequest,
+  type Effort,
+  type EffortSetting,
+} from "./effort.js";
+import { ModelTimeoutError, streamCompletion } from "./model-client.js";
 
-const MODEL_TIMEOUT_MS = 45_000;
 const CHAT_ACTION_INTERVAL_MS = 4_500;
+const PROGRESS_NOTE_MS = 20_000;
+export const PROGRESS_NOTE = "Working on it — this one needs more thought…";
+// Less than this left is not worth another attempt.
+const MIN_ATTEMPT_MS = 10_000;
+// Tools that only look things up. A timed-out attempt that ran only these is
+// safe to repeat at a lower effort; anything else might be done twice.
+const READ_ONLY_TOOLS = new Set([
+  "list_modules",
+  "list_upcoming_assignments",
+  "search_files",
+  "read_files",
+  "list_tasks",
+  "list_todos",
+  "list_reminders",
+  "list_calendar_events",
+  "expenditure_report",
+  "expenditure_breakdown",
+]);
 
 type ChatAction = "typing" | "upload_document";
 
@@ -37,8 +75,10 @@ export interface AssistantTelegram {
   sendMessage(
     chatId: number,
     text: string,
-    extra?: { reply_markup: ReturnType<typeof undoKeyboard> },
+    extra?: { reply_markup: InlineKeyboard | undefined },
   ): Promise<unknown>;
+  // Removes the progress note once the answer is sent.
+  deleteMessage?(chatId: number, messageId: number): Promise<unknown>;
   sendChatAction(chatId: number, action: ChatAction): Promise<unknown>;
   // A string is a Telegram file id or a URL Telegram fetches itself.
   sendDocument(chatId: number, document: TelegramInputFile): Promise<unknown>;
@@ -50,7 +90,7 @@ export interface AssistantTelegram {
   sendRichMessage(
     chatId: number,
     markdown: string,
-    extra?: { reply_markup: ReturnType<typeof undoKeyboard> },
+    extra?: { reply_markup: InlineKeyboard | undefined },
   ): Promise<unknown>;
   downloadFile(fileId: string): Promise<Buffer>;
 }
@@ -62,13 +102,15 @@ type TelegramInputFile = string | { source: Buffer; filename: string };
 export function telegramFor(ctx: Context): AssistantTelegram {
   const api = ctx.telegram as unknown as Omit<
     AssistantTelegram,
-    "sendRichMessage" | "downloadFile"
+    "sendRichMessage" | "downloadFile" | "deleteMessage"
   > & {
+    deleteMessage(chatId: number, messageId: number): Promise<unknown>;
     callApi(method: string, payload: object): Promise<unknown>;
     getFileLink(fileId: string): Promise<URL>;
   };
   return {
     sendMessage: (chatId, text, extra) => api.sendMessage(chatId, text, extra),
+    deleteMessage: (chatId, messageId) => api.deleteMessage(chatId, messageId),
     sendChatAction: (chatId, action) => api.sendChatAction(chatId, action),
     sendDocument: (chatId, document) => api.sendDocument(chatId, document),
     sendMediaGroup: (chatId, media) => api.sendMediaGroup(chatId, media),
@@ -109,7 +151,7 @@ export async function sendReply(
   chatId: number,
   reply: string,
   format: ReplyFormat,
-  keyboard: ReturnType<typeof undoKeyboard>,
+  keyboard: InlineKeyboard | undefined,
 ): Promise<void> {
   const extraFor = (last: boolean) =>
     keyboard && last ? { reply_markup: keyboard } : undefined;
@@ -145,7 +187,7 @@ async function sendPlain(
   text: string,
   extraFor: (
     last: boolean,
-  ) => { reply_markup: ReturnType<typeof undoKeyboard> } | undefined,
+  ) => { reply_markup: InlineKeyboard | undefined } | undefined,
 ): Promise<void> {
   const chunks = splitTelegramMessage(text);
   for (const [index, chunk] of chunks.entries()) {
@@ -212,9 +254,7 @@ export function imageFromMessage(message: unknown): IncomingImage | null {
   };
 }
 
-export type IncomingAttachment =
-  | { kind: "image"; fileId: string; mimeType: string }
-  | { kind: "file"; fileId: string; name: string; mimeType: string };
+export type IncomingAttachment = StoredAttachment;
 
 // A photo or image (see imageFromMessage), or a document the assistant can
 // read: PDF, PowerPoint, Word, text or code.
@@ -276,11 +316,18 @@ export interface AssistantDependencies {
   now?: () => Date;
   // The bot's own task, to-do, reminder and calendar commands for this message.
   actionsFor?: (ctx: Context) => BotActions;
+  // The /effort setting and saved questions for "Think harder". Without it,
+  // effort is always auto and no Think harder button is shown.
+  settings?: AssistantSettings;
+  // Total time one message may take, and when the progress note appears.
+  budgetMs?: number;
+  progressNoteMs?: number;
 }
 
 export const defaultAssistantDependencies: AssistantDependencies = {
   store: assistantStore,
   fileCache: telegramFileCacheStore,
+  settings: assistantSettingsStore,
   runInBackground: (work) => waitUntil(work),
 };
 
@@ -301,6 +348,9 @@ export function assistantErrorMessage(error: unknown): string {
   }
   if (error instanceof AssistantConfigError) {
     return "The Canvas assistant is not configured yet (missing environment variables).";
+  }
+  if (error instanceof ModelTimeoutError) {
+    return "The AI took too long to answer, even with less thinking. Try again, or ask one part at a time.";
   }
   if (error instanceof OpenAI.APIConnectionTimeoutError) {
     return "The AI service took too long to respond. Please try again.";
@@ -336,13 +386,17 @@ function resolveClients(deps: AssistantDependencies): {
 
   let createCompletion = deps.createCompletion;
   if (!createCompletion) {
+    // Time limits come from each attempt's signal and the stream's idle
+    // timeout. The retry covers brief connection failures and 5xx errors; a
+    // timed-out attempt is never repeated at the same effort.
     const client = new OpenAI({
       apiKey: llm!.apiKey,
       baseURL: llm!.baseURL,
-      timeout: MODEL_TIMEOUT_MS,
+      timeout: ASSISTANT_BUDGET_MS,
       maxRetries: 1,
     });
-    createCompletion = (body) => client.chat.completions.create(body);
+    createCompletion = (body, options) =>
+      streamCompletion(client, body, options);
   }
   return { createCompletion, canvas, model: deps.model ?? llm!.model };
 }
@@ -375,9 +429,17 @@ export async function answerAssistantMessage(
   deps: AssistantDependencies,
   actions?: BotActions,
   attached?: IncomingAttachment,
+  // "Think harder" asks for a set effort instead of the /effort setting.
+  options: { effort?: Effort } = {},
 ): Promise<void> {
   const chatAction = startChatAction(telegram, chatId);
+  const progress = startProgressNote(
+    telegram,
+    chatId,
+    deps.progressNoteMs ?? PROGRESS_NOTE_MS,
+  );
   const started = Date.now();
+  const budgetMs = deps.budgetMs ?? ASSISTANT_BUDGET_MS;
   try {
     const { createCompletion, canvas, model } = resolveClients(deps);
     const now = deps.now?.() ?? new Date();
@@ -431,31 +493,94 @@ export async function answerAssistantMessage(
         images,
       };
     }
-    const result = await runAssistant({
-      create: createCompletion,
-      model,
-      history,
-      userText: text,
-      image: imageUrl,
-      features: { canvas: Boolean(canvas), calendar: isCalendarConfigured() },
-      attachment,
-      takeImages: () => toolbox.takeImages(),
-      execute: (name, args) => toolbox.execute(name, args),
-      now,
-    });
+    const study = isStudyRequest(text, Boolean(attached));
+    const start =
+      options.effort ??
+      chooseEffort(
+        await effortSetting(deps.settings, chatId),
+        text,
+        Boolean(attached),
+      );
+
+    // Each level gets a time limit; one that runs out falls back to the next
+    // lower level, unless the attempt already did something (added a to-do,
+    // sent a file) that repeating would do twice.
+    let changedSomething = false;
+    const execute = (name: string, args: string) => {
+      if (!READ_ONLY_TOOLS.has(name)) changedSomething = true;
+      return toolbox.execute(name, args);
+    };
+    let result: Awaited<ReturnType<typeof runAssistant>> | undefined;
+    let used: Effort = start;
+    for (const level of fallbackChain(start)) {
+      const remaining = budgetMs - (Date.now() - started);
+      const limit = attemptLimitMs(start, level, remaining);
+      if (limit < MIN_ATTEMPT_MS) throw new ModelTimeoutError();
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), limit);
+      const attemptStarted = Date.now();
+      try {
+        result = await runAssistant({
+          create: createCompletion,
+          model,
+          history,
+          userText: text,
+          image: imageUrl,
+          features: {
+            canvas: Boolean(canvas),
+            calendar: isCalendarConfigured(),
+          },
+          attachment,
+          takeImages: () => toolbox.takeImages(),
+          execute,
+          now,
+          effort: level,
+          signal: controller.signal,
+        });
+        used = level;
+        break;
+      } catch (error) {
+        if (
+          !(error instanceof ModelTimeoutError) ||
+          changedSomething ||
+          level === "low"
+        ) {
+          throw error;
+        }
+        console.log(
+          `Assistant ${level} effort ran out of time after ${Date.now() - attemptStarted}ms; trying less effort`,
+        );
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    if (!result) throw new ModelTimeoutError();
+
+    const reply =
+      used === start
+        ? result.reply
+        : `${result.format === "markdown" ? fallbackNote(used, start) : fallbackNote(used, start).replace(/_/g, "")}\n\n${result.reply}`;
+    // A study answer that wasn't at high effort can be asked again harder.
+    // If high itself ran out of time, the button would only fail again.
+    const requestId =
+      study && start !== "high" && result.format === "markdown"
+        ? await saveRequest(deps.settings, chatId, text, attached)
+        : undefined;
 
     chatAction.stop();
+    progress.stop();
     // Anything the assistant added gets an Undo button on the last message.
     await sendReply(
       telegram,
       chatId,
-      result.reply,
+      reply,
       result.format,
-      undoKeyboard(toolbox.undo),
+      withThinkHarder(undoKeyboard(toolbox.undo), requestId),
     );
-    // Durations and tool names only; never message text or file names.
+    await progress.remove();
+    // Durations, effort and tool names only; never message text or file names.
     console.log(
-      `Assistant timing: total=${Date.now() - started}ms model=${result.timings.modelMs}ms/${result.timings.modelCalls} calls tools=${
+      `Assistant timing: total=${Date.now() - started}ms effort=${used}${used === start ? "" : ` (from ${start})`} model=${result.timings.modelMs}ms/${result.timings.modelCalls} calls tools=${
         result.timings.tools.map((t) => `${t.name}:${t.ms}ms`).join(",") ||
         "none"
       }`,
@@ -478,8 +603,11 @@ export async function answerAssistantMessage(
       console.error(`Failed to save assistant history (${errorType(error)})`);
     }
   } catch (error) {
-    console.error(`Canvas assistant failed (${errorType(error)})`);
+    console.error(
+      `Canvas assistant failed (${errorType(error)}) after ${Date.now() - started}ms`,
+    );
     chatAction.stop();
+    progress.stop();
     try {
       await telegram.sendMessage(chatId, assistantErrorMessage(error));
     } catch (replyError) {
@@ -487,9 +615,75 @@ export async function answerAssistantMessage(
         `Failed to send the assistant error message (${errorType(replyError)})`,
       );
     }
+    await progress.remove();
   } finally {
     chatAction.stop();
+    progress.stop();
   }
+}
+
+async function effortSetting(
+  settings: AssistantSettings | undefined,
+  chatId: number,
+): Promise<EffortSetting> {
+  try {
+    return (await settings?.effort(String(chatId))) ?? "auto";
+  } catch (error) {
+    // The setting is a preference; auto still answers well.
+    console.error(`Failed to read the effort setting (${errorType(error)})`);
+    return "auto";
+  }
+}
+
+async function saveRequest(
+  settings: AssistantSettings | undefined,
+  chatId: number,
+  text: string,
+  attachment: IncomingAttachment | undefined,
+): Promise<number | undefined> {
+  if (!settings) return undefined;
+  try {
+    return await settings.saveRequest(String(chatId), { text, attachment });
+  } catch (error) {
+    // Without it there is just no Think harder button.
+    console.error(`Failed to save the request (${errorType(error)})`);
+    return undefined;
+  }
+}
+
+function messageIdOf(message: unknown): number | undefined {
+  const id = (message as { message_id?: unknown } | undefined)?.message_id;
+  return typeof id === "number" ? id : undefined;
+}
+
+// After a while, a short note says the answer is still coming; it is
+// deleted once the answer (or an error) has been sent.
+function startProgressNote(
+  telegram: AssistantTelegram,
+  chatId: number,
+  delayMs: number,
+) {
+  let sent: Promise<number | undefined> | undefined;
+  const timer = setTimeout(() => {
+    sent = telegram
+      .sendMessage(chatId, PROGRESS_NOTE)
+      .then(messageIdOf)
+      .catch(() => undefined);
+  }, delayMs);
+  return {
+    stop() {
+      clearTimeout(timer);
+    },
+    async remove() {
+      const messageId = await sent;
+      if (messageId === undefined || !telegram.deleteMessage) return;
+      try {
+        await telegram.deleteMessage(chatId, messageId);
+      } catch {
+        // Leaving the note behind is harmless.
+      }
+    },
+  };
 }
 
 export async function handleAssistantText(
@@ -526,6 +720,83 @@ export function registerAssistantHandlers(
     filter: string,
     handler: (ctx: Context) => Promise<void>,
   ) => void;
+
+  bot.command("effort", async (ctx) => {
+    const chatId = String(ctx.chat.id);
+    const settings = deps.settings;
+    if (!settings) {
+      await ctx.reply("Thinking effort can't be changed on this bot.");
+      return;
+    }
+    const argument = ctx.message.text.split(/\s+/)[1]?.toLowerCase() ?? "";
+    try {
+      if (!argument) {
+        const current = await settings.effort(chatId);
+        await ctx.reply(`${describeEffortSetting(current)}\n\n${EFFORT_HELP}`);
+        return;
+      }
+      if (!isEffortSetting(argument)) {
+        await ctx.reply(EFFORT_HELP);
+        return;
+      }
+      await settings.setEffort(chatId, argument);
+      await ctx.reply(
+        argument === "high"
+          ? `${describeEffortSetting(argument)} Replies can take a few minutes; if one runs out of time, I answer with less thinking.`
+          : describeEffortSetting(argument),
+      );
+    } catch (error) {
+      console.error(`Effort setting failed (${errorType(error)})`);
+      await ctx.reply("Couldn't save that setting just now. Please try again.");
+    }
+  });
+
+  // Re-runs a saved study question at high effort.
+  bot.action(/^ai:think:(\d{1,10})$/, async (ctx) => {
+    try {
+      await ctx.answerCbQuery("Thinking harder…");
+    } catch {
+      // Telegram may retry an old callback after its acknowledgement window.
+    }
+    const chatId = ctx.chat?.id;
+    const id = Number(ctx.match[1]);
+    if (!chatId || !deps.settings || !Number.isSafeInteger(id)) return;
+    if (!(await deps.store.claimUpdate(ctx.update.update_id))) return;
+
+    // One press per answer: the button goes, other buttons stay.
+    const keyboard = (
+      ctx.callbackQuery as { message?: { reply_markup?: InlineKeyboard } }
+    ).message?.reply_markup;
+    const rows = (keyboard?.inline_keyboard ?? []).filter(
+      (row) => !row.some((button) => button.callback_data === ctx.match[0]),
+    );
+    try {
+      await ctx.editMessageReplyMarkup(
+        rows.length > 0 ? { inline_keyboard: rows } : undefined,
+      );
+    } catch {
+      // The message may be too old to edit.
+    }
+
+    const request = await deps.settings.findRequest(String(chatId), id);
+    if (!request) {
+      await ctx.reply(
+        "That question is too old to ask again. Please send it again.",
+      );
+      return;
+    }
+    deps.runInBackground(
+      answerAssistantMessage(
+        telegramFor(ctx),
+        chatId,
+        request.text,
+        deps,
+        deps.actionsFor?.(ctx),
+        request.attachment,
+        { effort: "high" },
+      ),
+    );
+  });
 
   on("text", async (ctx) => {
     const message = ctx.message;

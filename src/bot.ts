@@ -335,6 +335,8 @@ bot.command("help", (ctx) => {
       "",
       "🎓 Canvas assistant — any other message",
       "e.g. what's due this week? / send me the lecture 5 slides for CS2103T",
+      "/effort — how hard it thinks: auto (default), low, medium or high",
+      "Study answers have a Think harder button to ask again at high effort.",
       "",
       "/help — show this message",
     ].join("\n"),

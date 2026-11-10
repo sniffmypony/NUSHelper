@@ -62,11 +62,16 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// Some models emit their reasoning inline; never forward it to Telegram.
-// Markdown is kept: model replies are sent as rich messages.
+// Some models emit their reasoning inline (<think>, or MiniMax's <mm:think>
+// when streaming); never forward it to Telegram. A closing tag with no
+// opening one ends reasoning whose opening tag the provider left out, and an
+// unclosed block is reasoning that was cut off. Markdown is kept: model
+// replies are sent as rich messages.
 export function cleanModelText(text: string | null | undefined): string {
   return (text ?? "")
-    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/<([\w-]+:)?think>[\s\S]*?<\/([\w-]+:)?think>/gi, "")
+    .replace(/^[\s\S]*<\/([\w-]+:)?think>/i, "")
+    .replace(/<([\w-]+:)?think>[\s\S]*$/i, "")
     .replace(/<tool_data>[\s\S]*?<\/tool_data>/gi, "")
     .trim();
 }

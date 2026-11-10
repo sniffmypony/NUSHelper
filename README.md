@@ -34,6 +34,7 @@ Deleting anything always asks for a **Delete** tap, and anything the assistant a
 | `<month> <year> expenditure`             | Show a stored monthly expenditure report.               |
 | `/expenditure <DD-MM-YYYY> <DD-MM-YYYY>` | Show spending on each day of a date range.              |
 | `<time>, <title>, <DD-MM-YYYY>`          | Preview a Google Calendar event.                        |
+| `/effort [auto\|low\|medium\|high]`      | Show or set how hard the assistant thinks.              |
 | `/help`                                  | Show the bot's help text.                               |
 | Anything else, or a photo                | Ask the AI assistant.                                   |
 
@@ -63,6 +64,14 @@ Any message that isn't a command, a number-only message or a calendar line goes 
 - with Canvas set up, lists modules and deadlines, finds and sends course files (up to 10 at once, as one album; files sent before are re-sent instantly), and reads them, so "solve Q2" works right after it sends a tutorial.
 
 Rich messages (LaTeX, formatting) need a Telegram app from June 2026 or later; otherwise the same reply arrives as plain text.
+
+#### Thinking effort
+
+The assistant chooses how hard the model thinks (`reasoning_effort`): **low** for bot actions and chat, so they stay quick, and **medium** for study questions, photos and files. Study answers have a **Think harder** button that asks again at **high**. `/effort low`, `/effort medium` or `/effort high` uses one level for every message; `/effort auto` goes back to the default.
+
+One message may take up to 270 seconds (Vercel stops the function at 300). Replies are streamed, so a long think isn't mistaken for a hang. If a level runs out of time, the bot answers with the next lower level (high → medium → low) and says so, unless the slow attempt had already changed something (added a to-do, sent a file) that a retry would repeat. After 20 seconds a "Working on it" note appears; it is deleted when the answer arrives.
+
+Models that don't accept `reasoning_effort` still work: after the first rejection the bot stops sending it and uses the model's default.
 
 ## Requirements
 
@@ -179,6 +188,7 @@ Unit tests don't contact Telegram, Google, Canvas, Supabase or Vercel. See [CONT
 - **Bot doesn't reply:** re-run `pnpm run setup:webhook` with the right URL, and check Vercel's logs for `Webhook request rejected`.
 - **Calendar `403` / `404`:** the calendar isn't shared with the service account, or `GOOGLE_CALENDAR_ID` is wrong.
 - **"The AI service returned an error":** check `LLM_*` values and that the model supports tool calling.
+- **"The AI took too long to answer":** even low effort ran out of time; ask one part at a time. Vercel's logs show `Assistant timing` lines with the effort used for each answer.
 - **Formulas show as `$x^2$`:** update your Telegram app; rich messages need a June 2026 or later version.
 
 ## Licence
