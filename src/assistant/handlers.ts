@@ -6,6 +6,7 @@ import { isCalendarConfigured } from "../calendar/config.js";
 import { canvasConfig, isCanvasConfigured, llmConfig } from "../env.js";
 import {
   runAssistant,
+  type Attachment,
   type CreateCompletion,
   type ReplyFormat,
 } from "./agent.js";
@@ -24,7 +25,8 @@ import {
 import type { OutgoingDocument } from "./file-sender.js";
 import type { BotActions } from "./bot-tools.js";
 import { undoKeyboard } from "./keyboards.js";
-import { AssistantToolbox } from "./tools.js";
+import { AssistantToolbox, MAX_IMAGES_PER_REQUEST } from "./tools.js";
+import { describeDocument, documentKind, readDocument } from "./documents.js";
 
 const MODEL_TIMEOUT_MS = 45_000;
 const CHAT_ACTION_INTERVAL_MS = 4_500;
@@ -210,6 +212,47 @@ export function imageFromMessage(message: unknown): IncomingImage | null {
   };
 }
 
+export type IncomingAttachment =
+  | { kind: "image"; fileId: string; mimeType: string }
+  | { kind: "file"; fileId: string; name: string; mimeType: string };
+
+// A photo or image (see imageFromMessage), or a document the assistant can
+// read: PDF, PowerPoint, Word, text or code.
+export function attachmentFromMessage(
+  message: unknown,
+): IncomingAttachment | { kind: "unsupported"; reason: string } | null {
+  const image = imageFromMessage(message);
+  if (image) return image;
+
+  const document = (
+    message as {
+      document?: {
+        file_id: string;
+        file_name?: string;
+        mime_type?: string;
+        file_size?: number;
+      };
+    }
+  ).document;
+  if (!document) return null;
+  const name = document.file_name ?? "file";
+  const mimeType = document.mime_type ?? "";
+  if (documentKind(name, mimeType) === "unsupported") {
+    return {
+      kind: "unsupported",
+      reason:
+        "I can read PDF, PowerPoint (.pptx), Word (.docx), text and code files, and images.",
+    };
+  }
+  if ((document.file_size ?? 0) > MAX_IMAGE_BYTES) {
+    return {
+      kind: "unsupported",
+      reason: "That file is over 20 MB, which is more than bots can download.",
+    };
+  }
+  return { kind: "file", fileId: document.file_id, name, mimeType };
+}
+
 function inputFile(document: OutgoingDocument): TelegramInputFile {
   const { source } = document;
   if (source.kind === "cached") return source.fileId;
@@ -331,7 +374,7 @@ export async function answerAssistantMessage(
   text: string,
   deps: AssistantDependencies,
   actions?: BotActions,
-  image?: { fileId: string; mimeType: string },
+  attached?: IncomingAttachment,
 ): Promise<void> {
   const chatAction = startChatAction(telegram, chatId);
   const started = Date.now();
@@ -370,9 +413,24 @@ export async function answerAssistantMessage(
     );
 
     const history = await deps.store.recentTurns(String(chatId), now);
-    const imageUrl = image
-      ? `data:${image.mimeType};base64,${(await telegram.downloadFile(image.fileId)).toString("base64")}`
+    const bytes = attached
+      ? await telegram.downloadFile(attached.fileId)
       : undefined;
+    const imageUrl =
+      attached?.kind === "image" && bytes
+        ? `data:${attached.mimeType};base64,${bytes.toString("base64")}`
+        : undefined;
+    let attachment: Attachment | undefined;
+    if (attached?.kind === "file" && bytes) {
+      const content = await readDocument(attached.name, bytes, {
+        mimeType: attached.mimeType,
+      });
+      const images = content.images.slice(0, MAX_IMAGES_PER_REQUEST);
+      attachment = {
+        text: describeDocument({ ...content, images }),
+        images,
+      };
+    }
     const result = await runAssistant({
       create: createCompletion,
       model,
@@ -380,6 +438,8 @@ export async function answerAssistantMessage(
       userText: text,
       image: imageUrl,
       features: { canvas: Boolean(canvas), calendar: isCalendarConfigured() },
+      attachment,
+      takeImages: () => toolbox.takeImages(),
       execute: (name, args) => toolbox.execute(name, args),
       now,
     });
@@ -401,10 +461,16 @@ export async function answerAssistantMessage(
       }`,
     );
     try {
-      // The image itself is not kept; history notes that one was sent.
+      // Images and files are not kept; history notes that one was sent.
+      const label =
+        attached?.kind === "image"
+          ? "[Photo]"
+          : attached
+            ? `[File: ${attached.name}]`
+            : "";
       await deps.store.appendTurn(
         String(chatId),
-        image ? `[Photo]${text ? ` ${text}` : ""}` : text,
+        label ? `${label}${text ? ` ${text}` : ""}` : text,
         result.reply,
         result.toolContext,
       );
@@ -430,10 +496,10 @@ export async function handleAssistantText(
   ctx: Context,
   text: string,
   deps: AssistantDependencies = defaultAssistantDependencies,
-  image?: { fileId: string; mimeType: string },
+  attached?: IncomingAttachment,
 ): Promise<void> {
   const chatId = ctx.chat?.id;
-  if (!chatId || (!text.trim() && !image)) return;
+  if (!chatId || (!text.trim() && !attached)) return;
 
   // Telegram re-delivers an update if it thinks the webhook failed. The claim
   // makes every retry a no-op once the first delivery has started.
@@ -446,7 +512,7 @@ export async function handleAssistantText(
       text.trim(),
       deps,
       deps.actionsFor?.(ctx),
-      image,
+      attached,
     ),
   );
 }
@@ -465,20 +531,30 @@ export function registerAssistantHandlers(
     const message = ctx.message;
     if (!message || !("text" in message) || message.text.startsWith("/"))
       return;
-    await handleAssistantText(ctx, message.text, deps);
+    // A reply to a file or photo (sent by the bot or the user) brings that
+    // file along, so "solve Q2" can be asked right under the PDF.
+    const replied = (message as { reply_to_message?: unknown })
+      .reply_to_message;
+    const attached = replied ? attachmentFromMessage(replied) : null;
+    if (attached?.kind === "unsupported") {
+      await ctx.reply(attached.reason);
+      return;
+    }
+    await handleAssistantText(ctx, message.text, deps, attached ?? undefined);
   });
 
-  // Photos, and images sent as files; the caption is the question.
-  const onImage = async (ctx: Context) => {
-    const image = imageFromMessage(ctx.message);
-    if (!image) return;
-    if (image.kind === "unsupported") {
-      await ctx.reply(image.reason);
+  // Photos, images sent as files, and readable documents; the caption is
+  // the question.
+  const onAttachment = async (ctx: Context) => {
+    const attached = attachmentFromMessage(ctx.message);
+    if (!attached) return;
+    if (attached.kind === "unsupported") {
+      await ctx.reply(attached.reason);
       return;
     }
     const caption = (ctx.message as { caption?: string }).caption ?? "";
-    await handleAssistantText(ctx, caption, deps, image);
+    await handleAssistantText(ctx, caption, deps, attached);
   };
-  on("photo", onImage);
-  on("document", onImage);
+  on("photo", onAttachment);
+  on("document", onAttachment);
 }

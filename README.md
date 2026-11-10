@@ -59,7 +59,8 @@ Any message that isn't a command, a number-only message or a calendar line goes 
 - runs bot actions from plain language: tasks, to-dos, reminders, expenditure, calendar events;
 - answers study questions (maths, proofs, algorithms, code) with LaTeX (`$...$`, `$$...$$`) that Telegram renders as typeset maths;
 - reads photos and images sent as files (JPG/PNG/WebP/GIF, up to 20 MB): a note meant for the bot is carried out, a problem is solved, and anything else is summarised without creating anything unless your caption asks;
-- with Canvas set up, lists modules and deadlines, and finds and sends course files (up to 10 at once, as one album; files sent before are re-sent instantly).
+- reads files: reply to any file or photo with a question, or send a PDF, PowerPoint (`.pptx`), Word (`.docx`), text or code file with a caption. PDFs are read as text plus images of up to 6 pages, so formulas, tables and diagrams come through (your AI provider only needs to accept images);
+- with Canvas set up, lists modules and deadlines, finds and sends course files (up to 10 at once, as one album; files sent before are re-sent instantly), and reads them, so "solve Q2" works right after it sends a tutorial.
 
 Rich messages (LaTeX, formatting) need a Telegram app from June 2026 or later; otherwise the same reply arrives as plain text.
 

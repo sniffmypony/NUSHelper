@@ -30,6 +30,16 @@ import {
   type FileDelivery,
 } from "./file-sender.js";
 import type { TelegramFileCache } from "./store.js";
+import {
+  MAX_READ_BYTES,
+  describeDocument,
+  readDocument,
+  type DocumentContent,
+} from "./documents.js";
+
+type PageImage = DocumentContent["images"][number];
+const MAX_FILES_PER_READ = 3;
+export const MAX_IMAGES_PER_REQUEST = 8;
 
 export type { FileDelivery } from "./file-sender.js";
 
@@ -112,6 +122,30 @@ const canvasTools: ChatCompletionFunctionTool[] = [
             type: "array",
             items: { type: "integer" },
             description: "ids from search_files.",
+          },
+        },
+        required: ["file_ids"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "read_files",
+      description:
+        "Read 1-3 Canvas files (PDF, PowerPoint, Word, text, code, images) to answer or solve questions about their content, including files you just sent. Returns the text; for PDFs, images of the pages (the first 6, or the pages asked for) are attached so formulas, tables and diagrams can be seen.",
+      parameters: {
+        type: "object",
+        properties: {
+          file_ids: {
+            type: "array",
+            items: { type: "integer" },
+            description: "ids from search_files or earlier tool_data.",
+          },
+          pages: {
+            type: "string",
+            description: "Optional PDF pages to show as images, e.g. '3-5'.",
           },
         },
         required: ["file_ids"],
@@ -283,6 +317,15 @@ export class AssistantToolbox {
   private coursesCache?: Promise<CanvasCourse[]>;
   // Changes made during this run, offered as Undo buttons on the reply.
   readonly undo: UndoRef[] = [];
+  // Page images from read_files, handed to the model after the tool results.
+  private pendingImages: PageImage[] = [];
+  private imagesShown = 0;
+
+  takeImages(): PageImage[] {
+    const images = this.pendingImages;
+    this.pendingImages = [];
+    return images;
+  }
 
   constructor(
     private readonly canvas: CanvasClient | undefined,
@@ -332,6 +375,8 @@ export class AssistantToolbox {
           return await this.listUpcomingAssignments(args);
         case "search_files":
           return await this.searchFiles(args);
+        case "read_files":
+          return await this.readFiles(args);
         case "send_files":
           return await this.sendFiles(args);
         default:
@@ -498,6 +543,46 @@ export class AssistantToolbox {
       );
     }
     return sections.join("\n\n");
+  }
+
+  private async readFiles(args: Record<string, unknown>): Promise<string> {
+    const raw = args.file_ids;
+    if (!Array.isArray(raw) || raw.length === 0) {
+      throw new AssistantToolError('"file_ids" must be a list of file ids.');
+    }
+    const ids = [...new Set(raw.map((value) => Number(value)))];
+    if (ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+      throw new AssistantToolError('"file_ids" must be positive integers.');
+    }
+    if (ids.length > MAX_FILES_PER_READ) {
+      throw new AssistantToolError(
+        `Read at most ${MAX_FILES_PER_READ} files at a time.`,
+      );
+    }
+    const pages = stringArg(args, "pages", false);
+
+    const parts: string[] = [];
+    for (const id of ids) {
+      const file = await this.canvasClient.getFile(id);
+      if (file.size > MAX_READ_BYTES) {
+        parts.push(
+          `File: ${file.display_name}\nNote: too large to read (over 25 MB).`,
+        );
+        continue;
+      }
+      const content = await readDocument(
+        file.display_name || file.filename,
+        await this.canvasClient.downloadFile(file),
+        { mimeType: file["content-type"], pages },
+      );
+      // Cap images across the whole request to keep it fast.
+      const room = Math.max(0, MAX_IMAGES_PER_REQUEST - this.imagesShown);
+      const images = content.images.slice(0, room);
+      this.imagesShown += images.length;
+      this.pendingImages.push(...images);
+      parts.push(describeDocument({ ...content, images }));
+    }
+    return parts.join("\n\n=====\n\n");
   }
 
   private async sendFiles(args: Record<string, unknown>): Promise<string> {

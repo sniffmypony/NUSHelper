@@ -193,7 +193,7 @@ describe("photos", () => {
         model: "m",
       },
       undefined,
-      { fileId: "photo-1", mimeType: "image/jpeg" },
+      { kind: "image", fileId: "photo-1", mimeType: "image/jpeg" },
     );
     expect(telegram.downloadFile).toHaveBeenCalledWith("photo-1");
     const userMessage = create.mock.calls[0][0].messages.at(-1);

@@ -134,6 +134,8 @@ export function systemPrompt(
     "When list_upcoming_assignments returns a formatted list, reply with that list as-is (you may add one short line).",
     "To send files: call search_files ONCE with every requested item in queries (e.g. ['lecture 10', 'lecture 11']), then call send_files ONCE with all the files found, then say in one line which items had no file. Search already tries spellings like L10 and Lec 10, so never search again for an item that wasn't found. If several files match one item equally well, list them numbered (name and size) and ask which one.",
     "Never say a file was sent unless send_files returned 'Sent'.",
+    "You CAN read files: never say you can't. To answer, solve or explain anything in a Canvas file (including one you just sent, whose id is in earlier <tool_data>), call read_files with its id; you get its text and images of its pages. To solve a specific question, read the file, find the question, then solve it with full working. If the question is on a later page than the images you were shown, call read_files again with those pages.",
+    "If the user's message includes an <attached_file>, that is a file they sent or replied to; use it directly without searching Canvas.",
     "If a tool returns an error, explain it briefly in plain words.",
     "Format replies in Markdown: **bold**, lists, `code` and code blocks. No headings in short replies.",
     "Write all mathematics in LaTeX: $...$ inline and $$...$$ on its own line for display (Telegram renders both). Never use a bare $ for money; write amounts as S$5.00.",
@@ -157,6 +159,50 @@ export function historyToMessages(
 }
 
 export const NO_CAPTION_TEXT = "(The user sent this photo with no caption.)";
+export const NO_MESSAGE_FILE_TEXT =
+  "(The user sent this file with no message.)";
+
+export type PageImage = { label: string; url: string };
+export interface Attachment {
+  text: string;
+  images: PageImage[];
+}
+
+function userMessage(options: {
+  userText: string;
+  image?: string;
+  attachment?: Attachment;
+}): ChatCompletionMessageParam {
+  const { userText, image, attachment } = options;
+  if (!image && !attachment) return { role: "user", content: userText };
+  const text =
+    (userText || (attachment ? NO_MESSAGE_FILE_TEXT : NO_CAPTION_TEXT)) +
+    (attachment
+      ? `\n\n<attached_file>\n${attachment.text}\n</attached_file>`
+      : "");
+  const urls = [
+    ...(image ? [image] : []),
+    ...(attachment?.images.map((i) => i.url) ?? []),
+  ];
+  return {
+    role: "user",
+    content: [
+      { type: "text", text },
+      ...urls.map((url) => ({
+        type: "image_url" as const,
+        image_url: { url },
+      })),
+    ],
+  };
+}
+
+// The "File: …" / "Pages: …" lines of each file read, without the body.
+function fileHeaders(output: string): string {
+  return output
+    .split("\n\n=====\n\n")
+    .map((part) => part.split("\n\n")[0])
+    .join("\n");
+}
 
 export async function runAssistant(options: {
   create: CreateCompletion;
@@ -167,6 +213,10 @@ export async function runAssistant(options: {
   image?: string;
   // Optional integrations that are set up; defaults to all.
   features?: AssistantFeatures;
+  // A file the user sent or replied to: its text and page images.
+  attachment?: Attachment;
+  // Page images produced by tools (read_files), shown after tool results.
+  takeImages?: () => PageImage[];
   execute: ExecuteTool;
   now?: Date;
 }): Promise<AssistantResult> {
@@ -178,15 +228,7 @@ export async function runAssistant(options: {
       content: systemPrompt(options.now ?? new Date(), features),
     },
     ...historyToMessages(options.history),
-    options.image
-      ? {
-          role: "user",
-          content: [
-            { type: "text", text: options.userText || NO_CAPTION_TEXT },
-            { type: "image_url", image_url: { url: options.image } },
-          ],
-        }
-      : { role: "user", content: options.userText },
+    userMessage(options),
   ];
   const toolOutputs: string[] = [];
   const toolContext = () =>
@@ -280,8 +322,28 @@ export async function runAssistant(options: {
       for (const missing of output.matchAll(MISSING_SEARCH_LINE)) {
         notFound.add(`No file found for "${missing[1]}" in ${missing[2]}.`);
       }
-      toolOutputs.push(`[${call.function.name}]\n${output}`);
+      // A file's full text would push earlier file ids out of the history
+      // context; only its header (name, pages) is kept there.
+      toolOutputs.push(
+        `[${call.function.name}]\n${call.function.name === "read_files" ? fileHeaders(output) : output}`,
+      );
       messages.push({ role: "tool", tool_call_id: call.id, content: output });
+    }
+    const images = options.takeImages?.() ?? [];
+    if (images.length > 0) {
+      messages.push({
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `(Automatic: page images from read_files: ${images.map((i) => i.label).join("; ")}.)`,
+          },
+          ...images.map((image) => ({
+            type: "image_url" as const,
+            image_url: { url: image.url },
+          })),
+        ],
+      });
     }
     if (
       toolCalls.every((call, index) =>
