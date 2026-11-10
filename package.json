@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vercel/functions": "^3.10.5",
+    "@vercel/functions": "^3.11.0",
     "drizzle-orm": "^0.33.0",
     "google-auth-library": "^10.3.0",
     "googleapis": "^160.0.0",
