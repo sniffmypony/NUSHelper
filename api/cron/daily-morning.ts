@@ -4,7 +4,11 @@ import { db } from "../../src/db/client.js";
 import { tasks, todos } from "../../src/db/schema.js";
 import { addDays, todayInSingapore } from "../../src/dates.js";
 import { sendTelegramMessage } from "../../src/telegram.js";
-import { formatTodoItem, isTaskDueOn } from "../../src/task-todo.js";
+import {
+  formatTaskItem,
+  formatTodoItem,
+  isTaskDueOn,
+} from "../../src/task-todo.js";
 import { singaporeDateRange } from "../../src/dates.js";
 import { formatCalendarAgenda } from "../../src/calendar/agenda.js";
 import { isCalendarConfigured } from "../../src/calendar/config.js";
@@ -81,17 +85,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (dueTomorrow.length) {
     sections.push(
       "📋 Due tomorrow:\n" +
-        dueTomorrow
-          .map(
-            (t) =>
-              `#${t.id} ${t.description}${t.module ? ` [${t.module}]` : ""} — ${t.dueDate}`,
-          )
-          .join("\n"),
+        dueTomorrow.map((t) => formatTaskItem(t)).join("\n"),
     );
   }
   if (todosToday.length) {
     sections.push(
-      "✅ Today's to-dos:\n" + todosToday.map(formatTodoItem).join("\n"),
+      "✅ Today's to-dos:\n" +
+        todosToday.map((item) => formatTodoItem(item)).join("\n"),
     );
   }
   if (calendarEvents.length) {

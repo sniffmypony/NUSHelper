@@ -344,7 +344,7 @@ describe("answering with effort, fallback and Think harder", () => {
     const telegram = fakeTelegram();
     const addTodo = vi
       .fn()
-      .mockResolvedValue({ message: "Added to-do #5: laundry" });
+      .mockResolvedValue({ message: "Added to today's list: laundry" });
     const create = vi
       .fn()
       .mockResolvedValueOnce(

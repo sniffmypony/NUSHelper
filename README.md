@@ -25,8 +25,8 @@ Deleting anything always asks for a **Delete** tap, and anything the assistant a
 | ---------------------------------------- | ------------------------------------------------------- |
 | `/task <text> #MODULE @YYYY-MM-DD`       | Add a long-term task. Module and due date are optional. |
 | `/list`                                  | List unfinished tasks.                                  |
-| `/done <id>`                             | Complete a task and remove its linked daily to-do.      |
-| `/remove <id>`                           | Permanently delete a task.                              |
+| `/done [name]`                           | Complete a task (pick from buttons, or match by name).  |
+| `/remove [name]`                         | Delete a task, after a Delete tap.                      |
 | `/todo <text>`                           | Add an item to today's list.                            |
 | `/todos`                                 | Show today's list.                                      |
 | `/remind HHMM <text>`                    | Send a reminder later today in Singapore time.          |

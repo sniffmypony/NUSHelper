@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "../../src/db/client.js";
 import { tasks } from "../../src/db/schema.js";
+import { formatTaskItem } from "../../src/task-todo.js";
 import {
   addDays,
   mondayOfSingaporeWeek,
@@ -70,12 +71,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (due.length) {
     sections.push(
       "📋 Open tasks due this week:\n" +
-        due
-          .map(
-            (t) =>
-              `#${t.id} ${t.description}${t.module ? ` [${t.module}]` : ""} — ${t.dueDate}`,
-          )
-          .join("\n"),
+        due.map((t) => formatTaskItem(t)).join("\n"),
     );
   }
   if (calendarReadFailed) {

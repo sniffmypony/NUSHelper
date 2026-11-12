@@ -20,6 +20,7 @@ import {
   requestDeletion,
 } from "./assistant/buttons.js";
 import { isPrivateOwner } from "./security.js";
+import { registerTaskPicker } from "./task-picker.js";
 import {
   parseReminderCommandLine,
   parseTodoCommandLine,
@@ -65,19 +66,6 @@ bot.use(async (ctx, next) => {
   if (!isPrivateOwner(ctx.from?.id, ctx.chat?.type, OWNER_ID)) return;
   return next();
 });
-
-function parseTaskId(
-  messageText: string,
-  command: "done" | "remove",
-): number | null {
-  const rawId = messageText
-    .replace(new RegExp(`^/${command}(@\\w+)?`), "")
-    .trim();
-  if (!/^\d+$/.test(rawId)) return null;
-
-  const id = Number(rawId);
-  return Number.isSafeInteger(id) && id > 0 && id <= 2_147_483_647 ? id : null;
-}
 
 async function addTodo(ctx: Context, description: string): Promise<void> {
   await ctx.reply((await actions.addTodo(description)).message);
@@ -266,17 +254,7 @@ bot.command("task", async (ctx) => {
   return ctx.reply((await actions.addTask(input)).message);
 });
 
-bot.command("remove", async (ctx) => {
-  const id = parseTaskId(ctx.message.text, "remove");
-  if (id === null) return ctx.reply("Usage: /remove <positive numeric id>");
-  return ctx.reply(await actions.removeTask(id));
-});
-
-bot.command("done", async (ctx) => {
-  const id = parseTaskId(ctx.message.text, "done");
-  if (id === null) return ctx.reply("Usage: /done <positive numeric id>");
-  return ctx.reply(await actions.completeTask(id));
-});
+registerTaskPicker(bot);
 
 bot.command("list", async (ctx) => ctx.reply(await actions.listOpenTasks()));
 
@@ -308,8 +286,8 @@ bot.command("help", (ctx) => {
       "📋 Tasks — long-term, shows in the weekly Monday digest",
       "/task <description> #MODULE @YYYY-MM-DD — add",
       "/list — show open tasks",
-      "/done <id> — mark complete",
-      "/remove <id> — delete",
+      "/done — pick a task to mark complete (or /done <name>)",
+      "/remove — pick a task to delete (or /remove <name>)",
       "",
       "✅ Today's to-dos — cleared nightly at ~11pm",
       "/todo <description> — add",
@@ -449,20 +427,24 @@ registerAssistantHandlers(bot, {
         return {
           message: result.message,
           undo: result.id
-            ? { kind: "task", id: result.id, label: `task #${result.id}` }
+            ? { kind: "task", id: result.id, label: result.label ?? "task" }
             : undefined,
         };
       },
-      listTasks: actions.listOpenTasks,
+      listTasks: () => actions.listOpenTasks(true),
       completeTask: actions.completeTask,
       addTodo: async (description) => {
         const result = await actions.addTodo(description);
         return {
           message: result.message,
-          undo: { kind: "todo", id: result.id!, label: `to-do #${result.id}` },
+          undo: {
+            kind: "todo",
+            id: result.id!,
+            label: result.label ?? "to-do",
+          },
         };
       },
-      listTodos: actions.listTodayTodos,
+      listTodos: () => actions.listTodayTodos(true),
       addReminder: async (command) => {
         const result = await actions.addReminder(command, {
           ownerId: ownerIdValue,
@@ -476,11 +458,12 @@ registerAssistantHandlers(bot, {
           undo: {
             kind: "rem",
             id: result.id!,
-            label: `reminder #${result.id}`,
+            label: result.label ?? "reminder",
           },
         };
       },
-      listReminders: () => actions.listPendingReminders(ownerIdValue),
+      listReminders: () =>
+        actions.listPendingReminders(ownerIdValue, new Date(), true),
       stageCalendarEvent: (text) =>
         stageCalendarMessage(
           ctx,

@@ -19,15 +19,15 @@ async function describe(
 ): Promise<string | null> {
   if (kind === "todo") {
     const todo = await actions.findTodo(id);
-    return todo ? `to-do #${todo.id}: ${todo.description}` : null;
+    return todo ? `to-do: ${todo.description}` : null;
   }
   if (kind === "task") {
     const task = await actions.findTask(id);
-    return task ? `task #${task.id}: ${task.description}` : null;
+    return task ? `task: ${task.description}` : null;
   }
   const reminder = await actions.findPendingReminder(id, ownerId);
   return reminder
-    ? `reminder #${reminder.id} at ${reminder.time}: ${reminder.description}`
+    ? `reminder at ${reminder.time}: ${reminder.description}`
     : null;
 }
 
@@ -49,7 +49,7 @@ export async function requestDeletion(
 ): Promise<string> {
   const label = await describe(kind, id, ownerId);
   if (!label) {
-    return `Error: ${NOUN[kind]} #${id} was not found${kind === "rem" ? " or has already been sent" : ""}.`;
+    return `Error: that ${NOUN[kind]} was not found${kind === "rem" ? " or has already been sent" : ""}.`;
   }
   await ctx.reply(`Delete ${label}?`, {
     reply_markup: confirmDeleteKeyboard(kind, id),

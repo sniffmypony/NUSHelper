@@ -10,21 +10,23 @@ import {
 function setup() {
   const actions = {
     addTask: vi.fn().mockResolvedValue({
-      message: "Added #3: Finish ER diagram [CS2102]",
-      undo: { kind: "task", id: 3, label: "task #3" },
+      message: "Added: Finish ER diagram [CS2102]",
+      undo: { kind: "task", id: 3, label: "Finish ER diagram" },
     }),
-    listTasks: vi.fn().mockResolvedValue("#3 Finish ER diagram [CS2102]"),
-    completeTask: vi.fn().mockResolvedValue("Marked #3 done ✅"),
+    listTasks: vi
+      .fn()
+      .mockResolvedValue("• Finish ER diagram [CS2102] (task_id 3)"),
+    completeTask: vi.fn().mockResolvedValue("Marked done ✅ Finish ER diagram"),
     addTodo: vi.fn().mockResolvedValue({
-      message: "Added to today's list: #1 laundry",
-      undo: { kind: "todo", id: 1, label: "to-do #1" },
+      message: "Added to today's list: laundry",
+      undo: { kind: "todo", id: 1, label: "laundry" },
     }),
     listTodos: vi.fn().mockResolvedValue("Today's list is empty."),
     addReminder: vi.fn().mockResolvedValue({
       message: "Reminder set for 18:00 today: do tut",
-      undo: { kind: "rem", id: 9, label: "reminder #9" },
+      undo: { kind: "rem", id: 9, label: "18:00 do tut" },
     }),
-    listReminders: vi.fn().mockResolvedValue("#9 18:00 do tut"),
+    listReminders: vi.fn().mockResolvedValue("• 18:00 do tut (reminder_id 9)"),
     stageCalendarEvent: vi.fn().mockResolvedValue(true),
     listCalendarEvents: vi.fn().mockResolvedValue("No events in that range."),
     requestDeletion: vi.fn().mockResolvedValue("Asked the user to confirm."),
@@ -74,11 +76,13 @@ describe("assistant bot-action tools", () => {
         "add_task",
         '{"description":"Finish ER diagram","module_code":"cs 2102","due_date":"2026-11-09"}',
       ),
-    ).resolves.toBe("Added #3: Finish ER diagram [CS2102]");
+    ).resolves.toBe("Added: Finish ER diagram [CS2102]");
     expect(actions.addTask).toHaveBeenCalledWith(
       "Finish ER diagram #cs2102 @2026-11-09",
     );
-    expect(toolbox.undo).toEqual([{ kind: "task", id: 3, label: "task #3" }]);
+    expect(toolbox.undo).toEqual([
+      { kind: "task", id: 3, label: "Finish ER diagram" },
+    ]);
   });
 
   it("rejects a malformed due date before touching the database", async () => {
@@ -141,7 +145,7 @@ describe("assistant bot-action tools", () => {
     expect(actions.completeTask).not.toHaveBeenCalled();
     await expect(
       toolbox.execute("complete_task", '{"task_id":3}'),
-    ).resolves.toBe("Marked #3 done ✅");
+    ).resolves.toBe("Marked done ✅ Finish ER diagram");
   });
 
   it("routes deletions to a confirmation instead of deleting", async () => {
@@ -202,7 +206,7 @@ describe("assistant keyboards", () => {
     ]);
     expect(undoKeyboard([])).toBeUndefined();
     const keyboard = undoKeyboard([
-      { kind: "rem", id: 2_147_483_647, label: "reminder #2147483647" },
+      { kind: "rem", id: 2_147_483_647, label: "18:00 do tut" },
     ])!;
     const button = keyboard.inline_keyboard[0][0];
     expect(button.callback_data).toBe("ai:undo:rem:2147483647");

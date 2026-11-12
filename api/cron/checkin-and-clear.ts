@@ -24,7 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (items.length > 0) {
     const text =
       "🌙 Before the day ends — here's what was on today's list:\n" +
-      items.map(formatTodoItem).join("\n") +
+      items.map((item) => formatTodoItem(item)).join("\n") +
       "\n\nDid you get through these?";
 
     try {

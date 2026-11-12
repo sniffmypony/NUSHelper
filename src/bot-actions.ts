@@ -19,13 +19,19 @@ import { expenditureStore } from "./expenditure-store.js";
 import type { ParsedReminderCommand } from "./message-lines.js";
 import { scheduleReminderToday } from "./reminders.js";
 import { reminderStore } from "./reminder-store.js";
-import { formatTodoItem, isTaskDueOn } from "./task-todo.js";
+import {
+  formatTaskItem,
+  formatTodoItem,
+  isTaskDueOn,
+  type TaskListItem,
+} from "./task-todo.js";
 
 // The bodies of the task, to-do, reminder and expenditure commands. Both the
 // slash commands and the Canvas assistant's tools call these, so validation,
 // storage and confirmations are identical whichever way a request arrives.
 
-export type ActionResult = { message: string; id?: number };
+// label names the item on its Undo button.
+export type ActionResult = { message: string; id?: number; label?: string };
 
 // Pulls "#MODULE" and "@YYYY-MM-DD" out of free text, whatever order they're typed in.
 export function parseTaskInput(input: string):
@@ -82,11 +88,15 @@ export async function addTask(input: string): Promise<ActionResult> {
 
   return {
     id: row.id,
+    label: description,
     message:
-      `Added #${row.id}: ${description}${module ? ` [${module}]` : ""}${dueDate ? ` — due ${dueDate}` : ""}` +
-      (dueToday ? `\nAlso added to today's to-do list (task #${row.id}).` : ""),
+      `Added: ${description}${module ? ` [${module}]` : ""}${dueDate ? ` — due ${dueDate}` : ""}` +
+      (dueToday ? "\nAlso added to today's to-do list." : ""),
   };
 }
+
+const TASK_NOT_FOUND =
+  "That task wasn't found. It may already be done or deleted.";
 
 export async function completeTask(id: number): Promise<string> {
   const updated = await db.transaction(async (tx) => {
@@ -94,7 +104,7 @@ export async function completeTask(id: number): Promise<string> {
       .update(tasks)
       .set({ done: true })
       .where(eq(tasks.id, id))
-      .returning({ id: tasks.id });
+      .returning({ description: tasks.description });
 
     if (rows.length > 0) {
       await tx.delete(todos).where(eq(todos.taskId, id));
@@ -102,17 +112,17 @@ export async function completeTask(id: number): Promise<string> {
 
     return rows;
   });
-  if (updated.length === 0) return `Task #${id} not found.`;
-  return `Marked #${id} done ✅`;
+  if (updated.length === 0) return TASK_NOT_FOUND;
+  return `Marked done ✅ ${updated[0].description}`;
 }
 
 export async function removeTask(id: number): Promise<string> {
   const deleted = await db
     .delete(tasks)
     .where(eq(tasks.id, id))
-    .returning({ id: tasks.id });
-  if (deleted.length === 0) return `Task #${id} not found.`;
-  return `Removed #${id}`;
+    .returning({ description: tasks.description });
+  if (deleted.length === 0) return TASK_NOT_FOUND;
+  return `Removed task: ${deleted[0].description}`;
 }
 
 export async function findTask(
@@ -126,20 +136,24 @@ export async function findTask(
   return row ?? null;
 }
 
-export async function listOpenTasks(): Promise<string> {
-  const open = await db
-    .select()
+export async function openTasks(): Promise<TaskListItem[]> {
+  return db
+    .select({
+      id: tasks.id,
+      description: tasks.description,
+      module: tasks.module,
+      dueDate: tasks.dueDate,
+    })
     .from(tasks)
     .where(eq(tasks.done, false))
-    .orderBy(asc(tasks.dueDate));
-  if (open.length === 0) return "Nothing on your list 🎉";
+    .orderBy(asc(tasks.dueDate), asc(tasks.id));
+}
 
-  return open
-    .map(
-      (t) =>
-        `#${t.id} ${t.description}${t.module ? ` [${t.module}]` : ""}${t.dueDate ? ` — due ${t.dueDate}` : ""}`,
-    )
-    .join("\n");
+// withId is for the assistant, which needs ids for its tools.
+export async function listOpenTasks(withId = false): Promise<string> {
+  const open = await openTasks();
+  if (open.length === 0) return "Nothing on your list 🎉";
+  return open.map((task) => formatTaskItem(task, withId)).join("\n");
 }
 
 export async function addTodo(description: string): Promise<ActionResult> {
@@ -149,7 +163,8 @@ export async function addTodo(description: string): Promise<ActionResult> {
     .returning({ id: todos.id });
   return {
     id: row.id,
-    message: `Added to today's list: #${row.id} ${description}`,
+    label: description,
+    message: `Added to today's list: ${description}`,
   };
 }
 
@@ -169,14 +184,16 @@ export async function deleteTodo(id: number): Promise<string> {
     .delete(todos)
     .where(eq(todos.id, id))
     .returning({ description: todos.description });
-  if (deleted.length === 0) return `To-do #${id} not found.`;
-  return `Removed to-do #${id}: ${deleted[0].description}`;
+  if (deleted.length === 0) {
+    return "That to-do wasn't found. It may already be deleted or cleared.";
+  }
+  return `Removed to-do: ${deleted[0].description}`;
 }
 
-export async function listTodayTodos(): Promise<string> {
+export async function listTodayTodos(withId = false): Promise<string> {
   const items = await db.select().from(todos).orderBy(asc(todos.id));
   if (items.length === 0) return "Today's list is empty.";
-  return items.map(formatTodoItem).join("\n");
+  return items.map((item) => formatTodoItem(item, withId)).join("\n");
 }
 
 // Returns null when the time has already passed today.
@@ -200,6 +217,7 @@ export async function addReminder(
   });
   return {
     id: reminder.id,
+    label: `${schedule.displayTime} ${command.description}`,
     message: `Reminder set for ${schedule.displayTime} today: ${command.description}`,
   };
 }
@@ -213,6 +231,7 @@ function reminderTime(date: Date): string {
 export async function listPendingReminders(
   ownerId: string,
   now = new Date(),
+  withId = false,
 ): Promise<string> {
   const rows = await db
     .select()
@@ -228,7 +247,8 @@ export async function listPendingReminders(
   if (rows.length === 0) return "No reminders are waiting to be sent.";
   return rows
     .map(
-      (row) => `#${row.id} ${reminderTime(row.scheduledAt)} ${row.description}`,
+      (row) =>
+        `• ${reminderTime(row.scheduledAt)} ${row.description}${withId ? ` (reminder_id ${row.id})` : ""}`,
     )
     .join("\n");
 }
@@ -273,9 +293,9 @@ export async function cancelReminder(
     )
     .returning({ description: reminders.description });
   if (deleted.length === 0) {
-    return `Reminder #${id} was not found or has already been sent.`;
+    return "That reminder wasn't found or has already been sent.";
   }
-  return `Cancelled reminder #${id}: ${deleted[0].description}`;
+  return `Cancelled reminder: ${deleted[0].description}`;
 }
 
 export async function expenditureBreakdown(
