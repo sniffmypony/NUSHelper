@@ -9,7 +9,8 @@ import {
   singaporeDateRange,
   todayInSingapore,
 } from "../../src/dates.js";
-import { sendTelegramMessage } from "../../src/telegram.js";
+import { sendToTopic } from "../../src/topics.js";
+import { canvasDeadlineSection } from "../../src/canvas/deadlines.js";
 import { formatCalendarAgenda } from "../../src/calendar/agenda.js";
 import { isCalendarConfigured } from "../../src/calendar/config.js";
 import { getCalendarGateway } from "../../src/calendar/google.js";
@@ -74,9 +75,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         due.map((t) => formatTaskItem(t)).join("\n"),
     );
   }
+  // Canvas is optional too. Everything due up to the end of Sunday is shown,
+  // with a tick on what has already been submitted.
+  const weekRange = singaporeDateRange(weekStart, 7);
+  const canvas = await canvasDeadlineSection(
+    "🎓 Canvas deadlines this week:",
+    new Date(),
+    new Date(weekRange.timeMax),
+    { includeSubmitted: true },
+  );
+  if (canvas.text) sections.push(canvas.text);
   if (calendarReadFailed) {
     sections.push(
       "⚠️ I couldn't check Google Calendar, so this digest may be incomplete.",
+    );
+  }
+  if (canvas.failed) {
+    sections.push(
+      "⚠️ I couldn't check Canvas, so its deadlines are missing here.",
     );
   }
 
@@ -85,7 +101,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     : "Nothing due this week 🎉";
 
   try {
-    await sendTelegramMessage(text);
+    await sendToTopic("planner", text);
     return res.status(200).send("sent");
   } catch (error) {
     console.error("Weekly digest Telegram delivery failed:", error);

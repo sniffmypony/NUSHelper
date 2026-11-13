@@ -2,6 +2,7 @@ import type { Context, Telegraf } from "telegraf";
 import * as actions from "../bot-actions.js";
 import type { DeletableKind } from "./bot-tools.js";
 import { confirmDeleteKeyboard, type InlineKeyboard } from "./keyboards.js";
+import { deleteRecurring, findRecurring } from "../recurring.js";
 
 // Handlers for the assistant's deletions and undos. Deleting always waits for
 // a Delete press; Undo removes something the assistant just added.
@@ -10,6 +11,7 @@ const NOUN: Record<DeletableKind, string> = {
   todo: "to-do",
   task: "task",
   rem: "reminder",
+  rep: "repeating item",
 };
 
 async function describe(
@@ -25,6 +27,10 @@ async function describe(
     const task = await actions.findTask(id);
     return task ? `task: ${task.description}` : null;
   }
+  if (kind === "rep") {
+    const item = await findRecurring(id);
+    return item ? `repeating item (${item.when}): ${item.description}` : null;
+  }
   const reminder = await actions.findPendingReminder(id, ownerId);
   return reminder
     ? `reminder at ${reminder.time}: ${reminder.description}`
@@ -38,6 +44,7 @@ function performDelete(
 ): Promise<string> {
   if (kind === "todo") return actions.deleteTodo(id);
   if (kind === "task") return actions.removeTask(id);
+  if (kind === "rep") return deleteRecurring(id);
   return actions.cancelReminder(id, ownerId);
 }
 
@@ -76,7 +83,7 @@ async function setKeyboard(
 }
 
 export function registerAssistantButtons(bot: Telegraf, ownerId: string): void {
-  bot.action(/^ai:(del|undo):(todo|task|rem):(\d{1,10})$/, async (ctx) => {
+  bot.action(/^ai:(del|undo):(todo|task|rem|rep):(\d{1,10})$/, async (ctx) => {
     try {
       await ctx.answerCbQuery();
     } catch {

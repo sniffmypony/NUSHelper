@@ -3,7 +3,12 @@ import { TelegramDeliveryError } from "./telegram.js";
 
 const MAX_ATTEMPTS = 5;
 
-export type ReminderSender = (text: string, chatId: string) => Promise<void>;
+// The reminder itself is passed so the message can carry snooze buttons.
+export type ReminderSender = (
+  text: string,
+  chatId: string,
+  reminder: Reminder,
+) => Promise<void>;
 
 export type DispatchResult = {
   claimed: number;
@@ -32,7 +37,7 @@ export async function dispatchDueReminders(
 
   for (const reminder of claimed) {
     try {
-      await send(reminder.description, reminder.chatId);
+      await send(reminder.description, reminder.chatId, reminder);
       await store.markSent(reminder.id, now);
       sent += 1;
     } catch (error) {

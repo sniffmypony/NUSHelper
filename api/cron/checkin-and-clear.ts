@@ -2,8 +2,13 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { asc, sql } from "drizzle-orm";
 import { db } from "../../src/db/client.js";
 import { todos } from "../../src/db/schema.js";
-import { sendTelegramMessage } from "../../src/telegram.js";
 import { formatTodoItem } from "../../src/task-todo.js";
+import {
+  carryoverKeyboard,
+  saveCarryovers,
+  type CarryoverItem,
+} from "../../src/todo-carryover.js";
+import { sendToTopic } from "../../src/topics.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const cronSecret = process.env.CRON_SECRET?.trim();
@@ -19,38 +24,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).send("could not read todos; list was not cleared");
   }
 
-  // Only ping if there was actually something on the list today.
-  let sendFailed = false;
+  // Keep tonight's items for a day so "Move to tomorrow" can restore them.
+  // A retried run finds an empty list and must not wipe what was saved.
+  let carryovers: CarryoverItem[] = [];
   if (items.length > 0) {
-    const text =
-      "🌙 Before the day ends — here's what was on today's list:\n" +
-      items.map((item) => formatTodoItem(item)).join("\n") +
-      "\n\nDid you get through these?";
-
     try {
-      await sendTelegramMessage(text);
+      carryovers = await saveCarryovers(items);
     } catch (error) {
-      sendFailed = true;
       console.error(
-        "Nightly check-in message failed; continuing with the required clear:",
+        "Nightly check-in could not save items to move; sending without buttons:",
         error,
       );
     }
   }
 
-  // Runs right after the message so the two can never fire out of order.
-  // TRUNCATE also restarts the serial ID, so each new daily list begins at #1.
-  // (Vercel Hobby only guarantees cron timing to the hour, not the minute).
+  // The list is cleared before the message goes out, so an item moved with
+  // its button always lands on the fresh list. TRUNCATE also restarts the
+  // serial id. (Vercel Hobby only guarantees cron timing to the hour.)
   try {
     await db.execute(sql`truncate table ${todos} restart identity`);
   } catch (error) {
     console.error("Nightly todo clear failed:", error);
-    return res
-      .status(500)
-      .send(sendFailed ? "message and clear failed" : "clear failed");
+    return res.status(500).send("clear failed");
   }
 
-  if (sendFailed)
-    return res.status(502).send("message failed; todos were cleared");
+  // Only ping if there was actually something on the list today.
+  if (items.length > 0) {
+    const text =
+      "🌙 Before the day ends — here's what was on today's list:\n" +
+      items.map((item) => formatTodoItem(item)).join("\n") +
+      (carryovers.length > 0
+        ? "\n\nThe list is now cleared. Tap anything you didn't finish to keep it for tomorrow."
+        : "\n\nThe list is now cleared.");
+
+    try {
+      await sendToTopic("planner", text, {
+        replyMarkup: carryoverKeyboard(carryovers),
+      });
+    } catch (error) {
+      console.error("Nightly check-in message failed after the clear:", error);
+      return res.status(502).send("message failed; todos were cleared");
+    }
+  }
+
   return res.status(200).send("checked in and cleared");
 }

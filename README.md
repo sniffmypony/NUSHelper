@@ -11,7 +11,10 @@ Each person runs their **own copy** for their own Telegram account: your data, k
 | Feature                      | What it does                                                                                                                                                        |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Tasks and to-dos             | Long-term tasks with module and due date, plus a daily to-do list that clears every night. Tasks due today roll into the to-do list each morning.                   |
-| Reminders                    | `/remind 1800 do tutorial` sends a reminder later the same day.                                                                                                     |
+| Reminders                    | `/remind 1800 do tutorial` for today, or `/remind 20-11 0900 submit form` for another day. Every reminder has snooze buttons.                                       |
+| Repeating to-dos             | `/every mon tutorial prep` adds itself to the to-do list on those mornings.                                                                                         |
+| Class timetable              | Paste a NUSMods share link once; each day's classes show in the 8am message during teaching weeks 1–13.                                                             |
+| Topics                       | `/topics` sorts the bot's messages into Planner, Study, Canvas files and Expenditure topics inside the one chat.                                                    |
 | Expenditure                  | An `expenditure:` prompt every night at 11:30pm, or just send amounts like `5 3.9` any time. Weekly and monthly reports, plus a day-by-day breakdown for any range. |
 | AI assistant                 | Plain-language requests ("remind me at 6pm to do tut"), study questions with LaTeX that Telegram renders, and photos (solves a problem or carries out a note).      |
 | Canvas _(optional)_          | "What's due this week?", "send me the lecture 5 slides for CS2102". Tested with NUS Canvas.                                                                         |
@@ -29,7 +32,11 @@ Deleting anything always asks for a **Delete** tap, and anything the assistant a
 | `/remove [name]`                         | Delete a task, after a Delete tap.                      |
 | `/todo <text>`                           | Add an item to today's list.                            |
 | `/todos`                                 | Show today's list.                                      |
-| `/remind HHMM <text>`                    | Send a reminder later today in Singapore time.          |
+| `/remind [day] HHMM <text>`              | Send a reminder today, or on `tmr` / `DD-MM` / a date.  |
+| `/every <when> <text>`                   | Add a repeating to-do (`mon`, `mon,thu`, `day`, `1`).   |
+| `/repeats`                               | List repeating to-dos and stop one.                     |
+| `/timetable [NUSMods link \| clear]`     | Save, show or remove your class timetable.              |
+| `/topics`                                | Create the four topics (needs Threaded mode).           |
 | `<amounts>`                              | Add spending to today (or answer the nightly prompt).   |
 | `<month> <year> expenditure`             | Show a stored monthly expenditure report.               |
 | `/expenditure <DD-MM-YYYY> <DD-MM-YYYY>` | Show spending on each day of a date range.              |
@@ -48,6 +55,27 @@ prove that sqrt(2) is irrational
 ```
 
 Calendar messages need exactly three comma-separated fields; put a title containing a comma in double quotes. The bot shows a preview first, and nothing is created until you press **Create**. You can send several `/todo`, `/remind` or calendar lines in one message; malformed lines are skipped and reported.
+
+### Reminders, repeating to-dos and the nightly check-in
+
+- **Reminders:** `/remind 1800 text` is for today. Put a day first for later: `/remind tmr 0900 text`, `/remind 20-11 0900 text` or `/remind 20-11-2027 0900 text`, up to a year ahead. A date without a year means the next time it comes round. Each reminder arrives with **+15 min** and **+1 hr** buttons.
+- **Repeating to-dos:** `/every <when> <text>`, where `<when>` is `day`, `weekdays`, weekday names (`mon`, `mon,thu`) or a day of the month (`1`, `15`; the 29th–31st fall on the last day of shorter months). They join the to-do list at 8am. `/repeats` lists them with a button to stop each one.
+- **Nightly check-in:** at 11pm the to-do list is cleared and the message listing it has one button per item, plus **Move all to tomorrow**. A tapped item goes back on the fresh list. The buttons work until the next check-in.
+
+### Class timetable
+
+On NUSMods, copy your timetable's share link and send `/timetable <link>`. The bot looks the classes up on NUSMods once and stores them. In teaching weeks 1–13 the 8am message lists that day's classes with times and venues, skipping classes that don't run that week. Nothing is announced in recess, reading, exam or vacation weeks. Send a new link each semester.
+
+The week comes from NUSMods' own academic-calendar rule (the year starts on the first Monday of August), not from live data, and public holidays are not known to the bot.
+
+### Topics
+
+Telegram can split a bot's private chat into topics. In [@BotFather](https://t.me/BotFather), tap **Open**, choose your bot and turn on **Threaded mode**, then send `/topics`. The bot creates **Planner**, **Study**, **Canvas files** and **Expenditure**.
+
+- The bot replies in whichever topic you write in, and every command works in every topic.
+- Messages the bot sends by itself go to their topic: reminders, the morning message, the weekly digest and the nightly check-in to Planner; the expenditure prompt and reports to Expenditure.
+- The assistant remembers each topic's conversation separately.
+- Without topics, or if you delete one, messages go to the main chat as before. `/topics` recreates anything missing.
 
 ### Expenditure
 
@@ -156,12 +184,12 @@ See `.env.example` for the full list with comments.
 
 Vercel cron runs in UTC; Singapore is UTC+8.
 
-| Job                 | UTC schedule            | Singapore time | Purpose                                                  |
-| ------------------- | ----------------------- | -------------- | -------------------------------------------------------- |
-| `weekly-digest`     | `0 0 * * 1`             | Monday 8am     | Calendar events and tasks for the week.                  |
-| `daily-morning`     | `0 0 * * *`             | Daily 8am      | Task rollover, 3-day calendar view, morning summary.     |
-| `checkin-and-clear` | `0 15 * * *`            | Daily 11pm     | Send the final to-do list, then clear it.                |
-| `reminder-dispatch` | every minute (Supabase) | —              | Reminders and the 11:30pm / 1am / 7am expenditure steps. |
+| Job                 | UTC schedule            | Singapore time | Purpose                                                                                          |
+| ------------------- | ----------------------- | -------------- | ------------------------------------------------------------------------------------------------ |
+| `weekly-digest`     | `0 0 * * 1`             | Monday 8am     | Calendar events, tasks and Canvas deadlines for the week.                                        |
+| `daily-morning`     | `0 0 * * *`             | Daily 8am      | Repeating to-dos, task rollover, classes, Canvas deadlines due in 48 hours, 3-day calendar view. |
+| `checkin-and-clear` | `0 15 * * *`            | Daily 11pm     | Clear the to-do list and send it with Move to tomorrow buttons.                                  |
+| `reminder-dispatch` | every minute (Supabase) | —              | Reminders and the 11:30pm / 1am / 7am expenditure steps.                                         |
 
 ## Security and privacy
 
@@ -169,6 +197,7 @@ Vercel cron runs in UTC; Singapore is UTC+8.
 - **Single owner:** only `TELEGRAM_OWNER_ID`, in a private chat, can use the bot; everyone else is ignored silently.
 - **One calendar:** the bot only ever uses `GOOGLE_CALENDAR_ID`; messages can't choose another calendar. The only Google scope is `calendar.events`.
 - **Your AI provider sees what you send the assistant**, including photos. Canvas file names and deadlines it looks up are sent to it too.
+- **NUSMods sees the module codes** in a timetable link when you save it; the lookup uses its public API and sends nothing else.
 - **Secrets** live only in Vercel environment variables and are never logged.
 
 ## Development

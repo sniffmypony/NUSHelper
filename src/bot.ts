@@ -19,6 +19,15 @@ import {
   registerAssistantButtons,
   requestDeletion,
 } from "./assistant/buttons.js";
+import { parseRecurrence } from "./recurrence.js";
+import {
+  addRecurring,
+  listRecurring,
+  registerRecurringCommands,
+} from "./recurring.js";
+import { registerCarryoverButtons } from "./todo-carryover.js";
+import { registerTimetableCommands } from "./nus/timetable.js";
+import { registerReminderSnooze } from "./reminder-snooze.js";
 import { isPrivateOwner } from "./security.js";
 import { registerTaskPicker } from "./task-picker.js";
 import {
@@ -27,6 +36,7 @@ import {
   splitMessageLines,
   type ParsedReminderCommand,
 } from "./message-lines.js";
+import { registerTopicCommands, sendTo, threadIdOf } from "./topics.js";
 import { sendTelegramMessage } from "./telegram.js";
 import { splitTelegramMessage } from "./assistant/format.js";
 import {
@@ -76,17 +86,19 @@ async function addReminder(
   command: ParsedReminderCommand,
   sourceMessageId: number,
   sourceLine: number,
-): Promise<boolean> {
-  if (!ctx.chat) return false;
-  const confirmation = await actions.addReminder(command, {
+): Promise<{ ok: boolean; message: string }> {
+  if (!ctx.chat) return { ok: false, message: "" };
+  const result = await actions.addReminder(command, {
     ownerId: ownerIdValue,
     chatId: String(ctx.chat.id),
     sourceMessageId,
     sourceLine,
   });
-  if (!confirmation) return false;
-  await ctx.reply(confirmation.message);
-  return true;
+  // Only a reminder that was set is confirmed here; the caller decides how
+  // to report one that was not.
+  if (result.id === undefined) return { ok: false, message: result.message };
+  await ctx.reply(result.message);
+  return { ok: true, message: result.message };
 }
 
 function looksLikeExpenditureAttempt(text: string): boolean {
@@ -130,7 +142,7 @@ async function applyExpenditure(
   if (shouldSendReportsNow(result.spendDate, now)) {
     await processCompletedExpenditureDay(
       result.spendDate,
-      sendTelegramMessage,
+      sendTo("expenditure"),
       expenditureStore,
       now,
     );
@@ -215,7 +227,7 @@ bot.use(async (ctx, next) => {
     const reminder = isEdited ? null : parseReminderCommandLine(line.text);
     if (
       reminder &&
-      (await addReminder(ctx, reminder, message.message_id, line.sourceLine))
+      (await addReminder(ctx, reminder, message.message_id, line.sourceLine)).ok
     ) {
       continue;
     }
@@ -255,6 +267,11 @@ bot.command("task", async (ctx) => {
 });
 
 registerTaskPicker(bot);
+registerTopicCommands(bot);
+registerRecurringCommands(bot);
+registerTimetableCommands(bot);
+registerCarryoverButtons(bot);
+registerReminderSnooze(bot, ownerIdValue, actions.snoozeReminder);
 
 bot.command("list", async (ctx) => ctx.reply(await actions.listOpenTasks()));
 
@@ -268,14 +285,16 @@ bot.command("remind", async (ctx) => {
   const command = parseReminderCommandLine(ctx.message.text);
   if (!command) {
     return ctx.reply(
-      "Usage: /remind HHMM <description>\ne.g. /remind 1800 do tutorial",
+      [
+        "Usage: /remind [day] HHMM <description>",
+        "/remind 1800 do tutorial — today",
+        "/remind tmr 0900 call home — tomorrow",
+        "/remind 20-11 0900 submit form — a date (DD-MM or DD-MM-YYYY)",
+      ].join("\n"),
     );
   }
-  if (!(await addReminder(ctx, command, ctx.message.message_id, 0))) {
-    return ctx.reply(
-      "That time has already passed today. Please choose a later Singapore time.",
-    );
-  }
+  const result = await addReminder(ctx, command, ctx.message.message_id, 0);
+  if (!result.ok && result.message) return ctx.reply(result.message);
 });
 
 bot.command("todos", async (ctx) => ctx.reply(await actions.listTodayTodos()));
@@ -292,9 +311,20 @@ bot.command("help", (ctx) => {
       "✅ Today's to-dos — cleared nightly at ~11pm",
       "/todo <description> — add",
       "/todos — show today's list",
+      "The nightly check-in has buttons to keep unfinished items for tomorrow.",
       "",
-      "⏰ Same-day reminders (Singapore time)",
-      "/remind HHMM <description> — e.g. /remind 1800 do tutorial",
+      "🔁 Repeating to-dos — added by themselves at 8am",
+      "/every mon tutorial prep — also mon,thu / weekdays / day / 1 (day of month)",
+      "/repeats — show them, and stop one",
+      "",
+      "⏰ Reminders (Singapore time) — each has +15 min and +1 hr snooze buttons",
+      "/remind HHMM <description> — today, e.g. /remind 1800 do tutorial",
+      "/remind tmr 0900 <description> — tomorrow",
+      "/remind 20-11 0900 <description> — a date (DD-MM or DD-MM-YYYY)",
+      "",
+      "🏫 Classes — shown in the 8am message in teaching weeks 1–13",
+      "/timetable <NUSMods share link> — save your timetable",
+      "/timetable — show it; /timetable clear — remove it",
       "",
       "💰 Expenditure (Singapore time)",
       "Reply to the 11:30pm expenditure: prompt with amounts separated by spaces, commas, or new lines.",
@@ -315,6 +345,10 @@ bot.command("help", (ctx) => {
       "e.g. what's due this week? / send me the lecture 5 slides for CS2103T",
       "/effort — how hard it thinks: auto (default), low, medium or high",
       "Study answers have a Think harder button to ask again at high effort.",
+      "Canvas deadlines appear in the 8am message and the Monday digest.",
+      "",
+      "🗂 Topics — sort my messages into Planner, Study, Canvas files and Expenditure",
+      "/topics — create the topics (needs Threaded mode on in @BotFather)",
       "",
       "/help — show this message",
     ].join("\n"),
@@ -352,7 +386,11 @@ bot.action(/^morning:done:(\d{4}-\d{2}-\d{2})$/, async (ctx) => {
   }
 
   if (inserted.length > 0) {
-    await sendTelegramMessage("Done", { silent: true, chatId: OWNER_ID });
+    await sendTelegramMessage("Done", {
+      silent: true,
+      chatId: OWNER_ID,
+      threadId: threadIdOf(ctx),
+    });
   }
 });
 
@@ -452,18 +490,37 @@ registerAssistantHandlers(bot, {
           sourceMessageId: messageId,
           sourceLine: reminderLine++,
         });
-        if (!result) return null;
+        if (result.id === undefined) {
+          return { message: `Not set: ${result.message}` };
+        }
         return {
           message: result.message,
           undo: {
             kind: "rem",
-            id: result.id!,
+            id: result.id,
             label: result.label ?? "reminder",
           },
         };
       },
       listReminders: () =>
         actions.listPendingReminders(ownerIdValue, new Date(), true),
+      addRepeating: async (when, description) => {
+        const rule = parseRecurrence(when);
+        if (!rule) {
+          return {
+            message:
+              'Not added: use "day", "weekdays", weekday names such as "mon,thu", or a day of the month from 1 to 31.',
+          };
+        }
+        const result = await addRecurring(rule, description);
+        return {
+          message: result.message,
+          undo: result.id
+            ? { kind: "rep", id: result.id, label: result.label ?? "repeat" }
+            : undefined,
+        };
+      },
+      listRepeating: () => listRecurring(true),
       stageCalendarEvent: (text) =>
         stageCalendarMessage(
           ctx,

@@ -17,7 +17,12 @@ import {
 } from "./expenditure.js";
 import { expenditureStore } from "./expenditure-store.js";
 import type { ParsedReminderCommand } from "./message-lines.js";
-import { scheduleReminderToday } from "./reminders.js";
+import {
+  formatReminderWhen,
+  reminderProblemMessage,
+  scheduleReminder,
+  scheduleSnooze,
+} from "./reminders.js";
 import { reminderStore } from "./reminder-store.js";
 import {
   formatTaskItem,
@@ -196,7 +201,8 @@ export async function listTodayTodos(withId = false): Promise<string> {
   return items.map((item) => formatTodoItem(item, withId)).join("\n");
 }
 
-// Returns null when the time has already passed today.
+// A result with no id means nothing was set; the message says why (the time
+// has passed, the date is not real, or it is more than a year ahead).
 export async function addReminder(
   command: ParsedReminderCommand,
   source: {
@@ -205,28 +211,61 @@ export async function addReminder(
     sourceMessageId: number;
     sourceLine: number;
   },
-): Promise<ActionResult | null> {
-  const schedule = scheduleReminderToday(command);
-  if (!schedule) return null;
+  now = new Date(),
+): Promise<ActionResult> {
+  const result = scheduleReminder(command, now);
+  if (!result.ok) {
+    return { message: reminderProblemMessage(result.problem, command) };
+  }
 
+  const { schedule } = result;
   const reminder = await reminderStore.create({
     ...source,
     description: command.description,
     scheduledAt: schedule.scheduledAt,
     expiresAt: schedule.expiresAt,
   });
+  const when =
+    schedule.displayDay === "today"
+      ? `${schedule.displayTime} today`
+      : `${schedule.displayDay}, ${schedule.displayTime}`;
   return {
     id: reminder.id,
-    label: `${schedule.displayTime} ${command.description}`,
-    message: `Reminder set for ${schedule.displayTime} today: ${command.description}`,
+    label: `${formatReminderWhen(schedule.scheduledAt, now)} ${command.description}`,
+    message: `Reminder set for ${when}: ${command.description}`,
   };
 }
 
-function reminderTime(date: Date): string {
-  return DateTime.fromJSDate(date)
-    .setZone(SINGAPORE_TIME_ZONE)
-    .toFormat("HH:mm");
+// Sends a reminder that has just fired again, the given minutes from now.
+// The fired message's id keeps a double tap from snoozing twice.
+export async function snoozeReminder(
+  id: number,
+  ownerId: string,
+  minutes: number,
+  firedMessageId: number,
+  now = new Date(),
+): Promise<string> {
+  const [row] = await db
+    .select()
+    .from(reminders)
+    .where(and(eq(reminders.id, id), eq(reminders.ownerId, ownerId)))
+    .limit(1);
+  if (!row) return "That reminder is no longer available.";
+
+  const schedule = scheduleSnooze(minutes, now);
+  const snoozed = await reminderStore.create({
+    ownerId,
+    chatId: row.chatId,
+    sourceMessageId: firedMessageId,
+    sourceLine: minutes,
+    description: row.description,
+    scheduledAt: schedule.scheduledAt,
+    expiresAt: schedule.expiresAt,
+  });
+  return `Snoozed to ${formatReminderWhen(snoozed.scheduledAt, now)}: ${row.description}`;
 }
+
+const reminderTime = formatReminderWhen;
 
 export async function listPendingReminders(
   ownerId: string,
@@ -248,7 +287,7 @@ export async function listPendingReminders(
   return rows
     .map(
       (row) =>
-        `• ${reminderTime(row.scheduledAt)} ${row.description}${withId ? ` (reminder_id ${row.id})` : ""}`,
+        `• ${reminderTime(row.scheduledAt, now)} ${row.description}${withId ? ` (reminder_id ${row.id})` : ""}`,
     )
     .join("\n");
 }

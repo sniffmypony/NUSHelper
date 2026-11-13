@@ -9,6 +9,7 @@ export class TelegramDeliveryError extends Error {
   constructor(
     message: string,
     readonly status?: number,
+    readonly description?: string,
   ) {
     super(message);
     this.name = "TelegramDeliveryError";
@@ -21,6 +22,8 @@ export type TelegramInlineKeyboard = {
 
 export type SendTelegramMessageOptions = {
   chatId?: string | number;
+  // A topic of the chat (see src/topics.ts); omitted for the chat itself.
+  threadId?: number;
   silent?: boolean;
   replyMarkup?: TelegramInlineKeyboard;
 };
@@ -50,6 +53,7 @@ export async function sendTelegramMessage(
       body: JSON.stringify({
         chat_id: options.chatId ?? ownerId,
         text,
+        ...(options.threadId ? { message_thread_id: options.threadId } : {}),
         ...(options.silent ? { disable_notification: true } : {}),
         ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
       }),
@@ -69,6 +73,7 @@ export async function sendTelegramMessage(
     throw new TelegramDeliveryError(
       `Telegram sendMessage failed: ${reason}`,
       response.status,
+      payload?.description,
     );
   }
 }

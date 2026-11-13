@@ -48,6 +48,7 @@ import {
   type EffortSetting,
 } from "./effort.js";
 import { ModelTimeoutError, streamCompletion } from "./model-client.js";
+import { conversationKey, threadIdOf } from "../topic-context.js";
 
 const CHAT_ACTION_INTERVAL_MS = 4_500;
 const PROGRESS_NOTE_MS = 20_000;
@@ -64,6 +65,7 @@ const READ_ONLY_TOOLS = new Set([
   "list_tasks",
   "list_todos",
   "list_reminders",
+  "list_repeating",
   "list_calendar_events",
   "expenditure_report",
   "expenditure_breakdown",
@@ -99,26 +101,53 @@ type TelegramInputFile = string | { source: Buffer; filename: string };
 
 // Telegraf predates rich messages, so sendRichMessage goes through its raw
 // API call. The file link contains the bot token: it is fetched, never logged.
+// Everything is sent to the topic the user wrote in, when there is one.
 export function telegramFor(ctx: Context): AssistantTelegram {
-  const api = ctx.telegram as unknown as Omit<
-    AssistantTelegram,
-    "sendRichMessage" | "downloadFile" | "deleteMessage"
-  > & {
+  const api = ctx.telegram as unknown as {
+    sendMessage(chatId: number, text: string, extra?: object): Promise<unknown>;
+    sendChatAction(
+      chatId: number,
+      action: ChatAction,
+      extra?: object,
+    ): Promise<unknown>;
+    sendDocument(
+      chatId: number,
+      document: TelegramInputFile,
+      extra?: object,
+    ): Promise<unknown>;
+    sendMediaGroup(
+      chatId: number,
+      media: Array<{ type: "document"; media: TelegramInputFile }>,
+      extra?: object,
+    ): Promise<unknown>;
     deleteMessage(chatId: number, messageId: number): Promise<unknown>;
     callApi(method: string, payload: object): Promise<unknown>;
     getFileLink(fileId: string): Promise<URL>;
   };
+  const threadId = threadIdOf(ctx);
+  const topic = threadId ? { message_thread_id: threadId } : undefined;
   return {
-    sendMessage: (chatId, text, extra) => api.sendMessage(chatId, text, extra),
+    sendMessage: (chatId, text, extra) =>
+      api.sendMessage(chatId, text, topic ? { ...extra, ...topic } : extra),
     deleteMessage: (chatId, messageId) => api.deleteMessage(chatId, messageId),
-    sendChatAction: (chatId, action) => api.sendChatAction(chatId, action),
-    sendDocument: (chatId, document) => api.sendDocument(chatId, document),
-    sendMediaGroup: (chatId, media) => api.sendMediaGroup(chatId, media),
+    sendChatAction: (chatId, action) =>
+      topic
+        ? api.sendChatAction(chatId, action, topic)
+        : api.sendChatAction(chatId, action),
+    sendDocument: (chatId, document) =>
+      topic
+        ? api.sendDocument(chatId, document, topic)
+        : api.sendDocument(chatId, document),
+    sendMediaGroup: (chatId, media) =>
+      topic
+        ? api.sendMediaGroup(chatId, media, topic)
+        : api.sendMediaGroup(chatId, media),
     sendRichMessage: (chatId, markdown, extra) =>
       api.callApi("sendRichMessage", {
         chat_id: chatId,
         rich_message: { markdown },
         ...extra,
+        ...topic,
       }),
     downloadFile: async (fileId) => {
       const response = await fetch(await api.getFileLink(fileId), {
@@ -430,8 +459,10 @@ export async function answerAssistantMessage(
   actions?: BotActions,
   attached?: IncomingAttachment,
   // "Think harder" asks for a set effort instead of the /effort setting.
-  options: { effort?: Effort } = {},
+  // conversation keeps each topic's history apart (see conversationKey).
+  options: { effort?: Effort; conversation?: string } = {},
 ): Promise<void> {
+  const conversation = options.conversation ?? String(chatId);
   const chatAction = startChatAction(telegram, chatId);
   const progress = startProgressNote(
     telegram,
@@ -474,7 +505,7 @@ export async function answerAssistantMessage(
       deps.fileCache,
     );
 
-    const history = await deps.store.recentTurns(String(chatId), now);
+    const history = await deps.store.recentTurns(conversation, now);
     const bytes = attached
       ? await telegram.downloadFile(attached.fileId)
       : undefined;
@@ -594,7 +625,7 @@ export async function answerAssistantMessage(
             ? `[File: ${attached.name}]`
             : "";
       await deps.store.appendTurn(
-        String(chatId),
+        conversation,
         label ? `${label}${text ? ` ${text}` : ""}` : text,
         result.reply,
         result.toolContext,
@@ -707,6 +738,7 @@ export async function handleAssistantText(
       deps,
       deps.actionsFor?.(ctx),
       attached,
+      { conversation: conversationKey(chatId, threadIdOf(ctx)) },
     ),
   );
 }
@@ -793,7 +825,10 @@ export function registerAssistantHandlers(
         deps,
         deps.actionsFor?.(ctx),
         request.attachment,
-        { effort: "high" },
+        {
+          effort: "high",
+          conversation: conversationKey(chatId, threadIdOf(ctx)),
+        },
       ),
     );
   });

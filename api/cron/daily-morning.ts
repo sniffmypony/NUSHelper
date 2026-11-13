@@ -2,19 +2,27 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "../../src/db/client.js";
 import { tasks, todos } from "../../src/db/schema.js";
-import { addDays, todayInSingapore } from "../../src/dates.js";
-import { sendTelegramMessage } from "../../src/telegram.js";
+import {
+  addDays,
+  singaporeDateRange,
+  todayInSingapore,
+} from "../../src/dates.js";
 import {
   formatTaskItem,
   formatTodoItem,
   isTaskDueOn,
 } from "../../src/task-todo.js";
-import { singaporeDateRange } from "../../src/dates.js";
 import { formatCalendarAgenda } from "../../src/calendar/agenda.js";
 import { isCalendarConfigured } from "../../src/calendar/config.js";
 import { getCalendarGateway } from "../../src/calendar/google.js";
 import { withVercelOidcToken } from "../../src/calendar/request-context.js";
 import type { CalendarAgendaEvent } from "../../src/calendar/types.js";
+import { canvasDeadlineSection } from "../../src/canvas/deadlines.js";
+import { todaysClassesSection } from "../../src/nus/timetable.js";
+import { addDueRecurringTodos } from "../../src/recurring.js";
+import { sendToTopic } from "../../src/topics.js";
+
+const CANVAS_WINDOW_HOURS = 48;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const cronSecret = process.env.CRON_SECRET?.trim();
@@ -22,9 +30,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).send("unauthorized");
   }
 
-  const today = todayInSingapore();
+  const now = new Date();
+  const today = todayInSingapore(now);
   const tomorrow = addDays(today, 1);
   const dayAfterTomorrow = addDays(today, 2);
+
+  // Repeating items (/every) due today join the to-do list first. They are
+  // an extra: a failure here must not stop the morning message.
+  try {
+    await addDueRecurringTodos(today);
+  } catch (error) {
+    console.error("Daily morning could not add repeating items:", error);
+  }
 
   let dueSoon: (typeof tasks.$inferSelect)[];
   let todosToday: (typeof todos.$inferSelect)[];
@@ -78,7 +95,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error("Daily morning Calendar query failed:", error);
     }
 
+  // Classes show only in teaching weeks 1-13 (see src/nus/academic-week.ts).
+  let classes: string | null = null;
+  try {
+    classes = await todaysClassesSection(today);
+  } catch (error) {
+    console.error("Daily morning could not read the timetable:", error);
+  }
+
+  // Canvas is optional too: unsubmitted work due in the next 48 hours.
+  const canvas = await canvasDeadlineSection(
+    "🎓 Canvas — due in the next 48 hours:",
+    now,
+    new Date(now.getTime() + CANVAS_WINDOW_HOURS * 3_600_000),
+    { includeSubmitted: false },
+  );
+
   const sections: string[] = [];
+  if (classes) sections.push(classes);
+  if (canvas.text) sections.push(canvas.text);
   const dueTomorrow = dueSoon.filter((task) =>
     isTaskDueOn(task.dueDate, tomorrow),
   );
@@ -99,9 +134,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `📅 Calendar — today through ${dayAfterTomorrow}:\n` +
         formatCalendarAgenda(calendarEvents),
     );
-  } else if (calendarReadFailed) {
+  }
+  const unchecked = [
+    ...(calendarReadFailed ? ["Google Calendar"] : []),
+    ...(canvas.failed ? ["Canvas"] : []),
+  ];
+  if (unchecked.length > 0) {
     sections.push(
-      "⚠️ I couldn't check Google Calendar, so this update may be incomplete.",
+      `⚠️ I couldn't check ${unchecked.join(" or ")}, so this update may be incomplete.`,
     );
   }
 
@@ -110,7 +150,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     : "🌅 Good morning! Nothing due soon and nothing on today's list yet.";
 
   try {
-    await sendTelegramMessage(text, {
+    await sendToTopic("planner", text, {
       replyMarkup: {
         inline_keyboard: [
           [{ text: "✅", callback_data: `morning:done:${today}` }],

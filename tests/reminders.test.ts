@@ -43,6 +43,7 @@ describe("same-day reminders", () => {
       scheduledAt: new Date("2026-10-14T10:00:00Z"),
       expiresAt: new Date("2026-10-14T16:00:00Z"),
       displayTime: "18:00",
+      displayDay: "today",
     });
   });
 
@@ -61,7 +62,12 @@ describe("same-day reminders", () => {
     await expect(
       dispatchDueReminders(store, send, new Date("2026-10-14T10:00:10Z")),
     ).resolves.toEqual({ claimed: 1, sent: 1, failed: 0 });
-    expect(send).toHaveBeenCalledWith("do tutorial", "123");
+    // The reminder itself is passed along so snooze buttons can name it.
+    expect(send).toHaveBeenCalledWith(
+      "do tutorial",
+      "123",
+      expect.objectContaining({ id: 1 }),
+    );
     expect(store.markSent).toHaveBeenCalledWith(
       1,
       new Date("2026-10-14T10:00:10Z"),

@@ -9,6 +9,8 @@ import {
   uniqueIndex,
   bigint,
   index,
+  jsonb,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 
 export const tasks = pgTable("tasks", {
@@ -294,6 +296,66 @@ export const telegramFileCache = pgTable("telegram_file_cache", {
   canvasUpdatedAt: text("canvas_updated_at").notNull(),
   telegramFileId: text("telegram_file_id").notNull(),
   cachedAt: timestamp("cached_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Which topic (thread) of a chat each kind of message goes to. Created by
+// /topics; a missing row means "send to the chat itself".
+export const chatTopics = pgTable(
+  "chat_topics",
+  {
+    chatId: text("chat_id").notNull(),
+    category: text("category").notNull(),
+    threadId: integer("thread_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.chatId, table.category] }),
+  }),
+);
+
+// The to-dos shown in the last nightly check-in, kept one day so a
+// "Move to tomorrow" tap can put one back after the list is cleared.
+export const todoCarryovers = pgTable("todo_carryovers", {
+  id: serial("id").primaryKey(),
+  description: text("description").notNull(),
+  taskId: integer("task_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Items added to the to-do list by themselves on matching days (/every).
+// rule is "daily", "weekly:1,4" (ISO weekdays, 1 = Monday) or "monthly:15".
+export const recurringItems = pgTable("recurring_items", {
+  id: serial("id").primaryKey(),
+  description: text("description").notNull(),
+  rule: text("rule").notNull(),
+  // The last day it was added, so a retried morning job adds it once.
+  lastAddedOn: date("last_added_on"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Classes from a NUSMods timetable link (/timetable), one row per lesson.
+export const timetableLessons = pgTable("timetable_lessons", {
+  id: serial("id").primaryKey(),
+  acadYear: text("acad_year").notNull(), // e.g. "2026-2027"
+  semester: integer("semester").notNull(),
+  moduleCode: text("module_code").notNull(),
+  lessonType: text("lesson_type").notNull(),
+  classNo: text("class_no").notNull(),
+  day: integer("day").notNull(), // ISO weekday, 1 = Monday
+  startTime: text("start_time").notNull(), // "HHMM"
+  endTime: text("end_time").notNull(),
+  venue: text("venue").notNull().default(""),
+  // NUSMods' own format: week numbers, or a date range with optional weeks.
+  weeks: jsonb("weeks").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });

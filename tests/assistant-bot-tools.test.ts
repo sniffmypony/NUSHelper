@@ -27,6 +27,13 @@ function setup() {
       undo: { kind: "rem", id: 9, label: "18:00 do tut" },
     }),
     listReminders: vi.fn().mockResolvedValue("• 18:00 do tut (reminder_id 9)"),
+    addRepeating: vi.fn().mockResolvedValue({
+      message: "Repeating every Mon: tutorial prep",
+      undo: { kind: "rep", id: 4, label: "tutorial prep" },
+    }),
+    listRepeating: vi
+      .fn()
+      .mockResolvedValue("• tutorial prep — every Mon (repeating_id 4)"),
     stageCalendarEvent: vi.fn().mockResolvedValue(true),
     listCalendarEvents: vi.fn().mockResolvedValue("No events in that range."),
     requestDeletion: vi.fn().mockResolvedValue("Asked the user to confirm."),
@@ -117,11 +124,62 @@ describe("assistant bot-action tools", () => {
 
   it("reports a reminder time that has already passed", async () => {
     const { actions, toolbox } = setup();
-    actions.addReminder.mockResolvedValueOnce(null);
+    actions.addReminder.mockResolvedValueOnce({
+      message: "Not set: That time has already passed today.",
+    });
     await expect(
       toolbox.execute("set_reminder", '{"time":"0700","description":"x"}'),
     ).resolves.toMatch(/already passed today/);
     expect(toolbox.undo).toEqual([]);
+  });
+
+  it("sets a reminder for another day from a YYYY-MM-DD date", async () => {
+    const { actions, toolbox } = setup();
+    await toolbox.execute(
+      "set_reminder",
+      '{"time":"0900","date":"2026-11-20","description":"submit form"}',
+    );
+    expect(actions.addReminder).toHaveBeenCalledWith({
+      hour: 9,
+      minute: 0,
+      description: "submit form",
+      day: { kind: "date", day: 20, month: 11, year: 2026 },
+    });
+    await expect(
+      toolbox.execute(
+        "set_reminder",
+        '{"time":"0900","date":"20 Nov","description":"x"}',
+      ),
+    ).resolves.toMatch(/^Error: "date" must be a real date/);
+  });
+
+  it("adds, lists and asks before deleting repeating items", async () => {
+    const { actions, toolbox } = setup();
+    await toolbox.execute(
+      "add_repeating",
+      '{"description":"tutorial prep","frequency":"weekly","weekdays":"mon, thu"}',
+    );
+    expect(actions.addRepeating).toHaveBeenLastCalledWith(
+      "mon,thu",
+      "tutorial prep",
+    );
+    await toolbox.execute(
+      "add_repeating",
+      '{"description":"pay bill","frequency":"monthly","day_of_month":1}',
+    );
+    expect(actions.addRepeating).toHaveBeenLastCalledWith("1", "pay bill");
+    await toolbox.execute(
+      "add_repeating",
+      '{"description":"vitamins","frequency":"daily"}',
+    );
+    expect(actions.addRepeating).toHaveBeenLastCalledWith("day", "vitamins");
+    expect(toolbox.undo).toHaveLength(3);
+
+    await expect(toolbox.execute("list_repeating", "{}")).resolves.toContain(
+      "repeating_id 4",
+    );
+    await toolbox.execute("delete_repeating", '{"repeating_id":4}');
+    expect(actions.requestDeletion).toHaveBeenCalledWith("rep", 4);
   });
 
   it("stages calendar events as a normal calendar line", async () => {

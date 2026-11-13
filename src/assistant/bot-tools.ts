@@ -12,7 +12,7 @@ import {
 // create something the slash commands would reject. Deletions only ever send
 // a Delete/Keep confirmation; nothing is removed until the user presses it.
 
-export type DeletableKind = "todo" | "task" | "rem";
+export type DeletableKind = "todo" | "task" | "rem" | "rep";
 
 export interface UndoRef {
   kind: DeletableKind;
@@ -31,9 +31,12 @@ export interface BotActions {
   completeTask(id: number): Promise<string>;
   addTodo(description: string): Promise<ToolActionResult>;
   listTodos(): Promise<string>;
-  // Returns null when the time has already passed today.
-  addReminder(command: ParsedReminderCommand): Promise<ToolActionResult | null>;
+  // With no undo, nothing was set and the message says why.
+  addReminder(command: ParsedReminderCommand): Promise<ToolActionResult>;
   listReminders(): Promise<string>;
+  // when is what /every takes: "day", "weekdays", "mon,thu" or a day number.
+  addRepeating(when: string, description: string): Promise<ToolActionResult>;
+  listRepeating(): Promise<string>;
   // Sends the usual preview with confirm/cancel buttons; returns false if invalid.
   stageCalendarEvent(text: string): Promise<boolean>;
   listCalendarEvents(startDate: string, days: number): Promise<string>;
@@ -117,12 +120,13 @@ export const botActionTools: ChatCompletionFunctionTool[] = [
   ),
   tool(
     "set_reminder",
-    "Send a reminder later TODAY at a Singapore time (/remind). Cannot schedule other days.",
+    "Send a reminder at a Singapore time (/remind), today or on a date up to a year ahead.",
     {
       time: {
         type: "string",
         description: "24-hour Singapore time as HHMM, e.g. 1800 for 6pm.",
       },
+      date: isoDate("Day as YYYY-MM-DD; leave out for today."),
       description: { type: "string" },
     },
     ["time", "description"],
@@ -133,6 +137,31 @@ export const botActionTools: ChatCompletionFunctionTool[] = [
     "Ask the user to confirm cancelling a reminder that has not been sent.",
     { reminder_id: { type: "integer" } },
     ["reminder_id"],
+  ),
+  tool(
+    "add_repeating",
+    "Add an item that joins the to-do list by itself (/every): every day, on chosen weekdays, or on a day of each month.",
+    {
+      description: { type: "string" },
+      frequency: { type: "string", enum: ["daily", "weekly", "monthly"] },
+      weekdays: {
+        type: "string",
+        description:
+          'For weekly: weekdays separated by commas, e.g. "mon" or "mon,thu".',
+      },
+      day_of_month: {
+        type: "integer",
+        description: "For monthly: 1-31 (the last day in shorter months).",
+      },
+    },
+    ["description", "frequency"],
+  ),
+  tool("list_repeating", "List the repeating items, with ids (/repeats)."),
+  tool(
+    "delete_repeating",
+    "Ask the user to confirm stopping a repeating item.",
+    { repeating_id: { type: "integer" } },
+    ["repeating_id"],
   ),
   tool(
     "create_calendar_event",
@@ -283,23 +312,44 @@ export async function executeBotActionTool(
       return actions.requestDeletion("todo", positiveId(args, "todo_id"));
     case "set_reminder": {
       const time = requiredText(args, "time").replace(":", "");
+      const date = optionalIsoDate(args, "date");
+      // YYYY-MM-DD becomes the DD-MM-YYYY the command takes.
+      const day = date ? `${date.split("-").reverse().join("-")} ` : "";
       const command = parseReminderCommandLine(
-        `/remind ${time} ${requiredText(args, "description")}`,
+        `/remind ${day}${time} ${requiredText(args, "description")}`,
       );
       if (!command) {
         throw new BotToolError(
           '"time" must be a 24-hour HHMM time, e.g. 1800.',
         );
       }
-      const confirmation = await actions.addReminder(command);
-      return confirmation
-        ? withUndo(confirmation, undo)
-        : "Not set: that time has already passed today. Reminders only work for later today in Singapore time.";
+      return withUndo(await actions.addReminder(command), undo);
     }
     case "list_reminders":
       return actions.listReminders();
     case "cancel_reminder":
       return actions.requestDeletion("rem", positiveId(args, "reminder_id"));
+    case "add_repeating": {
+      const frequency = requiredText(args, "frequency");
+      let when: string;
+      if (frequency === "daily") {
+        when = "day";
+      } else if (frequency === "weekly") {
+        when = requiredText(args, "weekdays").replace(/\s+/g, "");
+      } else if (frequency === "monthly") {
+        when = String(positiveId(args, "day_of_month"));
+      } else {
+        throw new BotToolError('"frequency" must be daily, weekly or monthly.');
+      }
+      return withUndo(
+        await actions.addRepeating(when, requiredText(args, "description")),
+        undo,
+      );
+    }
+    case "list_repeating":
+      return actions.listRepeating();
+    case "delete_repeating":
+      return actions.requestDeletion("rep", positiveId(args, "repeating_id"));
     case "create_calendar_event": {
       const line = [
         requiredText(args, "time_range"),

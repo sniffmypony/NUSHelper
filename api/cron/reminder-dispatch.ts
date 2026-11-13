@@ -2,7 +2,8 @@ import { timingSafeEqual } from "node:crypto";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { dispatchDueReminders } from "../../src/reminder-dispatcher.js";
 import { reminderStore } from "../../src/reminder-store.js";
-import { sendTelegramMessage } from "../../src/telegram.js";
+import { snoozeKeyboard } from "../../src/reminder-snooze.js";
+import { sendTo, sendToTopic } from "../../src/topics.js";
 import { runExpenditureSchedule } from "../../src/expenditure-service.js";
 import { expenditureStore } from "../../src/expenditure-store.js";
 import { telegramOwnerId } from "../../src/env.js";
@@ -36,7 +37,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     reminderResult = await dispatchDueReminders(
       reminderStore,
-      (text, chatId) => sendTelegramMessage(text, { chatId }),
+      (text, chatId, reminder) =>
+        sendToTopic("planner", text, {
+          chatId,
+          replyMarkup: snoozeKeyboard(reminder.id),
+        }),
       now,
     );
   } catch (error) {
@@ -48,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const ownerId = telegramOwnerId();
     expenditureResult = await runExpenditureSchedule(
       expenditureStore,
-      sendTelegramMessage,
+      sendTo("expenditure"),
       ownerId,
       ownerId,
       now,
