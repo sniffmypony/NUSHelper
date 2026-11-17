@@ -1,4 +1,4 @@
-import { google, type calendar_v3 } from "googleapis";
+import { calendar, type calendar_v3 } from "@googleapis/calendar";
 import { createCalendarAuthClient } from "./auth.js";
 import {
   FIXED_CALENDAR_ID,
@@ -217,12 +217,13 @@ let accessChecked = false;
 export async function getCalendarGateway(): Promise<GoogleCalendarGateway> {
   getCalendarConfig();
   gatewayPromise ??= createCalendarAuthClient().then(
-    // googleapis bundles its own google-auth-library types; both clients implement
-    // the same runtime AuthClient contract but TypeScript sees their private fields as distinct.
+    // The Calendar client bundles its own google-auth-library types; both
+    // clients implement the same runtime AuthClient contract but TypeScript
+    // sees their private fields as distinct.
     (auth) =>
       new GoogleCalendarGateway(
         (
-          google.calendar as unknown as (options: {
+          calendar as unknown as (options: {
             version: "v3";
             auth: unknown;
           }) => calendar_v3.Calendar

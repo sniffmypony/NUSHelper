@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { calendar_v3 } from "googleapis";
+import type { calendar_v3 } from "@googleapis/calendar";
 import { FIXED_CALENDAR_ID, FIXED_TIME_ZONE } from "../src/calendar/config.js";
 import { GoogleCalendarGateway } from "../src/calendar/google.js";
 import type { ParsedCalendarEvent } from "../src/calendar/parser.js";

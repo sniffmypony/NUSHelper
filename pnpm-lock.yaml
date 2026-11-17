@@ -17,6 +17,9 @@ importers:
 
   .:
     dependencies:
+      '@googleapis/calendar':
+        specifier: 20.1.0
+        version: 20.1.0
       '@napi-rs/canvas':
         specifier: 1.0.12
         version: 1.0.12
@@ -32,9 +35,6 @@ importers:
       google-auth-library:
         specifier: ^10.9.1
         version: 10.9.1
-      googleapis:
-        specifier: ^189.0.0
-        version: 189.0.0
       luxon:
         specifier: ^3.7.2
         version: 3.7.2
@@ -632,6 +632,10 @@ packages:
   '@eslint/plugin-kit@0.4.1':
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@googleapis/calendar@20.1.0':
+    resolution: {integrity: sha512-bPO9wts48OAEhJn5UfgPC4FuyW/D6ufUzdXx0JHfeJIqg+O5bHvX/TenaAdbJuGhluhn5FLlyl6HzuhE4rFJqw==}
+    engines: {node: '>=22.0.0'}
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -1675,8 +1679,8 @@ packages:
     resolution: {integrity: sha512-kB3rzJV7d9juLZh8/56QTXCwQfxyhdOMdyYk1HdQKFtF8TJTDTZQJtixWIwXdE9Jji91mC41DUNpjleo4L4eAQ==}
     engines: {node: '>=18'}
 
-  gaxios@8.3.2:
-    resolution: {integrity: sha512-7VsaTExxjbDv2ZK1YuC4jbgfN33NI/6/7zdYWUHB6mcg51v4tCBZe+xzjqPzOpVzI+C5k1Kk9OQ80WVrXAHOqw==}
+  gaxios@8.3.3:
+    resolution: {integrity: sha512-zqPbbtW5bAOZ8BRjS7bxj5VG7PBY5PwKRxpku9NplLqAPmYMoXExL1KOdaK5fHvwRETu3bPplLEsFGDdUUlrpw==}
     engines: {node: '>=22'}
 
   gcp-metadata@8.1.2:
@@ -1737,10 +1741,6 @@ packages:
   googleapis-common@9.3.1:
     resolution: {integrity: sha512-wtv/e7JYgmtpIPcSez2EFD/Wx49DPsRX2rj15D7hTwc7tDsP82dcwoX/I4+zE38mu6S9PcghizzzADLf+ZMunA==}
     engines: {node: '>=22'}
-
-  googleapis@189.0.0:
-    resolution: {integrity: sha512-TmFQmaLNcY/aaGNC9wZW9GvPueWB/fdNmt6eNFLKo5nrAxod4OAnvQNRxZuGO8iKObie5g3iLJloHQ8iiiIlvA==}
-    engines: {node: '>=22.0.0'}
 
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
@@ -2755,6 +2755,12 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
+  '@googleapis/calendar@20.1.0':
+    dependencies:
+      googleapis-common: 9.3.1
+    transitivePeerDependencies:
+      - supports-color
+
   '@humanfs/core@0.19.2':
     dependencies:
       '@humanfs/types': 0.15.0
@@ -2784,7 +2790,7 @@ snapshots:
       consola: 3.4.2
       detect-libc: 2.1.2
       https-proxy-agent: 7.0.6
-      node-fetch: 2.6.9
+      node-fetch: 2.7.0
       nopt: 8.1.0
       semver: 7.8.6
       tar: 7.5.22
@@ -3705,7 +3711,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  gaxios@8.3.2:
+  gaxios@8.3.3:
     dependencies:
       extend: 3.0.2
       https-proxy-agent: 7.0.6
@@ -3723,7 +3729,7 @@ snapshots:
 
   gcp-metadata@9.2.3:
     dependencies:
-      gaxios: 8.3.2
+      gaxios: 8.3.3
       google-logging-utils: 2.2.0
       json-bigint: 1.0.0
     transitivePeerDependencies:
@@ -3784,7 +3790,7 @@ snapshots:
     dependencies:
       base64-js: 1.5.1
       ecdsa-sig-formatter: 1.0.11
-      gaxios: 8.3.2
+      gaxios: 8.3.3
       gcp-metadata: 9.2.3
       google-logging-utils: 2.2.0
       jws: 4.0.1
@@ -3798,18 +3804,11 @@ snapshots:
   googleapis-common@9.3.1:
     dependencies:
       extend: 3.0.2
-      gaxios: 8.3.2
+      gaxios: 8.3.3
       google-auth-library: 11.3.4
       google-logging-utils: 2.2.0
       qs: 6.17.1
       url-template: 2.0.8
-    transitivePeerDependencies:
-      - supports-color
-
-  googleapis@189.0.0:
-    dependencies:
-      google-auth-library: 11.3.4
-      googleapis-common: 9.3.1
     transitivePeerDependencies:
       - supports-color
 
