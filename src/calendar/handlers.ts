@@ -412,7 +412,7 @@ export function registerCalendarHandlers(
     const message = ctx.message;
     if (!message || !("text" in message) || message.text.startsWith("/"))
       return;
-    // Free text that is not shaped like an event goes to the Canvas assistant.
+    // Free text that is not shaped like an event goes to the AI assistant.
     if (!looksLikeCalendarMessage(message.text)) return next();
     await stageCalendarMessage(
       ctx,

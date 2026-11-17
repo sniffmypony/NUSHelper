@@ -49,6 +49,12 @@ import {
 } from "./effort.js";
 import { ModelTimeoutError, streamCompletion } from "./model-client.js";
 import { conversationKey, threadIdOf } from "../topic-context.js";
+import {
+  acknowledge,
+  callbackId,
+  rowsWithout,
+  setButtons,
+} from "../telegram-buttons.js";
 
 const CHAT_ACTION_INTERVAL_MS = 4_500;
 const PROGRESS_NOTE_MS = 20_000;
@@ -376,7 +382,7 @@ export function assistantErrorMessage(error: unknown): string {
     return "Canvas rejected the API token; it has probably expired. Create a new token in Canvas (Account > Settings > New access token) and update CANVAS_API_TOKEN in Vercel.";
   }
   if (error instanceof AssistantConfigError) {
-    return "The Canvas assistant is not configured yet (missing environment variables).";
+    return "The AI assistant is not configured yet (missing environment variables).";
   }
   if (error instanceof ModelTimeoutError) {
     return "The AI took too long to answer, even with less thinking. Try again, or ask one part at a time.";
@@ -635,7 +641,7 @@ export async function answerAssistantMessage(
     }
   } catch (error) {
     console.error(
-      `Canvas assistant failed (${errorType(error)}) after ${Date.now() - started}ms`,
+      `Assistant failed (${errorType(error)}) after ${Date.now() - started}ms`,
     );
     chatAction.stop();
     progress.stop();
@@ -785,30 +791,14 @@ export function registerAssistantHandlers(
 
   // Re-runs a saved study question at high effort.
   bot.action(/^ai:think:(\d{1,10})$/, async (ctx) => {
-    try {
-      await ctx.answerCbQuery("Thinking harder…");
-    } catch {
-      // Telegram may retry an old callback after its acknowledgement window.
-    }
+    await acknowledge(ctx, "Thinking harder…");
     const chatId = ctx.chat?.id;
-    const id = Number(ctx.match[1]);
-    if (!chatId || !deps.settings || !Number.isSafeInteger(id)) return;
+    const id = callbackId(ctx.match[1]);
+    if (!chatId || !deps.settings || id === null) return;
     if (!(await deps.store.claimUpdate(ctx.update.update_id))) return;
 
     // One press per answer: the button goes, other buttons stay.
-    const keyboard = (
-      ctx.callbackQuery as { message?: { reply_markup?: InlineKeyboard } }
-    ).message?.reply_markup;
-    const rows = (keyboard?.inline_keyboard ?? []).filter(
-      (row) => !row.some((button) => button.callback_data === ctx.match[0]),
-    );
-    try {
-      await ctx.editMessageReplyMarkup(
-        rows.length > 0 ? { inline_keyboard: rows } : undefined,
-      );
-    } catch {
-      // The message may be too old to edit.
-    }
+    await setButtons(ctx, rowsWithout(ctx, ctx.match[0]));
 
     const request = await deps.settings.findRequest(String(chatId), id);
     if (!request) {

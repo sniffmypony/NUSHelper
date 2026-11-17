@@ -94,15 +94,6 @@ export function scheduleReminder(
   return { ok: true, schedule: scheduleAt(scheduled, localNow) };
 }
 
-// Kept for reminders that can only be today, such as "/remind HHMM text".
-export function scheduleReminderToday(
-  command: ParsedReminderCommand,
-  now = new Date(),
-): ReminderSchedule | null {
-  const result = scheduleReminder({ ...command, day: undefined }, now);
-  return result.ok ? result.schedule : null;
-}
-
 // A snoozed reminder fires this many minutes from now.
 export function scheduleSnooze(
   minutes: number,

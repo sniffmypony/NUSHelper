@@ -1,7 +1,6 @@
 import { DateTime } from "luxon";
 import { SINGAPORE_TIME_ZONE } from "../dates.js";
 
-export const TELEGRAM_MESSAGE_LIMIT = 4096;
 // Leave headroom below Telegram's hard limit.
 const DEFAULT_CHUNK_SIZE = 4000;
 
@@ -16,13 +15,6 @@ export function formatDueTime(iso: string): string {
   return DateTime.fromISO(iso, { zone: "utc" })
     .setZone(SINGAPORE_TIME_ZONE)
     .toFormat("ccc d LLL, HH:mm");
-}
-
-export function isWithinDays(iso: string, now: Date, days: number): boolean {
-  const due = DateTime.fromISO(iso, { zone: "utc" });
-  if (!due.isValid) return false;
-  const start = DateTime.fromJSDate(now);
-  return due >= start && due <= start.plus({ days });
 }
 
 // Modules are ordered by their earliest deadline; items within a module by due date.

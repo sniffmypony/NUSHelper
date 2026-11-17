@@ -15,6 +15,7 @@ import {
   parseRecurringCommand,
   type RecurrenceRule,
 } from "./recurrence.js";
+import { acknowledge, buttonText, callbackId } from "./telegram-buttons.js";
 
 // Repeating items (/every): each one adds itself to the to-do list on the
 // mornings it is due. /repeats lists them; deleting asks Delete/Keep first.
@@ -112,24 +113,16 @@ export async function addDueRecurringTodos(today: string): Promise<number> {
   return added;
 }
 
-const BUTTON_TEXT_LIMIT = 48;
-
 export function recurringKeyboard(
   items: Array<{ id: number; description: string }>,
 ): InlineKeyboard {
   return {
-    inline_keyboard: items.slice(0, 30).map((item) => {
-      const text = `Stop: ${item.description}`;
-      return [
-        {
-          text:
-            text.length > BUTTON_TEXT_LIMIT
-              ? `${text.slice(0, BUTTON_TEXT_LIMIT - 1)}…`
-              : text,
-          callback_data: `rep:ask:${item.id}`,
-        },
-      ];
-    }),
+    inline_keyboard: items.slice(0, 30).map((item) => [
+      {
+        text: buttonText(`Stop: ${item.description}`),
+        callback_data: `rep:ask:${item.id}`,
+      },
+    ]),
   };
 }
 
@@ -156,13 +149,9 @@ export function registerRecurringCommands(bot: Telegraf): void {
   });
 
   bot.action(/^rep:ask:(\d{1,10})$/, async (ctx) => {
-    try {
-      await ctx.answerCbQuery();
-    } catch {
-      // Telegram may retry an old callback after its acknowledgement window.
-    }
-    const id = Number(ctx.match[1]);
-    if (!Number.isSafeInteger(id) || id <= 0 || id > 2_147_483_647) return;
+    await acknowledge(ctx);
+    const id = callbackId(ctx.match[1]);
+    if (id === null) return;
     const item = await findRecurring(id);
     if (!item) {
       await ctx.reply(

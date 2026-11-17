@@ -5,17 +5,9 @@ import {
   type CanvasClient,
   type CanvasCourse,
 } from "../canvas/client.js";
-import {
-  findCoursesByModule,
-  moduleCodesFor,
-  primaryModuleCode,
-} from "../canvas/modules.js";
-import {
-  formatBytes,
-  formatDueItemsByModule,
-  isWithinDays,
-  type DueItem,
-} from "./format.js";
+import { fetchDueItems } from "../canvas/deadlines.js";
+import { findCoursesByModule, moduleCodesFor } from "../canvas/modules.js";
+import { formatBytes, formatDueItemsByModule } from "./format.js";
 import {
   botActionTools,
   BotToolError,
@@ -422,27 +414,15 @@ export class AssistantToolbox {
       ? await this.coursesFor(moduleCode)
       : await this.courses();
     const now = this.now();
-
-    const perCourse = await Promise.all(
-      courses.map(async (course) => {
-        const assignments = await this.canvasClient
-          .listFutureAssignments(course.id)
-          .catch((error: unknown) => {
-            // One module with assignments hidden should not hide the rest.
-            if (error instanceof CanvasRequestError && !moduleCode) return [];
-            throw error;
-          });
-        return assignments
-          .filter((a) => a.due_at && isWithinDays(a.due_at, now, daysAhead))
-          .map((a): DueItem => ({
-            moduleCode: primaryModuleCode(course),
-            name: a.name,
-            dueAt: a.due_at!,
-            submitted: Boolean(a.submission?.submitted_at),
-          }));
-      }),
+    const items = await fetchDueItems(
+      this.canvasClient,
+      courses,
+      now,
+      new Date(now.getTime() + daysAhead * 86_400_000),
+      // For one named module, Canvas refusing its assignments is the answer.
+      { strict: Boolean(moduleCode) },
     );
-    return formatDueItemsByModule(perCourse.flat(), daysAhead);
+    return formatDueItemsByModule(items, daysAhead);
   }
 
   private async searchFiles(args: Record<string, unknown>): Promise<string> {

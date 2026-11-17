@@ -8,11 +8,11 @@ import {
   saveCarryovers,
   type CarryoverItem,
 } from "../../src/todo-carryover.js";
+import { isVercelCron } from "../../src/scheduled-jobs.js";
 import { sendToTopic } from "../../src/topics.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const cronSecret = process.env.CRON_SECRET?.trim();
-  if (!cronSecret || req.headers.authorization !== `Bearer ${cronSecret}`) {
+  if (!isVercelCron(req.headers.authorization)) {
     return res.status(401).send("unauthorized");
   }
 

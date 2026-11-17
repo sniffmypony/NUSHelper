@@ -32,7 +32,7 @@ import {
 } from "./task-todo.js";
 
 // The bodies of the task, to-do, reminder and expenditure commands. Both the
-// slash commands and the Canvas assistant's tools call these, so validation,
+// slash commands and the AI assistant's tools call these, so validation,
 // storage and confirmations are identical whichever way a request arrives.
 
 // label names the item on its Undo button.
@@ -265,8 +265,6 @@ export async function snoozeReminder(
   return `Snoozed to ${formatReminderWhen(snoozed.scheduledAt, now)}: ${row.description}`;
 }
 
-const reminderTime = formatReminderWhen;
-
 export async function listPendingReminders(
   ownerId: string,
   now = new Date(),
@@ -287,7 +285,7 @@ export async function listPendingReminders(
   return rows
     .map(
       (row) =>
-        `• ${reminderTime(row.scheduledAt, now)} ${row.description}${withId ? ` (reminder_id ${row.id})` : ""}`,
+        `• ${formatReminderWhen(row.scheduledAt, now)} ${row.description}${withId ? ` (reminder_id ${row.id})` : ""}`,
     )
     .join("\n");
 }
@@ -311,7 +309,7 @@ export async function findPendingReminder(
     ? {
         id: row.id,
         description: row.description,
-        time: reminderTime(row.scheduledAt),
+        time: formatReminderWhen(row.scheduledAt),
       }
     : null;
 }

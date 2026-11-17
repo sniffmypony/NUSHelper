@@ -20,6 +20,7 @@ import {
   weekdayNumber,
   type RawLesson,
 } from "./timetable-link.js";
+import { acknowledge, setButtons } from "../telegram-buttons.js";
 
 // The class timetable (/timetable): imported once from a NUSMods share link
 // and stored, so the morning message needs no network call. Classes are only
@@ -288,16 +289,28 @@ export async function todaysClassesSection(
   ].join("\n");
 }
 
+// Like every other deletion, clearing the timetable waits for a Delete tap.
+export const CLEAR_TIMETABLE_KEYBOARD = {
+  inline_keyboard: [
+    [
+      { text: "Delete", callback_data: "tt:clear" },
+      { text: "Keep", callback_data: "ai:keep" },
+    ],
+  ],
+};
+
 export function registerTimetableCommands(bot: Telegraf): void {
   bot.command("timetable", async (ctx) => {
     const argument = ctx.message.text.replace(/^\/timetable(@\w+)?/, "").trim();
     try {
       if (!argument) return await ctx.reply(await describeTimetable());
       if (argument.toLowerCase() === "clear") {
-        await timetableStore.clear();
-        return await ctx.reply(
-          "Timetable removed. Send /timetable with a NUSMods link to add one again.",
-        );
+        if ((await timetableStore.all()).length === 0) {
+          return await ctx.reply("No timetable is saved.");
+        }
+        return await ctx.reply("Remove your saved class timetable?", {
+          reply_markup: CLEAR_TIMETABLE_KEYBOARD,
+        });
       }
       return await ctx.reply(await importTimetable(argument));
     } catch (error) {
@@ -307,5 +320,14 @@ export function registerTimetableCommands(bot: Telegraf): void {
         "I couldn't reach NUSMods or save the timetable just now. Please try again in a bit.",
       );
     }
+  });
+
+  bot.action("tt:clear", async (ctx) => {
+    await acknowledge(ctx);
+    await setButtons(ctx);
+    await timetableStore.clear();
+    await ctx.reply(
+      "Timetable removed. Send /timetable with a NUSMods link to add one again.",
+    );
   });
 }

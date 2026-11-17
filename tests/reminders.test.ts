@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { dispatchDueReminders } from "../src/reminder-dispatcher.js";
 import type { Reminder, ReminderStore } from "../src/reminder-store.js";
-import { scheduleReminderToday } from "../src/reminders.js";
+import { scheduleReminder } from "../src/reminders.js";
 import { TelegramDeliveryError } from "../src/telegram.js";
 
 function reminder(overrides: Partial<Reminder> = {}): Reminder {
@@ -33,27 +33,30 @@ function storeWith(rows: Reminder[]): ReminderStore {
   };
 }
 
-describe("same-day reminders", () => {
+describe("reminders for today", () => {
   it("schedules in Singapore time and expires at the next midnight", () => {
-    const value = scheduleReminderToday(
+    const value = scheduleReminder(
       { hour: 18, minute: 0, description: "do tutorial" },
       new Date("2026-10-14T09:30:00Z"),
     );
     expect(value).toEqual({
-      scheduledAt: new Date("2026-10-14T10:00:00Z"),
-      expiresAt: new Date("2026-10-14T16:00:00Z"),
-      displayTime: "18:00",
-      displayDay: "today",
+      ok: true,
+      schedule: {
+        scheduledAt: new Date("2026-10-14T10:00:00Z"),
+        expiresAt: new Date("2026-10-14T16:00:00Z"),
+        displayTime: "18:00",
+        displayDay: "today",
+      },
     });
   });
 
   it("rejects a time that has already passed", () => {
     expect(
-      scheduleReminderToday(
+      scheduleReminder(
         { hour: 17, minute: 0, description: "too late" },
         new Date("2026-10-14T09:30:00Z"),
       ),
-    ).toBeNull();
+    ).toEqual({ ok: false, problem: "past" });
   });
 
   it("marks successful deliveries sent", async () => {

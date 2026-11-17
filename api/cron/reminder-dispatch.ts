@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { dispatchDueReminders } from "../../src/reminder-dispatcher.js";
 import { reminderStore } from "../../src/reminder-store.js";
@@ -7,15 +6,7 @@ import { sendTo, sendToTopic } from "../../src/topics.js";
 import { runExpenditureSchedule } from "../../src/expenditure-service.js";
 import { expenditureStore } from "../../src/expenditure-store.js";
 import { telegramOwnerId } from "../../src/env.js";
-
-function authorized(value: string | undefined, secret: string): boolean {
-  if (!value?.startsWith("Bearer ")) return false;
-  const supplied = Buffer.from(value.slice("Bearer ".length));
-  const expected = Buffer.from(secret);
-  return (
-    supplied.length === expected.length && timingSafeEqual(supplied, expected)
-  );
-}
+import { hasBearerSecret } from "../../src/scheduled-jobs.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -23,8 +14,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).send("method not allowed");
   }
 
-  const secret = process.env.REMINDER_DISPATCH_SECRET?.trim();
-  if (!secret || !authorized(req.headers.authorization, secret)) {
+  // Supabase's per-minute job sends its own secret, not Vercel's.
+  if (
+    !hasBearerSecret(
+      req.headers.authorization,
+      process.env.REMINDER_DISPATCH_SECRET,
+    )
+  ) {
     return res.status(401).send("unauthorized");
   }
 

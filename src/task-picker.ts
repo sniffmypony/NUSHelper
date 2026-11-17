@@ -5,6 +5,13 @@ import {
   type InlineKeyboard,
 } from "./assistant/keyboards.js";
 import { matchTasks, type TaskListItem } from "./task-todo.js";
+import {
+  acknowledge,
+  buttonText,
+  callbackId,
+  rowsWithout,
+  setButtons,
+} from "./telegram-buttons.js";
 
 // /done and /remove pick a task by name or from buttons, so the user never
 // needs a task's database id. Removing always asks Delete/Keep first.
@@ -12,14 +19,6 @@ import { matchTasks, type TaskListItem } from "./task-todo.js";
 export type PickVerb = "done" | "remove";
 
 const PICKER_LIMIT = 30;
-const BUTTON_TEXT_LIMIT = 48;
-
-function buttonText(task: TaskListItem): string {
-  const text = `${task.description}${task.module ? ` [${task.module}]` : ""}`;
-  return text.length > BUTTON_TEXT_LIMIT
-    ? `${text.slice(0, BUTTON_TEXT_LIMIT - 1)}…`
-    : text;
-}
 
 export function taskPickerKeyboard(
   tasks: TaskListItem[],
@@ -28,7 +27,12 @@ export function taskPickerKeyboard(
   const code = verb === "done" ? "done" : "rm";
   return {
     inline_keyboard: tasks.map((task) => [
-      { text: buttonText(task), callback_data: `task:${code}:${task.id}` },
+      {
+        text: buttonText(
+          `${task.description}${task.module ? ` [${task.module}]` : ""}`,
+        ),
+        callback_data: `task:${code}:${task.id}`,
+      },
     ]),
   };
 }
@@ -82,24 +86,6 @@ export async function pickTask(
   });
 }
 
-function keyboardOf(ctx: Context): InlineKeyboard | undefined {
-  const message = (
-    ctx.callbackQuery as { message?: { reply_markup?: InlineKeyboard } }
-  )?.message;
-  return message?.reply_markup;
-}
-
-async function setKeyboard(
-  ctx: Context,
-  keyboard: InlineKeyboard | undefined,
-): Promise<void> {
-  try {
-    await ctx.editMessageReplyMarkup(keyboard);
-  } catch {
-    // The message may be too old to edit; the action still runs.
-  }
-}
-
 export function registerTaskPicker(bot: Telegraf): void {
   bot.command("done", (ctx) =>
     pickTask(ctx, "done", pickQuery(ctx.message.text, "done")),
@@ -109,29 +95,19 @@ export function registerTaskPicker(bot: Telegraf): void {
   );
 
   bot.action(/^task:(done|rm):(\d{1,10})$/, async (ctx) => {
-    try {
-      await ctx.answerCbQuery();
-    } catch {
-      // Telegram may retry an old callback after its acknowledgement window.
-    }
+    await acknowledge(ctx);
     const [data, code, rawId] = ctx.match;
-    const id = Number(rawId);
-    if (!Number.isSafeInteger(id) || id <= 0 || id > 2_147_483_647) return;
+    const id = callbackId(rawId);
+    if (id === null) return;
 
     if (code === "done") {
       // Keep the other buttons so several tasks can be ticked off in a row.
-      const rows = (keyboardOf(ctx)?.inline_keyboard ?? []).filter(
-        (row) => !row.some((button) => button.callback_data === data),
-      );
-      await setKeyboard(
-        ctx,
-        rows.length > 0 ? { inline_keyboard: rows } : undefined,
-      );
+      await setButtons(ctx, rowsWithout(ctx, data));
       await ctx.reply(await actions.completeTask(id));
       return;
     }
 
-    await setKeyboard(ctx, undefined);
+    await setButtons(ctx);
     const task = await actions.findTask(id);
     if (!task) {
       await ctx.reply(

@@ -2,31 +2,23 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "../../src/db/client.js";
 import { tasks, todos } from "../../src/db/schema.js";
-import {
-  addDays,
-  singaporeDateRange,
-  todayInSingapore,
-} from "../../src/dates.js";
+import { addDays, todayInSingapore } from "../../src/dates.js";
 import {
   formatTaskItem,
   formatTodoItem,
   isTaskDueOn,
 } from "../../src/task-todo.js";
 import { formatCalendarAgenda } from "../../src/calendar/agenda.js";
-import { isCalendarConfigured } from "../../src/calendar/config.js";
-import { getCalendarGateway } from "../../src/calendar/google.js";
-import { withVercelOidcToken } from "../../src/calendar/request-context.js";
-import type { CalendarAgendaEvent } from "../../src/calendar/types.js";
 import { canvasDeadlineSection } from "../../src/canvas/deadlines.js";
 import { todaysClassesSection } from "../../src/nus/timetable.js";
 import { addDueRecurringTodos } from "../../src/recurring.js";
+import { isVercelCron, readCalendarDays } from "../../src/scheduled-jobs.js";
 import { sendToTopic } from "../../src/topics.js";
 
 const CANVAS_WINDOW_HOURS = 48;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const cronSecret = process.env.CRON_SECRET?.trim();
-  if (!cronSecret || req.headers.authorization !== `Bearer ${cronSecret}`) {
+  if (!isVercelCron(req.headers.authorization)) {
     return res.status(401).send("unauthorized");
   }
 
@@ -77,23 +69,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).send("daily morning database query failed");
   }
 
-  let calendarEvents: CalendarAgendaEvent[] = [];
-  let calendarReadFailed = false;
-  // Google Calendar is optional: without it the section is simply left out.
-  if (isCalendarConfigured())
-    try {
-      const range = singaporeDateRange(today, 3);
-      calendarEvents = await withVercelOidcToken(
-        req.headers["x-vercel-oidc-token"],
-        async () => {
-          const gateway = await getCalendarGateway();
-          return gateway.listRange(range.timeMin, range.timeMax);
-        },
-      );
-    } catch (error) {
-      calendarReadFailed = true;
-      console.error("Daily morning Calendar query failed:", error);
-    }
+  const { events: calendarEvents, failed: calendarReadFailed } =
+    await readCalendarDays(
+      req.headers["x-vercel-oidc-token"],
+      today,
+      3,
+      "Daily morning",
+    );
 
   // Classes show only in teaching weeks 1-13 (see src/nus/academic-week.ts).
   let classes: string | null = null;

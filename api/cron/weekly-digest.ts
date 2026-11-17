@@ -12,15 +12,10 @@ import {
 import { sendToTopic } from "../../src/topics.js";
 import { canvasDeadlineSection } from "../../src/canvas/deadlines.js";
 import { formatCalendarAgenda } from "../../src/calendar/agenda.js";
-import { isCalendarConfigured } from "../../src/calendar/config.js";
-import { getCalendarGateway } from "../../src/calendar/google.js";
-import { withVercelOidcToken } from "../../src/calendar/request-context.js";
-import type { CalendarAgendaEvent } from "../../src/calendar/types.js";
+import { isVercelCron, readCalendarDays } from "../../src/scheduled-jobs.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Vercel adds this header automatically for cron-triggered requests when CRON_SECRET is set
-  const cronSecret = process.env.CRON_SECRET?.trim();
-  if (!cronSecret || req.headers.authorization !== `Bearer ${cronSecret}`) {
+  if (!isVercelCron(req.headers.authorization)) {
     return res.status(401).send("unauthorized");
   }
 
@@ -45,23 +40,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).send("weekly digest database query failed");
   }
 
-  let calendarEvents: CalendarAgendaEvent[] = [];
-  let calendarReadFailed = false;
-  // Google Calendar is optional: without it the section is simply left out.
-  if (isCalendarConfigured())
-    try {
-      const range = singaporeDateRange(weekStart, 7);
-      calendarEvents = await withVercelOidcToken(
-        req.headers["x-vercel-oidc-token"],
-        async () => {
-          const gateway = await getCalendarGateway();
-          return gateway.listRange(range.timeMin, range.timeMax);
-        },
-      );
-    } catch (error) {
-      calendarReadFailed = true;
-      console.error("Weekly digest Calendar query failed:", error);
-    }
+  const { events: calendarEvents, failed: calendarReadFailed } =
+    await readCalendarDays(
+      req.headers["x-vercel-oidc-token"],
+      weekStart,
+      7,
+      "Weekly digest",
+    );
 
   const sections: string[] = [];
   if (calendarEvents.length) {

@@ -1,8 +1,14 @@
 import type { Context, Telegraf } from "telegraf";
 import * as actions from "../bot-actions.js";
 import type { DeletableKind } from "./bot-tools.js";
-import { confirmDeleteKeyboard, type InlineKeyboard } from "./keyboards.js";
+import { confirmDeleteKeyboard } from "./keyboards.js";
 import { deleteRecurring, findRecurring } from "../recurring.js";
+import {
+  acknowledge,
+  callbackId,
+  rowsWithout,
+  setButtons,
+} from "../telegram-buttons.js";
 
 // Handlers for the assistant's deletions and undos. Deleting always waits for
 // a Delete press; Undo removes something the assistant just added.
@@ -64,58 +70,22 @@ export async function requestDeletion(
   return "Asked the user to confirm. Nothing is deleted until they press Delete.";
 }
 
-function keyboardOf(ctx: Context): InlineKeyboard | undefined {
-  const message = (
-    ctx.callbackQuery as { message?: { reply_markup?: InlineKeyboard } }
-  )?.message;
-  return message?.reply_markup;
-}
-
-async function setKeyboard(
-  ctx: Context,
-  keyboard: InlineKeyboard | undefined,
-): Promise<void> {
-  try {
-    await ctx.editMessageReplyMarkup(keyboard);
-  } catch {
-    // The message may be too old to edit; the action itself already ran.
-  }
-}
-
 export function registerAssistantButtons(bot: Telegraf, ownerId: string): void {
   bot.action(/^ai:(del|undo):(todo|task|rem|rep):(\d{1,10})$/, async (ctx) => {
-    try {
-      await ctx.answerCbQuery();
-    } catch {
-      // Telegram may retry an old callback after its acknowledgement window.
-    }
+    await acknowledge(ctx);
     const [data, verb, kind, rawId] = ctx.match;
-    const id = Number(rawId);
-    if (!Number.isSafeInteger(id) || id <= 0 || id > 2_147_483_647) return;
+    const id = callbackId(rawId);
+    if (id === null) return;
 
     const result = await performDelete(kind as DeletableKind, id, ownerId);
-    if (verb === "del") {
-      await setKeyboard(ctx, undefined);
-    } else {
-      // Keep the other Undo buttons on the same reply.
-      const rows = (keyboardOf(ctx)?.inline_keyboard ?? []).filter(
-        (row) => !row.some((button) => button.callback_data === data),
-      );
-      await setKeyboard(
-        ctx,
-        rows.length > 0 ? { inline_keyboard: rows } : undefined,
-      );
-    }
+    // Delete clears the buttons; Undo keeps the other Undo buttons.
+    await setButtons(ctx, verb === "del" ? [] : rowsWithout(ctx, data));
     await ctx.reply(verb === "undo" ? `Undone. ${result}` : result);
   });
 
   bot.action("ai:keep", async (ctx) => {
-    try {
-      await ctx.answerCbQuery();
-    } catch {
-      // See above.
-    }
-    await setKeyboard(ctx, undefined);
+    await acknowledge(ctx);
+    await setButtons(ctx);
     await ctx.reply("Kept.");
   });
 }

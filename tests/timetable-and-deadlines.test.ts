@@ -20,13 +20,72 @@ import {
   type RawLesson,
 } from "../src/nus/timetable-link.js";
 import {
+  CLEAR_TIMETABLE_KEYBOARD,
   describeTimetable,
   importTimetable,
+  registerTimetableCommands,
+  timetableStore,
   todaysClassesSection,
   type FetchLike,
   type NewLesson,
   type TimetableStore,
 } from "../src/nus/timetable.js";
+
+describe("/timetable clear", () => {
+  type Handler = (ctx: unknown) => Promise<unknown>;
+  function fakeBot() {
+    const handlers = new Map<string, Handler>();
+    const bot = {
+      command: (name: string, handler: Handler) =>
+        handlers.set(`/${name}`, handler),
+      action: (data: string, handler: Handler) => handlers.set(data, handler),
+    };
+    registerTimetableCommands(bot as never);
+    return handlers;
+  }
+  const ctxFor = (text?: string) => ({
+    message: { text },
+    reply: vi.fn().mockResolvedValue({}),
+    answerCbQuery: vi.fn().mockResolvedValue(true),
+    editMessageReplyMarkup: vi.fn().mockResolvedValue(true),
+  });
+
+  it("asks before removing the timetable, and removes it on Delete", async () => {
+    const handlers = fakeBot();
+    vi.spyOn(timetableStore, "all").mockResolvedValue([{} as NewLesson]);
+    const clear = vi.spyOn(timetableStore, "clear").mockResolvedValue();
+
+    const command = ctxFor("/timetable clear");
+    await handlers.get("/timetable")!(command);
+    expect(clear).not.toHaveBeenCalled();
+    expect(command.reply).toHaveBeenCalledWith(
+      "Remove your saved class timetable?",
+      { reply_markup: CLEAR_TIMETABLE_KEYBOARD },
+    );
+    expect(CLEAR_TIMETABLE_KEYBOARD.inline_keyboard[0]).toEqual([
+      { text: "Delete", callback_data: "tt:clear" },
+      { text: "Keep", callback_data: "ai:keep" },
+    ]);
+
+    const tap = ctxFor();
+    await handlers.get("tt:clear")!(tap);
+    expect(clear).toHaveBeenCalledTimes(1);
+    expect(tap.editMessageReplyMarkup).toHaveBeenCalledWith(undefined);
+    expect(tap.reply).toHaveBeenCalledWith(
+      expect.stringMatching(/^Timetable removed\./),
+    );
+    vi.restoreAllMocks();
+  });
+
+  it("says so when there is nothing to remove", async () => {
+    const handlers = fakeBot();
+    vi.spyOn(timetableStore, "all").mockResolvedValue([]);
+    const command = ctxFor("/timetable clear");
+    await handlers.get("/timetable")!(command);
+    expect(command.reply).toHaveBeenCalledWith("No timetable is saved.");
+    vi.restoreAllMocks();
+  });
+});
 
 describe("NUS academic weeks (NUSMods' rule)", () => {
   it("starts the year on the first Monday of August", () => {
@@ -455,12 +514,31 @@ describe("Canvas deadlines for the morning message and digest", () => {
   const until = new Date(NOW.getTime() + 48 * 3_600_000);
 
   it("returns what is due in the window, earliest first", async () => {
-    const items = await fetchDueItems(source(), NOW, until);
+    const courses = await source().listActiveCourses();
+    const items = await fetchDueItems(source(), courses, NOW, until);
     expect(items.map((item) => `${item.moduleCode} ${item.name}`)).toEqual([
       "CS2102 Assignment 3",
       "CS2103T iP week 13",
     ]);
     expect(items[0].submitted).toBe(true);
+  });
+
+  it("skips a refused module, unless it was the one asked about", async () => {
+    const refusing = source({
+      listFutureAssignments: async (courseId) => {
+        if (courseId === 1) throw new CanvasRequestError("forbidden", 403);
+        return [
+          { id: 20, name: "Assignment 3", due_at: "2026-11-13T15:59:00Z" },
+        ];
+      },
+    });
+    const courses = await refusing.listActiveCourses();
+    await expect(
+      fetchDueItems(refusing, courses, NOW, until),
+    ).resolves.toHaveLength(1);
+    await expect(
+      fetchDueItems(refusing, [courses[0]], NOW, until, { strict: true }),
+    ).rejects.toThrow("forbidden");
   });
 
   it("leaves submitted work out of the morning message", async () => {

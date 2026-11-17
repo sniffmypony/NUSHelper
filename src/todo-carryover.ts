@@ -1,23 +1,26 @@
 import { asc, eq } from "drizzle-orm";
-import type { Context, Telegraf } from "telegraf";
+import type { Telegraf } from "telegraf";
 import { db } from "./db/client.js";
 import { tasks, todoCarryovers, todos } from "./db/schema.js";
 import type { TelegramInlineKeyboard } from "./telegram.js";
+import {
+  acknowledge,
+  buttonText,
+  callbackId,
+  rowsWithout,
+  setButtons,
+} from "./telegram-buttons.js";
 
 // The nightly check-in clears the to-do list. Each item it showed is kept
 // here for a day, so a "Move to tomorrow" tap can put it on the fresh list.
 
 export type CarryoverItem = { id: number; description: string };
 
-const BUTTON_TEXT_LIMIT = 48;
 const BUTTON_LIMIT = 30;
-
-function buttonText(description: string): string {
-  const text = `➡️ ${description}`;
-  return text.length > BUTTON_TEXT_LIMIT
-    ? `${text.slice(0, BUTTON_TEXT_LIMIT - 1)}…`
-    : text;
-}
+const MOVE_ALL = "todo:carry:all";
+const MOVE_ALL_ROW = [
+  { text: "Move all to tomorrow", callback_data: MOVE_ALL },
+];
 
 export function carryoverKeyboard(
   items: CarryoverItem[],
@@ -25,15 +28,11 @@ export function carryoverKeyboard(
   if (items.length === 0) return undefined;
   const rows = items.slice(0, BUTTON_LIMIT).map((item) => [
     {
-      text: buttonText(item.description),
+      text: buttonText(`➡️ ${item.description}`),
       callback_data: `todo:carry:${item.id}`,
     },
   ]);
-  if (items.length > 1) {
-    rows.push([
-      { text: "Move all to tomorrow", callback_data: "todo:carry:all" },
-    ]);
-  }
+  if (items.length > 1) rows.push(MOVE_ALL_ROW);
   return { inline_keyboard: rows };
 }
 
@@ -117,58 +116,21 @@ export async function moveAllCarryovers(): Promise<string> {
   return `Back on your to-do list: ${moved} ${moved === 1 ? "item" : "items"}.`;
 }
 
-type Keyboard = TelegramInlineKeyboard;
-
-function keyboardOf(ctx: Context): Keyboard | undefined {
-  return (ctx.callbackQuery as { message?: { reply_markup?: Keyboard } })
-    ?.message?.reply_markup;
-}
-
 export function registerCarryoverButtons(bot: Telegraf): void {
   bot.action(/^todo:carry:(\d{1,10}|all)$/, async (ctx) => {
-    try {
-      await ctx.answerCbQuery();
-    } catch {
-      // Telegram may retry an old callback after its acknowledgement window.
-    }
+    await acknowledge(ctx);
     const [data, target] = ctx.match;
     const all = target === "all";
-    const id = Number(target);
-    if (!all && (!Number.isSafeInteger(id) || id <= 0 || id > 2_147_483_647)) {
-      return;
-    }
+    const id = all ? null : callbackId(target);
+    if (!all && id === null) return;
 
     // Take the tapped button away; "Move all" goes once one item is left.
-    const itemRows = (keyboardOf(ctx)?.inline_keyboard ?? []).filter(
-      (row) =>
-        !row.some(
-          (button) =>
-            button.callback_data === data ||
-            button.callback_data === "todo:carry:all",
-        ),
+    const itemRows = rowsWithout(ctx, data, MOVE_ALL);
+    await setButtons(
+      ctx,
+      all ? [] : itemRows.length > 1 ? [...itemRows, MOVE_ALL_ROW] : itemRows,
     );
-    const rows =
-      all || itemRows.length === 0
-        ? []
-        : itemRows.length > 1
-          ? [
-              ...itemRows,
-              [
-                {
-                  text: "Move all to tomorrow",
-                  callback_data: "todo:carry:all",
-                },
-              ],
-            ]
-          : itemRows;
-    try {
-      await ctx.editMessageReplyMarkup(
-        rows.length > 0 ? { inline_keyboard: rows } : undefined,
-      );
-    } catch {
-      // The message may be too old to edit; the move still runs.
-    }
 
-    await ctx.reply(all ? await moveAllCarryovers() : await moveCarryover(id));
+    await ctx.reply(all ? await moveAllCarryovers() : await moveCarryover(id!));
   });
 }

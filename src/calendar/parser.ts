@@ -160,7 +160,7 @@ function parseTimeRange(value: string): {
 }
 
 // Calendar input is "<time>, <title>, <date>". Anything else (for example a
-// question for the Canvas assistant) should not receive calendar errors.
+// question for the AI assistant) should not receive calendar errors.
 export function looksLikeCalendarMessage(input: string): boolean {
   if (/\r?\n/.test(input)) return false;
   const fields = parseCsvFields(input);

@@ -8,7 +8,8 @@ import {
 } from "./client.js";
 import { primaryModuleCode } from "./modules.js";
 
-// Canvas deadlines for the morning message and the weekly digest. Canvas is
+// Canvas deadlines, used by the assistant's list_upcoming_assignments and by
+// the morning message and weekly digest. In the scheduled messages Canvas is
 // optional and can be down: either way the rest of the message still sends.
 
 export interface DeadlineSource {
@@ -16,27 +17,29 @@ export interface DeadlineSource {
   listFutureAssignments(courseId: number): Promise<CanvasAssignment[]>;
 }
 
-// Assignments due after `from` and up to `until`, earliest first.
+// Assignments in these courses due from `from` up to `until`, earliest
+// first. A module whose assignments Canvas refuses is skipped, unless
+// `strict` (one named module, where that refusal is the answer).
 export async function fetchDueItems(
-  source: DeadlineSource,
+  source: Pick<DeadlineSource, "listFutureAssignments">,
+  courses: CanvasCourse[],
   from: Date,
   until: Date,
+  { strict = false }: { strict?: boolean } = {},
 ): Promise<DueItem[]> {
-  const courses = await source.listActiveCourses();
   const perCourse = await Promise.all(
     courses.map(async (course) => {
       const assignments = await source
         .listFutureAssignments(course.id)
         .catch((error: unknown) => {
-          // One module with assignments hidden should not hide the rest.
-          if (error instanceof CanvasRequestError) return [];
+          if (error instanceof CanvasRequestError && !strict) return [];
           throw error;
         });
       return assignments
         .filter((assignment) => {
           if (!assignment.due_at) return false;
           const due = Date.parse(assignment.due_at);
-          return due > from.getTime() && due <= until.getTime();
+          return due >= from.getTime() && due <= until.getTime();
         })
         .map((assignment): DueItem => ({
           moduleCode: primaryModuleCode(course),
@@ -78,7 +81,12 @@ export async function canvasDeadlineSection(
   try {
     const config = source ? null : canvasConfig();
     const client = source ?? new CanvasClient(config!.baseUrl, config!.token);
-    const items = await fetchDueItems(client, from, until);
+    const items = await fetchDueItems(
+      client,
+      await client.listActiveCourses(),
+      from,
+      until,
+    );
     return {
       text: formatDeadlineSection(
         title,

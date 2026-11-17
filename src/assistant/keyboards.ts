@@ -1,8 +1,8 @@
+import type { TelegramInlineKeyboard } from "../telegram.js";
+import { buttonText } from "../telegram-buttons.js";
 import type { DeletableKind, UndoRef } from "./bot-tools.js";
 
-export type InlineKeyboard = {
-  inline_keyboard: Array<Array<{ text: string; callback_data: string }>>;
-};
+export type InlineKeyboard = TelegramInlineKeyboard;
 
 export function confirmDeleteKeyboard(
   kind: DeletableKind,
@@ -35,14 +35,11 @@ export function withThinkHarder(
 export function undoKeyboard(refs: UndoRef[]): InlineKeyboard | undefined {
   if (refs.length === 0) return undefined;
   return {
-    inline_keyboard: refs.map((ref) => {
-      const label = `Undo: ${ref.label}`;
-      return [
-        {
-          text: label.length > 48 ? `${label.slice(0, 47)}…` : label,
-          callback_data: `ai:undo:${ref.kind}:${ref.id}`,
-        },
-      ];
-    }),
+    inline_keyboard: refs.map((ref) => [
+      {
+        text: buttonText(`Undo: ${ref.label}`),
+        callback_data: `ai:undo:${ref.kind}:${ref.id}`,
+      },
+    ]),
   };
 }

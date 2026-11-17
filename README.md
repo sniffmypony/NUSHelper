@@ -1,6 +1,6 @@
 # NUSHelper
 
-A private Telegram assistant for NUS students. It keeps your tasks, daily to-dos, same-day reminders and spending in one chat. An AI assistant lets you do all of that in plain language, answers study questions with real LaTeX maths, reads photos, and (optionally) works with Canvas and Google Calendar.
+A private Telegram assistant for NUS students. It keeps your tasks, daily to-dos, reminders and spending in one chat. An AI assistant lets you do all of that in plain language, answers study questions with real LaTeX maths, reads photos, and (optionally) works with Canvas and Google Calendar.
 
 Each person runs their **own copy** for their own Telegram account: your data, keys and AI provider stay yours. It runs on free tiers of Vercel and Supabase.
 

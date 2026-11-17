@@ -235,7 +235,7 @@ export const expenditureReports = pgTable(
   }),
 );
 
-// One row per Telegram update the Canvas assistant has started, so webhook
+// One row per Telegram update the AI assistant has started, so webhook
 // retries never produce a second reply.
 export const assistantUpdateClaims = pgTable("assistant_update_claims", {
   updateId: bigint("update_id", { mode: "number" }).primaryKey(),

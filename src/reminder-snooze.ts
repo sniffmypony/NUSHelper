@@ -1,5 +1,6 @@
 import type { Telegraf } from "telegraf";
 import type { TelegramInlineKeyboard } from "./telegram.js";
+import { acknowledge, callbackId, setButtons } from "./telegram-buttons.js";
 
 // Every reminder arrives with snooze buttons. A tap sets the same reminder
 // again a little later and removes the buttons from the one that fired.
@@ -30,25 +31,17 @@ export function registerReminderSnooze(
   snooze: SnoozeReminder,
 ): void {
   bot.action(/^rem:snooze:(\d{1,10}):(15|60)$/, async (ctx) => {
-    try {
-      await ctx.answerCbQuery();
-    } catch {
-      // Telegram may retry an old callback after its acknowledgement window.
-    }
-    const id = Number(ctx.match[1]);
+    await acknowledge(ctx);
+    const id = callbackId(ctx.match[1]);
     const minutes = Number(ctx.match[2]);
     const firedMessageId = (
       ctx.callbackQuery as { message?: { message_id?: number } }
     ).message?.message_id;
-    if (!Number.isSafeInteger(id) || id <= 0 || id > 2_147_483_647) return;
-    if (!firedMessageId) return;
+    if (id === null || !firedMessageId) return;
 
     const result = await snooze(id, ownerId, minutes, firedMessageId);
-    try {
-      await ctx.editMessageReplyMarkup(undefined);
-    } catch {
-      // The message may be too old to edit; the snooze is already set.
-    }
+    // The snooze is already set, so the buttons go even if this fails.
+    await setButtons(ctx);
     await ctx.reply(result);
   });
 }
