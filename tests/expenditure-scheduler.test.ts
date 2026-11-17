@@ -87,4 +87,48 @@ describe("expenditure schedule", () => {
       expect.any(Date),
     );
   });
+
+  it("runs the 7am step once per day, not every minute", async () => {
+    const store = fakeStore();
+    const run = (iso: string) =>
+      runExpenditureSchedule(store, vi.fn(), "123", "123", new Date(iso));
+    // 7:00am, 7:01am and 3pm on 2 Nov in Singapore.
+    await run("2026-11-01T23:00:00Z");
+    await run("2026-11-01T23:01:00Z");
+    await run("2026-11-02T07:00:00Z");
+    expect(store.autoZero).toHaveBeenCalledTimes(1);
+    expect(store.queueReportsForDate).toHaveBeenCalledTimes(1);
+    // Reports still go out every minute.
+    expect(store.claimReports).toHaveBeenCalledTimes(3);
+
+    // The next morning settles the next day.
+    await run("2026-11-02T23:00:00Z");
+    expect(store.autoZero).toHaveBeenCalledTimes(2);
+    expect(store.autoZero).toHaveBeenLastCalledWith(
+      "2026-11-02",
+      "123",
+      expect.any(Date),
+    );
+  });
+
+  it("tries the 7am step again after a failure", async () => {
+    const store = fakeStore({
+      autoZero: vi
+        .fn()
+        .mockRejectedValueOnce(new Error("database busy"))
+        .mockResolvedValue(true),
+    });
+    const run = () =>
+      runExpenditureSchedule(
+        store,
+        vi.fn(),
+        "123",
+        "123",
+        new Date("2026-11-01T23:00:00Z"),
+      );
+    await expect(run()).rejects.toThrow("database busy");
+    await run();
+    await run();
+    expect(store.autoZero).toHaveBeenCalledTimes(2);
+  });
 });

@@ -44,6 +44,7 @@ import {
   formatLongDate,
   formatMonthlyReport,
   isDateEditable,
+  looksLikeExpenditureAttempt,
   parseExpenditureAmounts,
   parseExpenditureBreakdownCommand,
   parseMonthlyExpenditureQuery,
@@ -101,14 +102,6 @@ async function addReminder(
   return { ok: true, message: result.message };
 }
 
-function looksLikeExpenditureAttempt(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed || trimmed.startsWith("/")) return false;
-  if (parseExpenditureAmounts(trimmed) !== null) return true;
-  if (/^\d{1,4}(?::\d{2})?\s*-\s*\d/.test(trimmed)) return false;
-  return /^(?:S\$|\$|[-+]?\d)/i.test(trimmed);
-}
-
 // Applies amounts through the open input session and sends the usual dated
 // confirmation with Add/Remove buttons. Returns the confirmation text, or null
 // when nothing was recorded silently (expired session or a Telegram retry).
@@ -157,6 +150,9 @@ async function applyExpenditure(
 bot.use(async (ctx, next) => {
   const message = ctx.message;
   if (!message || !("text" in message) || !ctx.chat) return next();
+  // Text that can't be amounts (commands, questions) passes on whether or
+  // not a session is open, so it needs no session lookup.
+  if (!looksLikeExpenditureAttempt(message.text)) return next();
 
   const now = new Date();
   const chatId = String(ctx.chat.id);

@@ -53,6 +53,18 @@ export function parseExpenditureAmounts(text: string): number | null {
   return Number(total);
 }
 
+// Text an open entry session should treat as an attempt at amounts: valid
+// amounts, or something money-like ("$5", "-3") to reply "Invalid" to. A
+// calendar line ("12-2, ...") and commands are not. Anything that parses as
+// amounts always counts, so text that doesn't count can skip the session.
+export function looksLikeExpenditureAttempt(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed || trimmed.startsWith("/")) return false;
+  if (parseExpenditureAmounts(trimmed) !== null) return true;
+  if (/^\d{1,4}(?::\d{2})?\s*-\s*\d/.test(trimmed)) return false;
+  return /^(?:S\$|\$|[-+]?\d)/i.test(trimmed);
+}
+
 export function formatCurrency(cents: number): string {
   const dollars = Math.floor(cents / 100);
   const remainder = Math.abs(cents % 100);

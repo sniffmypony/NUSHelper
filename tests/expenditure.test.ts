@@ -4,10 +4,52 @@ import {
   formatMonthlyReport,
   formatWeeklyReport,
   isDateEditable,
+  looksLikeExpenditureAttempt,
   parseExpenditureAmounts,
   parseMonthlyExpenditureQuery,
   shouldSendReportsNow,
 } from "../src/expenditure.js";
+
+describe("which messages need the expenditure session lookup", () => {
+  it("counts every message that parses as amounts", () => {
+    // If this ever failed, skipping the lookup would drop real amounts.
+    for (const text of [
+      "5",
+      " 5 3.9 ",
+      "10.95, 11\n3",
+      "0",
+      "1,000",
+      "21474836.47",
+    ]) {
+      expect(parseExpenditureAmounts(text)).not.toBeNull();
+      expect(looksLikeExpenditureAttempt(text)).toBe(true);
+    }
+  });
+
+  it("counts money-like mistakes so a session can say they are invalid", () => {
+    for (const text of ["$5", "S$3.90", "-3", "+2", "5.999", "5 apples"]) {
+      expect(parseExpenditureAmounts(text)).toBeNull();
+      expect(looksLikeExpenditureAttempt(text)).toBe(true);
+    }
+  });
+
+  it("lets commands, questions and calendar lines skip the lookup", () => {
+    for (const text of [
+      "",
+      "   ",
+      "/todo laundry",
+      "/remind 1800 do tut",
+      "what's due this week?",
+      "prove that sqrt(2) is irrational",
+      "12-2, CS2040 tutorial, 05-09-2026",
+      "14:00-16:00, Tutorial, 05-11-2026",
+      "june 2027 expenditure",
+    ]) {
+      expect(parseExpenditureAmounts(text)).toBeNull();
+      expect(looksLikeExpenditureAttempt(text)).toBe(false);
+    }
+  });
+});
 
 describe("expenditure amount parsing", () => {
   it("sums spaces, commas, and new lines using exact cents", () => {

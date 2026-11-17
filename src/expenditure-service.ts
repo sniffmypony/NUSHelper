@@ -17,6 +17,12 @@ export type ExpenditureSender = (
   options?: SendTelegramMessageOptions,
 ) => Promise<void>;
 
+// The last day the 7am step finished, per store. The step runs every minute
+// from 7am to midnight but can only change something on its first run: no
+// code sets a day back to pending. A fresh server instance runs it once
+// more, which is harmless.
+const settledThrough = new WeakMap<ExpenditureStore, string>();
+
 export function expenditureKeyboard(date: string) {
   return {
     inline_keyboard: [
@@ -119,8 +125,11 @@ export async function runExpenditureSchedule(
   let missingNotice = false;
 
   if (local.hour >= 7) {
-    autoZero = await store.autoZero(yesterday, ownerId, now);
-    await store.queueReportsForDate(yesterday, now);
+    if (settledThrough.get(store) !== yesterday) {
+      autoZero = await store.autoZero(yesterday, ownerId, now);
+      await store.queueReportsForDate(yesterday, now);
+      settledThrough.set(store, yesterday);
+    }
   } else if (local.hour >= 1) {
     reminder = await store.claimReminder(
       yesterday,
