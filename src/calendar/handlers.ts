@@ -12,7 +12,9 @@ export const CALENDAR_NOT_SET_UP =
 import { calendarErrorMessage, getCalendarGateway } from "./google.js";
 import { CalendarOperations, type ConfirmResult } from "./operations.js";
 import {
+  describeRepeat,
   formatCalendarEvent,
+  storedCalendarEvent,
   looksLikeCalendarMessage,
   parseCalendarEventMessage,
   type ParsedCalendarEvent,
@@ -40,17 +42,27 @@ const EVENT_ERROR = [
   "12pm-6pm, Homework, 22-08-2026",
   "1130am-1pm, Tutor, 05-09-2026",
   "1130-1330, Tutor, 05-09-2026",
+  "all day, Mum's birthday, 19-08-2026",
+  "",
+  "Add a fourth part to repeat it: daily, weekdays, weekly, monthly or yearly.",
+  "all day, Mum's birthday, 19-08-2026, yearly",
+].join("\n");
+
+const REPEAT_ERROR = [
+  "I could not understand how that event repeats.",
+  "",
+  "Use daily, weekdays, weekly, monthly or yearly, e.g.",
+  "all day, Mum's birthday, 19-08-2026, yearly",
 ].join("\n");
 
 function asParsedMapping(mapping: CalendarEventMapping): ParsedCalendarEvent {
-  return {
-    title: mapping.title,
-    startDateTime: mapping.startDateTime,
-    endDateTime: mapping.endDateTime,
-    calendarId: FIXED_CALENDAR_ID,
-    timeZone: FIXED_TIME_ZONE,
-    isPast: new Date(mapping.startDateTime).getTime() < Date.now(),
-  };
+  return storedCalendarEvent(mapping);
+}
+
+function repeatLines(event: ParsedCalendarEvent): string[] {
+  return event.repeat
+    ? [`Repeats: ${describeRepeat(event.repeat, event.startDateTime)}`]
+    : [];
 }
 
 function confirmationPreview(
@@ -64,6 +76,7 @@ function confirmationPreview(
     `Title: ${event.title}`,
     `Date: ${formatted.date}`,
     `Time: ${formatted.time}`,
+    ...repeatLines(event),
     `Timezone: ${FIXED_TIME_ZONE}`,
     `Calendar: ${FIXED_CALENDAR_ID}`,
     ...(event.isPast ? ["", "Warning: This event is in the past."] : []),
@@ -82,6 +95,7 @@ function mappingSummary(
     `Title: ${event.title}`,
     `Date: ${formatted.date}`,
     `Time: ${formatted.time}`,
+    ...repeatLines(event),
     `Timezone: ${FIXED_TIME_ZONE}`,
     `Calendar: ${FIXED_CALENDAR_ID}`,
   ].join("\n");
@@ -157,7 +171,13 @@ export async function stageCalendarMessage(
   const parsed = parseCalendarEventMessage(text);
   if (!parsed.ok) {
     if (replyOnInvalid)
-      await ctx.reply(parsed.error === "date" ? DATE_ERROR : EVENT_ERROR);
+      await ctx.reply(
+        parsed.error === "date"
+          ? DATE_ERROR
+          : parsed.error === "repeat"
+            ? REPEAT_ERROR
+            : EVENT_ERROR,
+      );
     return false;
   }
   if (!isCalendarConfigured()) {

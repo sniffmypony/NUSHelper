@@ -9,6 +9,8 @@ function draft(): ParsedCalendarEvent {
     title: "Homework",
     startDateTime: "2026-08-22T12:00:00+08:00",
     endDateTime: "2026-08-22T18:00:00+08:00",
+    allDay: false,
+    repeat: null,
     calendarId: FIXED_CALENDAR_ID,
     timeZone: FIXED_TIME_ZONE,
     isPast: false,

@@ -19,6 +19,8 @@ function draft(title = "Homework"): ParsedCalendarEvent {
     title,
     startDateTime: "2026-08-22T12:00:00+08:00",
     endDateTime: "2026-08-22T18:00:00+08:00",
+    allDay: false,
+    repeat: null,
     calendarId: FIXED_CALENDAR_ID,
     timeZone: FIXED_TIME_ZONE,
     isPast: false,
@@ -202,6 +204,36 @@ describe("calendar confirmation operations", () => {
         .status,
     ).toBe("created");
     expect(subject.gateway.createCount).toBe(1);
+  });
+
+  it("keeps an all-day event's repeat through staging and creation", async () => {
+    const subject = setup();
+    const pending = await subject.operations.stageEvent(
+      OWNER,
+      "123",
+      11,
+      0,
+      {
+        ...draft("Mum's birthday"),
+        startDateTime: "2027-08-19",
+        endDateTime: "2027-08-20",
+        allDay: true,
+        repeat: "yearly",
+      },
+      null,
+    );
+    expect(pending.repeat).toBe("yearly");
+    const result = await subject.operations.confirmCreate(
+      pending.operationId,
+      OWNER,
+    );
+    expect(result.status).toBe("created");
+    if (result.status !== "created") return;
+    expect(result.mapping).toMatchObject({
+      startDateTime: "2027-08-19",
+      endDateTime: "2027-08-20",
+      repeat: "yearly",
+    });
   });
 
   it("double-clicking Create event cannot create a duplicate", async () => {

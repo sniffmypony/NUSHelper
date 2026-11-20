@@ -8,17 +8,17 @@ Each person runs their **own copy** for their own Telegram account: your data, k
 
 ## Features
 
-| Feature                      | What it does                                                                                                                                                        |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tasks and to-dos             | Long-term tasks with module and due date, plus a daily to-do list that clears every night. Tasks due today roll into the to-do list each morning.                   |
-| Reminders                    | `/remind 1800 do tutorial` for today, or `/remind 20-11 0900 submit form` for another day. Every reminder has snooze buttons.                                       |
-| Repeating to-dos             | `/every mon tutorial prep` adds itself to the to-do list on those mornings.                                                                                         |
-| Class timetable              | Paste a NUSMods share link once; each day's classes show in the 8am message during teaching weeks 1–13.                                                             |
-| Topics                       | `/topics` sorts the bot's messages into Planner, Study, Canvas files and Expenditure topics inside the one chat.                                                    |
-| Expenditure                  | An `expenditure:` prompt every night at 11:30pm, or just send amounts like `5 3.9` any time. Weekly and monthly reports, plus a day-by-day breakdown for any range. |
-| AI assistant                 | Plain-language requests ("remind me at 6pm to do tut"), study questions with LaTeX that Telegram renders, and photos (solves a problem or carries out a note).      |
-| Canvas _(optional)_          | "What's due this week?", "send me the lecture 5 slides for CS2102". Tested with NUS Canvas.                                                                         |
-| Google Calendar _(optional)_ | Add events by typing `14:00-16:00, Tutorial, 05-11-2026`, list them, and delete with confirmation. Shown in the morning summary.                                    |
+| Feature                      | What it does                                                                                                                                                             |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tasks and to-dos             | Long-term tasks with module and due date, plus a daily to-do list that clears every night. Tasks due today roll into the to-do list each morning.                        |
+| Reminders                    | `/remind 1800 do tutorial` for today, or `/remind 20-11 0900 submit form` for another day. Every reminder has snooze buttons.                                            |
+| Repeating to-dos             | `/every mon tutorial prep` adds itself to the to-do list on those mornings.                                                                                              |
+| Class timetable              | Paste a NUSMods share link once; each day's classes show in the 8am message during teaching weeks 1–13.                                                                  |
+| Topics                       | `/topics` sorts the bot's messages into Planner, Study, Canvas files and Expenditure topics inside the one chat.                                                         |
+| Expenditure                  | An `expenditure:` prompt every night at 11:30pm, or just send amounts like `5 3.9` any time. Weekly and monthly reports, plus a day-by-day breakdown for any range.      |
+| AI assistant                 | Plain-language requests ("remind me at 6pm to do tut"), study questions with LaTeX that Telegram renders, and photos (solves a problem or carries out a note).           |
+| Canvas _(optional)_          | "What's due this week?", "send me the lecture 5 slides for CS2102". Tested with NUS Canvas.                                                                              |
+| Google Calendar _(optional)_ | Add events by typing `14:00-16:00, Tutorial, 05-11-2026` (or `all day, …`, optionally repeating), list them, and delete with confirmation. Shown in the morning summary. |
 
 Deleting anything always asks for a **Delete** tap, and anything the assistant adds gets an **Undo** button.
 
@@ -54,7 +54,7 @@ how much did I spend each day from 3 to 8 Nov?
 prove that sqrt(2) is irrational
 ```
 
-Calendar messages need exactly three comma-separated fields; put a title containing a comma in double quotes. The bot shows a preview first, and nothing is created until you press **Create**. You can send several `/todo`, `/remind` or calendar lines in one message; malformed lines are skipped and reported.
+Calendar messages need three comma-separated fields, `<time>, <title>, <DD-MM-YYYY>`; put a title containing a comma in double quotes. Write `all day` instead of a time for an all-day event, and add a fourth field `daily`, `weekdays`, `weekly`, `monthly` or `yearly` to repeat it, e.g. `all day, Mum's birthday, 19-08-2027, yearly` or `5pm-6pm, CS2102 project, 06-11-2026, weekly`. Monthly repeats on the same day of the month and yearly on the same date. The assistant can do the same ("add Mum's birthday on 19 Aug every year"). The bot shows a preview first, and nothing is created until you press **Create**. You can send several `/todo`, `/remind` or calendar lines in one message; malformed lines are skipped and reported.
 
 ### Reminders, repeating to-dos and the nightly check-in
 

@@ -238,6 +238,7 @@ export class DrizzleCalendarStore implements CalendarStore {
           title: value.title,
           startDateTime: value.startDateTime,
           endDateTime: value.endDateTime,
+          repeat: value.repeat,
           status: value.status,
           updatedAt: new Date(),
         },
