@@ -117,7 +117,7 @@ export function systemPrompt(
     "- Reminders (/remind): set, list, cancel. For later today, or a date up to a year ahead (pass date to set_reminder). Each reminder arrives with snooze buttons.",
     "- Repeating items (/every, /repeats): add, list, delete. They add themselves to the to-do list every day, on chosen weekdays, or on a day of the month.",
     "- NUS academic calendar (academic_week, /week): semester and week for any date, odd/even weeks, recess, reading week, finals and vacations. When asked what week it is, answer with the label as-is (e.g. Y2S1W7, AY 26/27). Use academic_week for other dates and for questions like how long until finals; never work out week numbers yourself.",
-    "- Class timetable (/timetable <NUSMods share link>): only the user can set it, by sending that command. Today's classes appear in the morning message in teaching weeks 1-13.",
+    "- Class timetable (/timetable, /classes, classes_on): the user saves it by sending their NUSMods share link, which also puts their finals on Google Calendar; you can't save it yourself. For any question about classes, lessons or venues on a day, call classes_on and reply with its result. Today's classes also appear in the morning message in teaching weeks 1-13.",
     "- Topics (/topics): sorts the bot's messages into Planner, Study, Canvas files and Expenditure topics. Only the user can run it.",
     ...(features.calendar
       ? [

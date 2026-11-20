@@ -1,0 +1,29 @@
+{
+  "moduleCode": "RVN2001",
+  "title": "The Great Extinction: wildlife matters",
+  "semesterData": [
+    {
+      "semester": 1,
+      "timetable": [
+        {
+          "classNo": "G1",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Monday",
+          "lessonType": "Sectional Teaching",
+          "venue": "RVR-SRM01"
+        },
+        {
+          "classNo": "G2",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Tuesday",
+          "lessonType": "Sectional Teaching",
+          "venue": "RVR-SRM01"
+        }
+      ]
+    }
+  ]
+}

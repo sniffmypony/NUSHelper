@@ -50,6 +50,7 @@ export interface BotActions {
   ): Promise<string>;
   expenditureReport(period: "week" | "month", date?: string): Promise<string>;
   expenditureBreakdown(start: string, end: string): Promise<string>;
+  classesOn(date: string): Promise<string>;
 }
 
 export class BotToolError extends Error {
@@ -87,6 +88,11 @@ export const botActionTools: ChatCompletionFunctionTool[] = [
     "academic_week",
     "Which NUS semester and week a date falls in (/week), e.g. Y2S1W7, AY 26/27, with odd/even week, the period's dates and when finals start or end (or when the next semester starts).",
     { date: isoDate("Optional date as YYYY-MM-DD; default today.") },
+  ),
+  tool(
+    "classes_on",
+    "The user's NUS classes on a date from their saved NUSMods timetable (/classes): times, modules, lesson types and venues, already filtered for odd/even weeks, recess, reading week and exams.",
+    { date: isoDate("Date as YYYY-MM-DD; default today.") },
   ),
   tool(
     "add_task",
@@ -288,6 +294,10 @@ export async function executeBotActionTool(
   switch (name) {
     case "academic_week":
       return describeAcadWeek(
+        optionalIsoDate(args, "date") ?? todayInSingapore(),
+      );
+    case "classes_on":
+      return actions.classesOn(
         optionalIsoDate(args, "date") ?? todayInSingapore(),
       );
     case "add_task": {
