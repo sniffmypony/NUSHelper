@@ -1,6 +1,7 @@
 import type { ChatCompletionFunctionTool } from "openai/resources/chat/completions";
 import { looksLikeCalendarMessage } from "../calendar/parser.js";
-import { isValidIsoDate } from "../dates.js";
+import { isValidIsoDate, todayInSingapore } from "../dates.js";
+import { describeAcadWeek } from "../nus/week.js";
 import { parseExpenditureAmounts } from "../expenditure.js";
 import {
   parseReminderCommandLine,
@@ -82,6 +83,11 @@ function tool(
 const isoDate = (description: string) => ({ type: "string", description });
 
 export const botActionTools: ChatCompletionFunctionTool[] = [
+  tool(
+    "academic_week",
+    "Which NUS semester and week a date falls in (/week), e.g. Y2S1W7, AY 26/27, with odd/even week, the period's dates and when finals start or end (or when the next semester starts).",
+    { date: isoDate("Optional date as YYYY-MM-DD; default today.") },
+  ),
   tool(
     "add_task",
     "Add a long-term task (same as /task), optionally with a module and due date.",
@@ -280,6 +286,10 @@ export async function executeBotActionTool(
   undo: UndoRef[] = [],
 ): Promise<string> {
   switch (name) {
+    case "academic_week":
+      return describeAcadWeek(
+        optionalIsoDate(args, "date") ?? todayInSingapore(),
+      );
     case "add_task": {
       const moduleCode = text(args, "module_code")?.replace(/\s+/g, "");
       const dueDate = text(args, "due_date");

@@ -11,6 +11,7 @@ import {
 import { formatCalendarAgenda } from "../../src/calendar/agenda.js";
 import { canvasDeadlineSection } from "../../src/canvas/deadlines.js";
 import { todaysClassesSection } from "../../src/nus/timetable.js";
+import { acadWeekLabel } from "../../src/nus/week.js";
 import { addDueRecurringTodos } from "../../src/recurring.js";
 import { isVercelCron, readCalendarDays } from "../../src/scheduled-jobs.js";
 import { sendToTopic } from "../../src/topics.js";
@@ -127,9 +128,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
   }
 
+  const greeting = `🌅 Good morning! ${acadWeekLabel(today)}`;
   const text = sections.length
-    ? "🌅 Good morning!\n\n" + sections.join("\n\n")
-    : "🌅 Good morning! Nothing due soon and nothing on today's list yet.";
+    ? `${greeting}\n\n` + sections.join("\n\n")
+    : `${greeting}\n\nNothing due soon and nothing on today's list yet.`;
 
   try {
     await sendToTopic("planner", text, {

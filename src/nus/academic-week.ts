@@ -89,6 +89,11 @@ export function acadWeekInfo(isoDate: string): AcadWeekInfo {
     }
     if (semWeek === 7) return { year, sem, type: "Recess", num: null };
     if (semWeek === 15) return { year, sem, type: "Reading", num: null };
+    // Exams end on the Saturday; NUS's calendars start the vacation on the
+    // Sunday after them.
+    if (semWeek === 17 && date.weekday === 7) {
+      return { year, sem, type: "Vacation", num: 1 };
+    }
     if (semWeek === 16 || semWeek === 17) {
       return { year, sem, type: "Examination", num: semWeek - 15 };
     }
