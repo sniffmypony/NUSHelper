@@ -27,6 +27,7 @@ import {
 } from "../src/assistant/handlers.js";
 import type { AssistantSettings } from "../src/assistant/store.js";
 import type { BotActions } from "../src/assistant/bot-tools.js";
+import type { CreateCompletion } from "../src/assistant/agent.js";
 
 function completion(message: Record<string, unknown>): ChatCompletion {
   return {
@@ -406,5 +407,85 @@ describe("answering with effort, fallback and Think harder", () => {
     expect(efforts(create)).toEqual(["high"]);
     expect(telegram.sendMessage).toHaveBeenCalledWith(42, PROGRESS_NOTE);
     expect(telegram.deleteMessage).toHaveBeenCalledWith(42, 900);
+  });
+});
+
+describe("backup model when the AI service fails", () => {
+  const serviceDown = () =>
+    OpenAI.APIError.generate(
+      503,
+      undefined,
+      "Service Unavailable",
+      new Headers(),
+    );
+  const models = (create: ReturnType<typeof vi.fn>) =>
+    create.mock.calls.map((call) => call[0].model);
+  const ask = (
+    create: ReturnType<typeof vi.fn>,
+    telegram: ReturnType<typeof fakeTelegram>,
+    fallbackModel?: string,
+  ) =>
+    answerAssistantMessage(telegram, 42, "add a reminder", {
+      store: fakeStore(),
+      settings: fakeSettings(),
+      runInBackground: vi.fn(),
+      createCompletion: create as unknown as CreateCompletion,
+      model: "main",
+      fallbackModel,
+    });
+
+  it("asks the backup model when the main one is down, and says so", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const telegram = fakeTelegram();
+    const create = vi
+      .fn()
+      .mockRejectedValueOnce(serviceDown())
+      .mockResolvedValue(
+        completion({ role: "assistant", content: "What time?" }),
+      );
+
+    await ask(create, telegram, "backup");
+
+    expect(models(create)).toEqual(["main", "backup"]);
+    expect(efforts(create)).toEqual(["low", "low"]);
+    expect(telegram.sendRichMessage).toHaveBeenCalledWith(
+      42,
+      "_The main AI model is unavailable right now, so the backup model answered._\n\nWhat time?",
+      undefined,
+    );
+  });
+
+  it("doesn't use the backup for a bad request, or when none is set", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const badRequest = vi
+      .fn()
+      .mockRejectedValue(
+        OpenAI.APIError.generate(400, undefined, "Bad Request", new Headers()),
+      );
+    const telegram = fakeTelegram();
+    await ask(badRequest, telegram, "backup");
+    expect(models(badRequest)).toEqual(["main"]);
+
+    const down = vi.fn().mockRejectedValue(serviceDown());
+    const other = fakeTelegram();
+    await ask(down, other);
+    expect(models(down)).toEqual(["main"]);
+    expect(other.sendMessage).toHaveBeenCalledWith(
+      42,
+      "The AI service returned an error (HTTP 503). Please try again later.",
+    );
+  });
+
+  it("reports the error when the backup fails too", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const telegram = fakeTelegram();
+    const create = vi.fn().mockRejectedValue(serviceDown());
+    await ask(create, telegram, "backup");
+    expect(models(create)).toEqual(["main", "backup"]);
+    expect(telegram.sendMessage).toHaveBeenCalledWith(
+      42,
+      "The AI service returned an error (HTTP 503). Please try again later.",
+    );
   });
 });

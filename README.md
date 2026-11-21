@@ -182,12 +182,15 @@ See `.env.example` for the full list with comments.
 | `LLM_API_KEY`                         | Assistant | API key for your AI provider.                                       |
 | `LLM_BASE_URL`                        | Assistant | OpenAI-compatible base URL, e.g. `https://api.openai.com/v1`.       |
 | `LLM_MODEL`                           | Assistant | A model that supports tool calling (and images, for photos).        |
+| `LLM_FALLBACK_MODEL`                  | Optional  | Backup model on the same API, asked once if the main one fails.     |
 | `GOOGLE_CALENDAR_ID`                  | Optional  | The one calendar the bot may use. Leave empty to turn Calendar off. |
 | `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64`  | Optional  | Base64 of the service-account JSON key.                             |
 | `CANVAS_API_TOKEN`, `CANVAS_BASE_URL` | Optional  | Canvas access; leave empty to turn Canvas off.                      |
 | `NUS_MATRICULATION_YEAR`              | Optional  | Year your Year 1 started (e.g. `2025`); adds `Y2` to week labels.   |
 
-`SOCLAAS_API_KEY`, `SOCLAAS_BASE_URL` and `SOCLAAS_MODEL` are accepted in place of the `LLM_*` names.
+`SOCLAAS_API_KEY`, `SOCLAAS_BASE_URL`, `SOCLAAS_MODEL` and `SOCLAAS_FALLBACK_MODEL` are accepted in place of the `LLM_*` names.
+
+When the AI service fails for the main model (HTTP 5xx or 429, or no connection) before the assistant has done anything, the same message is asked once of `LLM_FALLBACK_MODEL`, and the reply starts with a note that the backup model answered. It uses the same API and key, so it helps when one model's servers are down, not when the whole service is.
 
 ## Scheduled jobs
 

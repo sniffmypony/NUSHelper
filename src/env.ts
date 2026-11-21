@@ -42,11 +42,15 @@ export function llmConfig(): {
   apiKey: string;
   baseURL: string;
   model: string;
+  fallbackModel: string | undefined;
 } {
   return {
     apiKey: requireAnyEnv("LLM_API_KEY", "SOCLAAS_API_KEY"),
     baseURL: requireAnyEnv("LLM_BASE_URL", "SOCLAAS_BASE_URL"),
     model: requireAnyEnv("LLM_MODEL", "SOCLAAS_MODEL"),
+    // Optional: used when the main model's service fails (5xx, 429, no
+    // connection). Same API and key as the main model.
+    fallbackModel: optionalEnv("LLM_FALLBACK_MODEL", "SOCLAAS_FALLBACK_MODEL"),
   };
 }
 
