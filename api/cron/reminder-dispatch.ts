@@ -7,6 +7,10 @@ import { runExpenditureSchedule } from "../../src/expenditure-service.js";
 import { expenditureStore } from "../../src/expenditure-store.js";
 import { telegramOwnerId } from "../../src/env.js";
 import { hasBearerSecret } from "../../src/scheduled-jobs.js";
+import { canvasConfig, isCanvasConfigured } from "../../src/env.js";
+import { CanvasClient } from "../../src/canvas/client.js";
+import { deadlineStore } from "../../src/canvas/deadline-store.js";
+import { runDeadlineChecks } from "../../src/canvas/deadline-sync.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -59,8 +63,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error("Expenditure dispatcher failed:", error);
   }
 
-  return res.status(reminderError || expenditureError ? 500 : 200).json({
-    reminders: reminderResult ?? { error: "dispatcher failed" },
-    expenditure: expenditureResult ?? { error: "dispatcher failed" },
-  });
+  // An hour before each Canvas deadline: is something submitted?
+  let deadlineResult: unknown = { skipped: "canvas off" };
+  let deadlineError = false;
+  if (isCanvasConfigured()) {
+    try {
+      const { baseUrl, token } = canvasConfig();
+      deadlineResult = await runDeadlineChecks(
+        deadlineStore,
+        new CanvasClient(baseUrl, token),
+        (text) => sendToTopic("planner", text),
+        now,
+      );
+    } catch (error) {
+      deadlineError = true;
+      console.error("Deadline checks failed:", error);
+    }
+  }
+
+  return res
+    .status(reminderError || expenditureError || deadlineError ? 500 : 200)
+    .json({
+      reminders: reminderResult ?? { error: "dispatcher failed" },
+      expenditure: expenditureResult ?? { error: "dispatcher failed" },
+      deadlines: deadlineError
+        ? { error: "dispatcher failed" }
+        : deadlineResult,
+    });
 }
