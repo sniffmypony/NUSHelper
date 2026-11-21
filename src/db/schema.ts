@@ -362,3 +362,21 @@ export const timetableLessons = pgTable("timetable_lessons", {
     .notNull()
     .defaultNow(),
 });
+
+// Canvas assignments with a due date, copied by the daily deadline sync. Each
+// is on Google Calendar as an hour ending at the deadline, and gets a
+// "have you submitted?" message an hour before it.
+export const canvasDeadlines = pgTable("canvas_deadlines", {
+  assignmentId: bigint("assignment_id", { mode: "number" }).primaryKey(),
+  courseId: bigint("course_id", { mode: "number" }).notNull(),
+  moduleCode: text("module_code").notNull(),
+  name: text("name").notNull(),
+  dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+  htmlUrl: text("html_url"),
+  // The due time the one-hour check was sent for; a moved deadline gets a
+  // new check.
+  checkedForDueAt: timestamp("checked_for_due_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

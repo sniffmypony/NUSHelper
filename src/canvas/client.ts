@@ -26,7 +26,13 @@ export interface CanvasAssignment {
   name: string;
   due_at: string | null;
   html_url?: string;
-  submission?: { workflow_state?: string; submitted_at?: string | null };
+  // e.g. online_upload, online_quiz, on_paper, none, external_tool.
+  submission_types?: string[];
+  submission?: {
+    workflow_state?: string;
+    submitted_at?: string | null;
+    excused?: boolean | null;
+  };
 }
 
 export interface CanvasFile {
@@ -136,9 +142,23 @@ export class CanvasClient {
     return items;
   }
 
-  async getOne<T>(path: string): Promise<T> {
-    const response = await this.request(this.buildUrl(path));
+  async getOne<T>(
+    path: string,
+    params: Record<string, string | string[]> = {},
+  ): Promise<T> {
+    const response = await this.request(this.buildUrl(path, params));
     return (await response.json()) as T;
+  }
+
+  // One assignment with the user's own submission.
+  getAssignment(
+    courseId: number,
+    assignmentId: number,
+  ): Promise<CanvasAssignment> {
+    return this.getOne<CanvasAssignment>(
+      `/api/v1/courses/${courseId}/assignments/${assignmentId}`,
+      { "include[]": "submission" },
+    );
   }
 
   listActiveCourses(): Promise<CanvasCourse[]> {
