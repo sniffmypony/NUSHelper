@@ -337,6 +337,8 @@ bot.command("help", (ctx) => {
       "",
       "📅 Google Calendar",
       "Send: 12:00-18:00, Homework, 22-08-2026",
+      "All day: all day, Mum's birthday, 19-08-2026",
+      "Repeat with a 4th part (daily, weekdays, weekly, monthly, yearly): all day, Mum's birthday, 19-08-2026, yearly",
       "Only DD-MM-YYYY is accepted.",
       "You can send multiple /todo, /remind, or calendar lines in one message.",
       "Invalid lines are skipped; valid later lines still run.",

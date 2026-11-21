@@ -49,6 +49,8 @@ export const calendarEventMappings = pgTable(
     title: text("title").notNull(),
     startDateTime: text("start_datetime").notNull(),
     endDateTime: text("end_datetime").notNull(),
+    // null, or daily / weekdays / weekly / monthly / yearly.
+    repeat: text("repeat"),
     status: text("status").notNull().default("active"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -81,6 +83,7 @@ export const calendarPendingEvents = pgTable("calendar_pending_events", {
   title: text("title"),
   startDateTime: text("start_datetime"),
   endDateTime: text("end_datetime"),
+  repeat: text("repeat"),
   googleEventId: text("google_event_id"),
   targetMappingId: integer("target_mapping_id").references(
     () => calendarEventMappings.id,
