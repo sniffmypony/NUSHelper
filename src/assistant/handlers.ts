@@ -348,6 +348,8 @@ export interface AssistantDependencies {
   createCompletion?: CreateCompletion;
   canvas?: CanvasClient;
   model?: string;
+  // Tried once when the main model's service fails; see isServiceFailure.
+  fallbackModel?: string;
   now?: () => Date;
   // The bot's own task, to-do, reminder and calendar commands for this message.
   actionsFor?: (ctx: Context) => BotActions;
@@ -399,12 +401,27 @@ export function assistantErrorMessage(error: unknown): string {
   return "Something went wrong while answering that. Please try again.";
 }
 
+// The AI service itself failed (overloaded, down, unreachable), as opposed
+// to a bad request: worth asking the backup model.
+export function isServiceFailure(error: unknown): boolean {
+  if (error instanceof OpenAI.APIConnectionError) return true;
+  return (
+    error instanceof OpenAI.APIError &&
+    error.status !== undefined &&
+    (error.status >= 500 || error.status === 429)
+  );
+}
+
+export const FALLBACK_MODEL_NOTE =
+  "_The main AI model is unavailable right now, so the backup model answered._";
+
 function resolveClients(deps: AssistantDependencies): {
   createCompletion: CreateCompletion;
   canvas: CanvasClient | undefined;
   model: string;
+  fallbackModel: string | undefined;
 } {
-  let llm: { apiKey: string; baseURL: string; model: string } | undefined;
+  let llm: ReturnType<typeof llmConfig> | undefined;
   let canvas = deps.canvas;
   try {
     if (!deps.createCompletion || !deps.model) llm = llmConfig();
@@ -433,7 +450,15 @@ function resolveClients(deps: AssistantDependencies): {
     createCompletion = (body, options) =>
       streamCompletion(client, body, options);
   }
-  return { createCompletion, canvas, model: deps.model ?? llm!.model };
+  const model = deps.model ?? llm!.model;
+  const fallbackModel = deps.fallbackModel ?? llm?.fallbackModel;
+  return {
+    createCompletion,
+    canvas,
+    model,
+    fallbackModel:
+      fallbackModel && fallbackModel !== model ? fallbackModel : undefined,
+  };
 }
 
 function startChatAction(telegram: AssistantTelegram, chatId: number) {
@@ -478,7 +503,8 @@ export async function answerAssistantMessage(
   const started = Date.now();
   const budgetMs = deps.budgetMs ?? ASSISTANT_BUDGET_MS;
   try {
-    const { createCompletion, canvas, model } = resolveClients(deps);
+    const { createCompletion, canvas, model, fallbackModel } =
+      resolveClients(deps);
     const now = deps.now?.() ?? new Date();
     const toolbox = new AssistantToolbox(
       canvas,
@@ -549,7 +575,10 @@ export async function answerAssistantMessage(
     };
     let result: Awaited<ReturnType<typeof runAssistant>> | undefined;
     let used: Effort = start;
-    for (const level of fallbackChain(start)) {
+    let activeModel = model;
+    const levels = fallbackChain(start);
+    for (let index = 0; index < levels.length;) {
+      const level = levels[index];
       const remaining = budgetMs - (Date.now() - started);
       const limit = attemptLimitMs(start, level, remaining);
       if (limit < MIN_ATTEMPT_MS) throw new ModelTimeoutError();
@@ -559,7 +588,7 @@ export async function answerAssistantMessage(
       try {
         result = await runAssistant({
           create: createCompletion,
-          model,
+          model: activeModel,
           history,
           userText: text,
           image: imageUrl,
@@ -577,6 +606,24 @@ export async function answerAssistantMessage(
         used = level;
         break;
       } catch (error) {
+        // The service failed before anything was done: ask the backup
+        // model once, at the same effort.
+        if (
+          fallbackModel &&
+          activeModel !== fallbackModel &&
+          !changedSomething &&
+          isServiceFailure(error)
+        ) {
+          const status =
+            error instanceof OpenAI.APIError && error.status
+              ? `HTTP ${error.status}`
+              : "no connection";
+          console.log(
+            `Assistant model failed (${status}) after ${Date.now() - attemptStarted}ms; trying the backup model`,
+          );
+          activeModel = fallbackModel;
+          continue;
+        }
         if (
           !(error instanceof ModelTimeoutError) ||
           changedSomething ||
@@ -587,16 +634,20 @@ export async function answerAssistantMessage(
         console.log(
           `Assistant ${level} effort ran out of time after ${Date.now() - attemptStarted}ms; trying less effort`,
         );
+        index += 1;
       } finally {
         clearTimeout(timer);
       }
     }
     if (!result) throw new ModelTimeoutError();
 
-    const reply =
-      used === start
-        ? result.reply
-        : `${result.format === "markdown" ? fallbackNote(used, start) : fallbackNote(used, start).replace(/_/g, "")}\n\n${result.reply}`;
+    const notes = [
+      ...(activeModel !== model ? [FALLBACK_MODEL_NOTE] : []),
+      ...(used !== start ? [fallbackNote(used, start)] : []),
+    ].map((note) =>
+      result!.format === "markdown" ? note : note.replace(/_/g, ""),
+    );
+    const reply = [...notes, result.reply].join("\n\n");
     // A study answer that wasn't at high effort can be asked again harder.
     // If high itself ran out of time, the button would only fail again.
     const requestId =
