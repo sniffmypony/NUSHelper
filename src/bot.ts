@@ -40,6 +40,7 @@ import {
 import { registerTopicCommands, sendTo, threadIdOf } from "./topics.js";
 import { sendTelegramMessage } from "./telegram.js";
 import { splitTelegramMessage } from "./assistant/format.js";
+import { assistantStore } from "./assistant/store.js";
 import {
   formatCurrency,
   formatLongDate,
@@ -146,7 +147,9 @@ async function applyExpenditure(
 
 // An active expenditure session consumes numeric-style replies. Outside one, a
 // message of only amounts (e.g. "5 7 13.2") is added to today's total, the
-// same as pressing Add amount on today's entry. Anything else continues
+// same as pressing Add amount on today's entry, unless the assistant has
+// just asked a question: then "1600" is its answer (a reminder time, an
+// amount it asked for) and goes to the assistant. Anything else continues
 // through the existing handlers.
 bot.use(async (ctx, next) => {
   const message = ctx.message;
@@ -165,6 +168,7 @@ bot.use(async (ctx, next) => {
   const amountCents = parseExpenditureAmounts(message.text);
   if (!session) {
     if (amountCents === null) return next();
+    if (await assistantStore.awaitsAnswer(chatId, now)) return next();
     await expenditureStore.openEditSession(
       ownerIdValue,
       chatId,
@@ -329,7 +333,7 @@ bot.command("help", (ctx) => {
       "",
       "💰 Expenditure (Singapore time)",
       "Reply to the 11:30pm expenditure: prompt with amounts separated by spaces, commas, or new lines.",
-      "Send only amounts (e.g. 5 3.9) at any other time to add them to today's total.",
+      "Send only amounts (e.g. 5 3.9) at any other time to add them to today's total (unless the assistant has just asked you something; then a number is your answer).",
       "Use Add amount / Remove amount on a dated confirmation to correct it within 365 days.",
       "Weekly reports arrive after Sunday's entry; month-end reports arrive after the final day's entry.",
       "<full month> <year> expenditure — e.g. june 2027 expenditure",
