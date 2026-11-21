@@ -87,7 +87,7 @@ Telegram can split a bot's private chat into topics. In [@BotFather](https://t.m
 
 ### Expenditure
 
-Reply to the 11:30pm `expenditure:` prompt with amounts separated by spaces, commas or new lines (`10.95 11 3`). If nothing is logged, the prompt repeats at 1am and S$0.00 is recorded at 7am. A message made only of amounts at any other time is added to today's total. Each entry has **Add amount** / **Remove amount** buttons for 365 days. Weekly reports follow Sunday's entry and monthly reports follow the last day of the month. Only each day's total is stored, not individual purchases.
+Reply to the 11:30pm `expenditure:` prompt with amounts separated by spaces, commas or new lines (`10.95 11 3`). If nothing is logged, the prompt repeats at 1am and S$0.00 is recorded at 7am. A message made only of amounts at any other time is added to today's total, except within 10 minutes of the assistant asking you a question: then a bare number such as `1600` is your answer (a reminder time, a choice) and goes to the assistant. Each entry has **Add amount** / **Remove amount** buttons for 365 days. Weekly reports follow Sunday's entry and monthly reports follow the last day of the month. Only each day's total is stored, not individual purchases.
 
 ### AI assistant
 

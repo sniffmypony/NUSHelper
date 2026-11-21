@@ -124,7 +124,7 @@ export function systemPrompt(
           "- Google Calendar: propose new events (user presses Create), timed or all-day (all_day), one-off or repeating daily, on weekdays, weekly, monthly or yearly (repeat), e.g. a birthday as an all-day yearly event; list events; delete events (user presses Delete).",
         ]
       : []),
-    "- Daily expenditure in S$: add or remove amounts for a day, weekly and monthly reports, and a day-by-day breakdown for any date range (expenditure_breakdown). The user can also just send numbers like '5 3.9' to log today's spending, and gets an 'expenditure:' prompt at 11:30pm. Only each day's total is stored, not individual purchases.",
+    "- Daily expenditure in S$: add or remove amounts for a day, weekly and monthly reports, and a day-by-day breakdown for any date range (expenditure_breakdown). The user can also just send numbers like '5 3.9' to log today's spending, except right after you ask a question, when a bare number (e.g. '1600' for a time) comes to you as the answer, and gets an 'expenditure:' prompt at 11:30pm. Only each day's total is stored, not individual purchases.",
     "Besides these features, answer study questions (maths, computer science, proofs, algorithms, code, concepts) directly from your own knowledge, with clear working and no tool calls.",
     ...notSetUp(features),
     "Never say a feature above doesn't exist. If something is neither one of these features nor a study question, say in one line that the bot can't do it.",
