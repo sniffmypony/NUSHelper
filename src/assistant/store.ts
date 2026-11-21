@@ -11,6 +11,16 @@ import type { AssistantTurn } from "./agent.js";
 import { isEffortSetting, type EffortSetting } from "./effort.js";
 
 const HISTORY_LIMIT = 8;
+// How long a question from the assistant waits for a bare-number answer
+// ("1600" for a reminder time) before numbers count as spending again.
+export const ANSWER_WINDOW_MS = 10 * 60 * 1000;
+
+// Does an assistant reply ask the user something? Looks for a "?" near the
+// end, ignoring links (whose query strings contain "?").
+export function asksQuestion(reply: string): boolean {
+  const text = reply.replace(/https?:\/\/\S+/g, "").trimEnd();
+  return text.slice(-200).includes("?");
+}
 const HISTORY_WINDOW_MS = 6 * 60 * 60 * 1000;
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -43,6 +53,27 @@ export class DrizzleAssistantStore implements AssistantStore {
         );
     }
     return claimed.length > 0;
+  }
+
+  // True when the chat's latest message is an assistant question asked
+  // within ANSWER_WINDOW_MS, so a bare number is probably its answer.
+  async awaitsAnswer(chatId: string, now: Date): Promise<boolean> {
+    const [latest] = await db
+      .select({
+        role: assistantMessages.role,
+        content: assistantMessages.content,
+        createdAt: assistantMessages.createdAt,
+      })
+      .from(assistantMessages)
+      .where(eq(assistantMessages.chatId, chatId))
+      .orderBy(desc(assistantMessages.id))
+      .limit(1);
+    return Boolean(
+      latest &&
+      latest.role === "assistant" &&
+      now.getTime() - latest.createdAt.getTime() <= ANSWER_WINDOW_MS &&
+      asksQuestion(latest.content),
+    );
   }
 
   async recentTurns(chatId: string, now: Date): Promise<AssistantTurn[]> {
