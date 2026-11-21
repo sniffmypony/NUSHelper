@@ -6,6 +6,7 @@ import type {
 } from "openai/resources/chat/completions";
 import { DateTime } from "luxon";
 import { SINGAPORE_TIME_ZONE } from "../dates.js";
+import { acadWeekLabel } from "../nus/week.js";
 import { cleanModelText, looksLikeToolMarkup } from "./format.js";
 import { ALL_FEATURES, toolsFor, type AssistantFeatures } from "./tools.js";
 import type { Effort } from "./effort.js";
@@ -99,12 +100,12 @@ export function systemPrompt(
   now: Date,
   features: AssistantFeatures = ALL_FEATURES,
 ): string {
-  const today = DateTime.fromJSDate(now)
-    .setZone(SINGAPORE_TIME_ZONE)
-    .toFormat("cccc d LLLL yyyy, HH:mm");
+  const local = DateTime.fromJSDate(now).setZone(SINGAPORE_TIME_ZONE);
+  const today = local.toFormat("cccc d LLLL yyyy, HH:mm");
   return [
     "You are a concise assistant inside a private Telegram bot for an NUS student.",
     `It is now ${today} (Asia/Singapore).`,
+    `NUS academic week: ${acadWeekLabel(local.toISODate()!)} (Y = year of study, S = semester, ST = special term, W = teaching week).`,
     "The bot's features, all of which you have tools for:",
     ...(features.canvas
       ? [
@@ -115,6 +116,7 @@ export function systemPrompt(
     "- Today's to-do list (/todo, /todos): add, list, delete. Cleared every night. To-dos cannot be marked done, only deleted.",
     "- Reminders (/remind): set, list, cancel. For later today, or a date up to a year ahead (pass date to set_reminder). Each reminder arrives with snooze buttons.",
     "- Repeating items (/every, /repeats): add, list, delete. They add themselves to the to-do list every day, on chosen weekdays, or on a day of the month.",
+    "- NUS academic calendar (academic_week, /week): semester and week for any date, odd/even weeks, recess, reading week, finals and vacations. When asked what week it is, answer with the label as-is (e.g. Y2S1W7, AY 26/27). Use academic_week for other dates and for questions like how long until finals; never work out week numbers yourself.",
     "- Class timetable (/timetable <NUSMods share link>): only the user can set it, by sending that command. Today's classes appear in the morning message in teaching weeks 1-13.",
     "- Topics (/topics): sorts the bot's messages into Planner, Study, Canvas files and Expenditure topics. Only the user can run it.",
     ...(features.calendar

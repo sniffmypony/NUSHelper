@@ -66,6 +66,8 @@ Calendar messages need exactly three comma-separated fields; put a title contain
 
 On NUSMods, copy your timetable's share link and send `/timetable <link>`. The bot looks the classes up on NUSMods once and stores them. In teaching weeks 1–13 the 8am message lists that day's classes with times and venues, skipping classes that don't run that week. Nothing is announced in recess, reading, exam or vacation weeks. Send a new link each semester.
 
+`/week` shows the current academic week, e.g. `Y2S1W7, AY 26/27` (year of study, semester, teaching week), with its dates, whether it is an odd or even week, and when finals start or end (or when the next semester starts during the vacation); `/week DD-MM-YYYY` does the same for another date. Other weeks read `Y2S1 Recess Week`, `Reading Week`, `Exam Week 1`/`2`, `Vacation`, `Orientation Week`, or `Y2ST1W3` in a special term. The 8am message starts with the current week, the assistant always knows it, and its `academic_week` tool answers "what week is 1 March?" or "how long until finals?". Set `NUS_MATRICULATION_YEAR` for the `Y2` part. The rule was checked against the official NUS calendars for AY2026/27 to AY2028/29.
+
 The week comes from NUSMods' own academic-calendar rule (the year starts on the first Monday of August), not from live data, and public holidays are not known to the bot.
 
 ### Topics
@@ -177,6 +179,7 @@ See `.env.example` for the full list with comments.
 | `GOOGLE_CALENDAR_ID`                  | Optional  | The one calendar the bot may use. Leave empty to turn Calendar off. |
 | `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64`  | Optional  | Base64 of the service-account JSON key.                             |
 | `CANVAS_API_TOKEN`, `CANVAS_BASE_URL` | Optional  | Canvas access; leave empty to turn Canvas off.                      |
+| `NUS_MATRICULATION_YEAR`              | Optional  | Year your Year 1 started (e.g. `2025`); adds `Y2` to week labels.   |
 
 `SOCLAAS_API_KEY`, `SOCLAAS_BASE_URL` and `SOCLAAS_MODEL` are accepted in place of the `LLM_*` names.
 
