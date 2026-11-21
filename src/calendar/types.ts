@@ -15,6 +15,7 @@ export type PendingCalendarEvent = {
   title: string | null;
   startDateTime: string | null;
   endDateTime: string | null;
+  repeat: string | null;
   googleEventId: string | null;
   targetMappingId: number | null;
   status: PendingStatus;
@@ -36,6 +37,7 @@ export type CalendarEventMapping = {
   title: string;
   startDateTime: string;
   endDateTime: string;
+  repeat: string | null;
   status: MappingStatus;
   createdAt: Date;
   updatedAt: Date;

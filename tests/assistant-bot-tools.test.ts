@@ -196,6 +196,23 @@ describe("assistant bot-action tools", () => {
     );
   });
 
+  it("stages all-day and repeating events", async () => {
+    const { actions, toolbox } = setup();
+    await toolbox.execute(
+      "create_calendar_event",
+      '{"all_day":true,"title":"Mum\'s birthday","date":"19-08-2027","repeat":"yearly"}',
+    );
+    expect(actions.stageCalendarEvent).toHaveBeenCalledWith(
+      "all day, Mum's birthday, 19-08-2027, yearly",
+    );
+    await expect(
+      toolbox.execute(
+        "create_calendar_event",
+        '{"time_range":"17:00-18:00","title":"Proj","date":"06-11-2026","repeat":"fortnightly"}',
+      ),
+    ).resolves.toContain('"repeat" must be one of');
+  });
+
   it("validates ids", async () => {
     const { actions, toolbox } = setup();
     await expect(

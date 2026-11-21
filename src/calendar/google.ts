@@ -5,7 +5,7 @@ import {
   FIXED_TIME_ZONE,
   getCalendarConfig,
 } from "./config.js";
-import type { ParsedCalendarEvent } from "./parser.js";
+import { recurrenceRule, type ParsedCalendarEvent } from "./parser.js";
 import type {
   BotOwnedEvent,
   CalendarAgendaEvent,
@@ -53,6 +53,31 @@ function agendaEvent(
     };
   }
   return null;
+}
+
+// Start, end and recurrence as Google Calendar wants them. For an update
+// (a patch) the unused one of date/dateTime is cleared, so an event can
+// switch between timed and all-day, and an empty recurrence stops it
+// repeating.
+export function eventTiming(
+  event: ParsedCalendarEvent,
+  forPatch = false,
+): Pick<calendar_v3.Schema$Event, "start" | "end" | "recurrence"> {
+  const at = (value: string): calendar_v3.Schema$EventDateTime => {
+    const set: calendar_v3.Schema$EventDateTime = event.allDay
+      ? { date: value }
+      : { dateTime: value, timeZone: FIXED_TIME_ZONE };
+    if (!forPatch) return set;
+    return event.allDay
+      ? { ...set, dateTime: null, timeZone: null }
+      : { ...set, date: null };
+  };
+  const recurrence = event.repeat ? [recurrenceRule(event.repeat)] : [];
+  return {
+    start: at(event.startDateTime),
+    end: at(event.endDateTime),
+    ...(forPatch || recurrence.length > 0 ? { recurrence } : {}),
+  };
 }
 
 export class GoogleCalendarGateway implements CalendarGateway {
@@ -145,8 +170,7 @@ export class GoogleCalendarGateway implements CalendarGateway {
         requestBody: {
           id: eventId,
           summary: event.title,
-          start: { dateTime: event.startDateTime, timeZone: FIXED_TIME_ZONE },
-          end: { dateTime: event.endDateTime, timeZone: FIXED_TIME_ZONE },
+          ...eventTiming(event),
           extendedProperties: {
             private: {
               telegramOperationId: operationId,
@@ -185,8 +209,7 @@ export class GoogleCalendarGateway implements CalendarGateway {
         sendUpdates: "none",
         requestBody: {
           summary: event.title,
-          start: { dateTime: event.startDateTime, timeZone: FIXED_TIME_ZONE },
-          end: { dateTime: event.endDateTime, timeZone: FIXED_TIME_ZONE },
+          ...eventTiming(event, true),
         },
       });
       return storedEvent(response.data);

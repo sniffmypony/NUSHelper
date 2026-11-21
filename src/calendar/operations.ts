@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { FIXED_CALENDAR_ID, FIXED_TIME_ZONE } from "./config.js";
-import type { ParsedCalendarEvent } from "./parser.js";
+import { FIXED_CALENDAR_ID } from "./config.js";
+import { storedCalendarEvent, type ParsedCalendarEvent } from "./parser.js";
 import type {
   CalendarEventMapping,
   CalendarGateway,
@@ -33,14 +33,12 @@ function deterministicEventId(
 
 function pendingEvent(row: PendingCalendarEvent): ParsedCalendarEvent | null {
   if (!row.title || !row.startDateTime || !row.endDateTime) return null;
-  return {
+  return storedCalendarEvent({
     title: row.title,
     startDateTime: row.startDateTime,
     endDateTime: row.endDateTime,
-    timeZone: FIXED_TIME_ZONE,
-    calendarId: FIXED_CALENDAR_ID,
-    isPast: new Date(row.startDateTime).getTime() < Date.now(),
-  };
+    repeat: row.repeat,
+  });
 }
 
 export class CalendarOperations {
@@ -75,6 +73,7 @@ export class CalendarOperations {
       title: event.title,
       startDateTime: event.startDateTime,
       endDateTime: event.endDateTime,
+      repeat: event.repeat,
       googleEventId:
         existingMapping?.googleEventId ??
         deterministicEventId(
@@ -109,6 +108,7 @@ export class CalendarOperations {
       title: mapping.title,
       startDateTime: mapping.startDateTime,
       endDateTime: mapping.endDateTime,
+      repeat: mapping.repeat,
       googleEventId: mapping.googleEventId,
       targetMappingId: mapping.id,
       expiresAt: new Date(this.now().getTime() + PENDING_TTL_MS),
@@ -201,6 +201,7 @@ export class CalendarOperations {
         title: event.title,
         startDateTime: event.startDateTime,
         endDateTime: event.endDateTime,
+        repeat: event.repeat,
         status: "active",
       });
       await this.store.completePending(operationId, ownerId);
@@ -255,6 +256,7 @@ export class CalendarOperations {
         title: event.title,
         startDateTime: event.startDateTime,
         endDateTime: event.endDateTime,
+        repeat: event.repeat,
         status: "active",
       });
       await this.store.completePending(operationId, ownerId);

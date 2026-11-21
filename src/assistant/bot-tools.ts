@@ -1,5 +1,8 @@
 import type { ChatCompletionFunctionTool } from "openai/resources/chat/completions";
-import { looksLikeCalendarMessage } from "../calendar/parser.js";
+import {
+  CALENDAR_REPEATS,
+  looksLikeCalendarMessage,
+} from "../calendar/parser.js";
 import { isValidIsoDate, todayInSingapore } from "../dates.js";
 import { describeAcadWeek } from "../nus/week.js";
 import { parseExpenditureAmounts } from "../expenditure.js";
@@ -177,16 +180,32 @@ export const botActionTools: ChatCompletionFunctionTool[] = [
   ),
   tool(
     "create_calendar_event",
-    "Propose a Google Calendar event. The user gets a preview and must press Create.",
+    "Propose a Google Calendar event, timed or all-day, optionally repeating. The user gets a preview and must press Create.",
     {
       time_range: {
         type: "string",
-        description: "Start-end in 24-hour time, e.g. 14:00-16:30.",
+        description:
+          "Start-end in 24-hour time, e.g. 14:00-16:30. Leave out when all_day is true.",
+      },
+      all_day: {
+        type: "boolean",
+        description:
+          "True for an all-day event (birthdays, deadlines, holidays).",
       },
       title: { type: "string" },
-      date: { type: "string", description: "DD-MM-YYYY, e.g. 05-11-2026." },
+      date: {
+        type: "string",
+        description:
+          "DD-MM-YYYY, e.g. 05-11-2026. For a repeating event, the first one.",
+      },
+      repeat: {
+        type: "string",
+        enum: [...CALENDAR_REPEATS],
+        description:
+          "Optional: how the event repeats. Leave out for a one-off event.",
+      },
     },
-    ["time_range", "title", "date"],
+    ["title", "date"],
   ),
   tool("list_calendar_events", "List Google Calendar events with their ids.", {
     start_date: isoDate("First day as YYYY-MM-DD; default today."),
@@ -371,17 +390,25 @@ export async function executeBotActionTool(
     case "delete_repeating":
       return actions.requestDeletion("rep", positiveId(args, "repeating_id"));
     case "create_calendar_event": {
+      const allDay = args.all_day === true || args.all_day === "true";
+      const repeat = text(args, "repeat");
+      if (repeat && !(CALENDAR_REPEATS as readonly string[]).includes(repeat)) {
+        throw new BotToolError(
+          `"repeat" must be one of ${CALENDAR_REPEATS.join(", ")}.`,
+        );
+      }
       const line = [
-        requiredText(args, "time_range"),
+        allDay ? "all day" : requiredText(args, "time_range"),
         calendarField(requiredText(args, "title")),
         requiredText(args, "date"),
+        ...(repeat ? [repeat] : []),
       ].join(", ");
       if (
         !looksLikeCalendarMessage(line) ||
         !(await actions.stageCalendarEvent(line))
       ) {
         throw new BotToolError(
-          "Invalid event. Use time_range like 14:00-16:30 and date as DD-MM-YYYY.",
+          "Invalid event. Use time_range like 14:00-16:30 (or all_day true) and date as DD-MM-YYYY.",
         );
       }
       return "A preview with Create/Cancel buttons was sent. Nothing is added until the user presses Create.";

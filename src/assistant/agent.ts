@@ -121,7 +121,7 @@ export function systemPrompt(
     "- Topics (/topics): sorts the bot's messages into Planner, Study, Canvas files and Expenditure topics. Only the user can run it.",
     ...(features.calendar
       ? [
-          "- Google Calendar: propose new events (user presses Create), list events, delete events (user presses Delete).",
+          "- Google Calendar: propose new events (user presses Create), timed or all-day (all_day), one-off or repeating daily, on weekdays, weekly, monthly or yearly (repeat), e.g. a birthday as an all-day yearly event; list events; delete events (user presses Delete).",
         ]
       : []),
     "- Daily expenditure in S$: add or remove amounts for a day, weekly and monthly reports, and a day-by-day breakdown for any date range (expenditure_breakdown). The user can also just send numbers like '5 3.9' to log today's spending, and gets an 'expenditure:' prompt at 11:30pm. Only each day's total is stored, not individual purchases.",
