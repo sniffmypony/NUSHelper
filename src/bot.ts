@@ -26,7 +26,7 @@ import {
   registerRecurringCommands,
 } from "./recurring.js";
 import { registerCarryoverButtons } from "./todo-carryover.js";
-import { registerTimetableCommands } from "./nus/timetable.js";
+import { classesOn, registerTimetableCommands } from "./nus/timetable.js";
 import { describeAcadWeek, parseWeekCommand } from "./nus/week.js";
 import { registerReminderSnooze } from "./reminder-snooze.js";
 import { isPrivateOwner } from "./security.js";
@@ -323,7 +323,8 @@ bot.command("help", (ctx) => {
       "/week [DD-MM-YYYY] — semester and week, e.g. Y2S1W7, AY 26/27, and when finals start",
       "",
       "🏫 Classes — shown in the 8am message in teaching weeks 1–13",
-      "/timetable <NUSMods share link> — save your timetable",
+      "/timetable <NUSMods share link> — save your timetable (or just send the link); finals go on Google Calendar",
+      "/classes [today|tomorrow|mon-sun|DD-MM-YYYY] — classes and venues for a day",
       "/timetable — show it; /timetable clear — remove it",
       "",
       "💰 Expenditure (Singapore time)",
@@ -579,6 +580,7 @@ registerAssistantHandlers(bot, {
       expenditureReport: (period, date) =>
         actions.expenditureReport(period, date),
       expenditureBreakdown: actions.expenditureBreakdown,
+      classesOn: (date) => classesOn(date),
     };
   },
 });

@@ -39,6 +39,7 @@ describe("/timetable clear", () => {
       command: (name: string, handler: Handler) =>
         handlers.set(`/${name}`, handler),
       action: (data: string, handler: Handler) => handlers.set(data, handler),
+      on: (event: string, handler: Handler) => handlers.set(event, handler),
     };
     registerTimetableCommands(bot as never);
     return handlers;

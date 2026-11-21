@@ -64,7 +64,11 @@ Calendar messages need exactly three comma-separated fields; put a title contain
 
 ### Class timetable
 
-On NUSMods, copy your timetable's share link and send `/timetable <link>`. The bot looks the classes up on NUSMods once and stores them. In teaching weeks 1–13 the 8am message lists that day's classes with times and venues, skipping classes that don't run that week. Nothing is announced in recess, reading, exam or vacation weeks. Send a new link each semester.
+On NUSMods, copy your timetable's share link and send it to the bot, on its own, inside a message or as `/timetable <link>`. The bot looks the classes up on NUSMods once and stores them. In teaching weeks 1–13 the 8am message lists that day's classes with times and venues, skipping classes that don't run that week. Nothing is announced in recess, reading, exam or vacation weeks. Send a new link each semester.
+
+`/classes [today|tomorrow|mon-sun|DD-MM-YYYY]` shows any day's classes the same way, and the assistant answers "what are my classes tomorrow?" with its `classes_on` tool.
+
+Saving a timetable also lists the semester's finals from NUSMods and, if Google Calendar is set up, puts each on it as `📝 Final: <CODE> <title>`. Each exam event's id comes from the year, semester and module, so sending the link again updates the events instead of adding new ones, and the finals of modules dropped since the last link are removed. NUSMods has no exam venues. If Calendar can't be reached, the timetable is still saved and sending the link again retries.
 
 `/week` shows the current academic week, e.g. `Y2S1W7, AY 26/27` (year of study, semester, teaching week), with its dates, whether it is an odd or even week, and when finals start or end (or when the next semester starts during the vacation); `/week DD-MM-YYYY` does the same for another date. Other weeks read `Y2S1 Recess Week`, `Reading Week`, `Exam Week 1`/`2`, `Vacation`, `Orientation Week`, or `Y2ST1W3` in a special term. The 8am message starts with the current week, the assistant always knows it, and its `academic_week` tool answers "what week is 1 March?" or "how long until finals?". Set `NUS_MATRICULATION_YEAR` for the `Y2` part. The rule was checked against the official NUS calendars for AY2026/27 to AY2028/29.
 

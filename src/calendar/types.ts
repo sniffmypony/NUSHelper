@@ -46,6 +46,15 @@ export type NewPendingCalendarEvent = Omit<
   "status" | "createdAt" | "updatedAt"
 >;
 
+// A timed event the bot makes from other data (e.g. NUSMods finals) under an
+// id it derives itself, so syncing again updates it instead of adding one.
+export type BotOwnedEvent = {
+  title: string;
+  description: string;
+  startDateTime: string;
+  endDateTime: string;
+};
+
 export type StoredGoogleEvent = { id: string; htmlLink: string | null };
 
 export type CalendarAgendaEvent =

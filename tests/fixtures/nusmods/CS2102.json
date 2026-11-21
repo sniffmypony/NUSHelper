@@ -1,0 +1,202 @@
+{
+  "moduleCode": "CS2102",
+  "title": "Database Systems",
+  "semesterData": [
+    {
+      "semester": 1,
+      "examDate": "2026-11-28T05:00:00.000Z",
+      "examDuration": 120,
+      "timetable": [
+        {
+          "classNo": "18",
+          "endTime": "1600",
+          "startTime": "1500",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Friday",
+          "lessonType": "Tutorial",
+          "venue": "AS6-020607"
+        },
+        {
+          "classNo": "15",
+          "endTime": "1300",
+          "startTime": "1200",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Friday",
+          "lessonType": "Tutorial",
+          "venue": "AS6-020607"
+        },
+        {
+          "classNo": "16",
+          "endTime": "1400",
+          "startTime": "1300",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Friday",
+          "lessonType": "Tutorial",
+          "venue": "AS6-020607"
+        },
+        {
+          "classNo": "19",
+          "endTime": "1700",
+          "startTime": "1600",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Friday",
+          "lessonType": "Tutorial",
+          "venue": "AS6-020607"
+        },
+        {
+          "classNo": "20",
+          "endTime": "1800",
+          "startTime": "1700",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Friday",
+          "lessonType": "Tutorial",
+          "venue": "AS6-020607"
+        },
+        {
+          "classNo": "03",
+          "endTime": "1100",
+          "startTime": "1000",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Thursday",
+          "lessonType": "Tutorial",
+          "venue": "COM3-01-23"
+        },
+        {
+          "classNo": "05",
+          "endTime": "1300",
+          "startTime": "1200",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Thursday",
+          "lessonType": "Tutorial",
+          "venue": "COM3-01-23"
+        },
+        {
+          "classNo": "06",
+          "endTime": "1400",
+          "startTime": "1300",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Thursday",
+          "lessonType": "Tutorial",
+          "venue": "COM3-01-23"
+        },
+        {
+          "classNo": "07",
+          "endTime": "1500",
+          "startTime": "1400",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Thursday",
+          "lessonType": "Tutorial",
+          "venue": "COM3-01-23"
+        },
+        {
+          "classNo": "01",
+          "endTime": "1000",
+          "startTime": "0900",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Thursday",
+          "lessonType": "Tutorial",
+          "venue": "AS6-020607"
+        },
+        {
+          "classNo": "11",
+          "endTime": "1100",
+          "startTime": "1000",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Thursday",
+          "lessonType": "Tutorial",
+          "venue": "AS6-020607"
+        },
+        {
+          "classNo": "12",
+          "endTime": "1000",
+          "startTime": "0900",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Friday",
+          "lessonType": "Tutorial",
+          "venue": "AS6-020607"
+        },
+        {
+          "classNo": "13",
+          "endTime": "1100",
+          "startTime": "1000",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Friday",
+          "lessonType": "Tutorial",
+          "venue": "AS6-020607"
+        },
+        {
+          "classNo": "10",
+          "endTime": "1800",
+          "startTime": "1700",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Thursday",
+          "lessonType": "Tutorial",
+          "venue": "COM3-01-23"
+        },
+        {
+          "classNo": "09",
+          "endTime": "1700",
+          "startTime": "1600",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Thursday",
+          "lessonType": "Tutorial",
+          "venue": "COM3-01-23"
+        },
+        {
+          "classNo": "17",
+          "endTime": "1500",
+          "startTime": "1400",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Friday",
+          "lessonType": "Tutorial",
+          "venue": "AS6-020607"
+        },
+        {
+          "classNo": "02",
+          "endTime": "1000",
+          "startTime": "0900",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Thursday",
+          "lessonType": "Tutorial",
+          "venue": "COM3-01-23"
+        },
+        {
+          "classNo": "14",
+          "endTime": "1200",
+          "startTime": "1100",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Friday",
+          "lessonType": "Tutorial",
+          "venue": "AS6-020607"
+        },
+        {
+          "classNo": "08",
+          "endTime": "1600",
+          "startTime": "1500",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Thursday",
+          "lessonType": "Tutorial",
+          "venue": "COM3-01-23"
+        },
+        {
+          "classNo": "04",
+          "endTime": "1200",
+          "startTime": "1100",
+          "weeks": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Thursday",
+          "lessonType": "Tutorial",
+          "venue": "COM3-01-23"
+        },
+        {
+          "classNo": "1",
+          "endTime": "1800",
+          "startTime": "1600",
+          "weeks": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Monday",
+          "lessonType": "Lecture",
+          "venue": "LT11"
+        }
+      ]
+    }
+  ]
+}

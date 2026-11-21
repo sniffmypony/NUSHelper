@@ -7,6 +7,7 @@ import {
 } from "./config.js";
 import type { ParsedCalendarEvent } from "./parser.js";
 import type {
+  BotOwnedEvent,
   CalendarAgendaEvent,
   CalendarGateway,
   StoredGoogleEvent,
@@ -204,9 +205,39 @@ export class GoogleCalendarGateway implements CalendarGateway {
       });
       return "deleted";
     } catch (error) {
-      if (errorStatus(error) === 404) return "already-deleted";
+      // Google answers 410 Gone for an event that was already deleted.
+      const status = errorStatus(error);
+      if (status === 404 || status === 410) return "already-deleted";
       throw error;
     }
+  }
+
+  // Creates or overwrites an event under an id the bot chose. Patching the
+  // status back to confirmed also restores one deleted in Google Calendar.
+  async putEvent(eventId: string, event: BotOwnedEvent): Promise<void> {
+    const requestBody: calendar_v3.Schema$Event = {
+      summary: event.title,
+      description: event.description,
+      start: { dateTime: event.startDateTime, timeZone: FIXED_TIME_ZONE },
+      end: { dateTime: event.endDateTime, timeZone: FIXED_TIME_ZONE },
+      status: "confirmed",
+    };
+    try {
+      await this.client.events.patch({
+        calendarId: FIXED_CALENDAR_ID,
+        eventId,
+        sendUpdates: "none",
+        requestBody,
+      });
+      return;
+    } catch (error) {
+      if (errorStatus(error) !== 404) throw error;
+    }
+    await this.client.events.insert({
+      calendarId: FIXED_CALENDAR_ID,
+      sendUpdates: "none",
+      requestBody: { ...requestBody, id: eventId },
+    });
   }
 }
 
