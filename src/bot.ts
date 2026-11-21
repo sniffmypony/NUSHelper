@@ -27,6 +27,7 @@ import {
 } from "./recurring.js";
 import { registerCarryoverButtons } from "./todo-carryover.js";
 import { registerTimetableCommands } from "./nus/timetable.js";
+import { describeAcadWeek, parseWeekCommand } from "./nus/week.js";
 import { registerReminderSnooze } from "./reminder-snooze.js";
 import { isPrivateOwner } from "./security.js";
 import { registerTaskPicker } from "./task-picker.js";
@@ -318,6 +319,9 @@ bot.command("help", (ctx) => {
       "/remind tmr 0900 <description> — tomorrow",
       "/remind 20-11 0900 <description> — a date (DD-MM or DD-MM-YYYY)",
       "",
+      "🗓 NUS academic week",
+      "/week [DD-MM-YYYY] — semester and week, e.g. Y2S1W7, AY 26/27, and when finals start",
+      "",
       "🏫 Classes — shown in the 8am message in teaching weeks 1–13",
       "/timetable <NUSMods share link> — save your timetable",
       "/timetable — show it; /timetable clear — remove it",
@@ -349,6 +353,14 @@ bot.command("help", (ctx) => {
       "/help — show this message",
     ].join("\n"),
   );
+});
+
+bot.command("week", (ctx) => {
+  const date = parseWeekCommand(ctx.message.text);
+  if (!date) {
+    return ctx.reply("Usage: /week or /week DD-MM-YYYY\ne.g. /week 01-03-2027");
+  }
+  return ctx.reply(describeAcadWeek(date));
 });
 
 bot.command("start", (ctx) =>
