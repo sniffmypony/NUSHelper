@@ -1,0 +1,886 @@
+{
+  "moduleCode": "HSI1000",
+  "title": "How Science Works, Why Science Works",
+  "semesterData": [
+    {
+      "semester": 1,
+      "examDate": "2026-11-23T01:00:00.000Z",
+      "examDuration": 60,
+      "timetable": [
+        {
+          "classNo": "C1",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [5, 9],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "C1",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [3, 7, 11],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "D2",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [4, 8],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "F2",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [4, 8, 12],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "C2",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [3, 7, 11],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "F1",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [4, 8, 12],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "F1",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [3, 7],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "1",
+          "endTime": "1800",
+          "startTime": "1600",
+          "weeks": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+          "day": "Thursday",
+          "lessonType": "Lecture",
+          "venue": "E-Learn_B"
+        },
+        {
+          "classNo": "C2",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [5, 9],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "D2",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [3, 7, 11],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "F2",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [3, 7],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "E2",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [4, 8, 12],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "E1",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [4, 8, 12],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "D1",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [4, 8],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "D1",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [3, 7, 11],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "C10",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [3, 7, 11],
+          "day": "Thursday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "C10",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [5, 9],
+          "day": "Thursday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "C11",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [3, 7, 12],
+          "day": "Friday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "C11",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [6, 9],
+          "day": "Friday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "C12",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [3, 7, 12],
+          "day": "Friday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "C12",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [6, 9],
+          "day": "Friday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "C3",
+          "endTime": "1800",
+          "startTime": "1500",
+          "weeks": [3, 7, 11],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "C3",
+          "endTime": "1800",
+          "startTime": "1500",
+          "weeks": [5, 9],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "C4",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [3, 7, 11],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "C4",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [5, 9],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "C5",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [3, 7, 11],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "C5",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [5, 9],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "C6",
+          "endTime": "1800",
+          "startTime": "1500",
+          "weeks": [3, 7, 11],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "C6",
+          "endTime": "1800",
+          "startTime": "1500",
+          "weeks": [5, 9],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "C7",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [3, 7, 11],
+          "day": "Wednesday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "C7",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [5, 9],
+          "day": "Wednesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "C8",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [3, 7, 11],
+          "day": "Wednesday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "C8",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [5, 9],
+          "day": "Wednesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "C9",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [3, 7, 11],
+          "day": "Thursday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "C9",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [5, 9],
+          "day": "Thursday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "D10",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [3, 7, 11],
+          "day": "Thursday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "D10",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [4, 8],
+          "day": "Thursday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "D11",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [3, 7, 12],
+          "day": "Friday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "D11",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [4, 11],
+          "day": "Friday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "D12",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [3, 7, 12],
+          "day": "Friday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "D12",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [4, 11],
+          "day": "Friday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "D3",
+          "endTime": "1800",
+          "startTime": "1500",
+          "weeks": [3, 7, 11],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "D3",
+          "endTime": "1800",
+          "startTime": "1500",
+          "weeks": [4, 8],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "D4",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [3, 7, 11],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "D4",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [4, 8],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "D5",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [3, 7, 11],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "D5",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [4, 8],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "D6",
+          "endTime": "1800",
+          "startTime": "1500",
+          "weeks": [3, 7, 11],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "D6",
+          "endTime": "1800",
+          "startTime": "1500",
+          "weeks": [4, 8],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "D7",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [3, 7, 11],
+          "day": "Wednesday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "D7",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [4, 8],
+          "day": "Wednesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "D8",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [3, 7, 11],
+          "day": "Wednesday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "D8",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [4, 8],
+          "day": "Wednesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "D9",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [3, 7, 11],
+          "day": "Thursday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "D9",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [4, 8],
+          "day": "Thursday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "E1",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [6, 10],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "E10",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [4, 8, 12],
+          "day": "Thursday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "E10",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [6, 10],
+          "day": "Thursday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "E11",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [4, 6, 11],
+          "day": "Friday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "E11",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [5, 10],
+          "day": "Friday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "E12",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [4, 6, 11],
+          "day": "Friday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "E12",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [5, 10],
+          "day": "Friday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "E2",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [6, 10],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "E3",
+          "endTime": "1800",
+          "startTime": "1500",
+          "weeks": [4, 8, 12],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "E3",
+          "endTime": "1800",
+          "startTime": "1500",
+          "weeks": [6, 10],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "E4",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [4, 8, 12],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "E4",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [6, 10],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "E5",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [4, 8, 12],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "E5",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [6, 10],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "E6",
+          "endTime": "1800",
+          "startTime": "1500",
+          "weeks": [4, 8, 12],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "E6",
+          "endTime": "1800",
+          "startTime": "1500",
+          "weeks": [6, 10],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "E7",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [4, 8, 12],
+          "day": "Wednesday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "E7",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [6, 10],
+          "day": "Wednesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "E8",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [4, 8, 12],
+          "day": "Wednesday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "E8",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [6, 10],
+          "day": "Wednesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "E9",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [4, 8, 12],
+          "day": "Thursday",
+          "lessonType": "Workshop",
+          "venue": "S16-03-0506"
+        },
+        {
+          "classNo": "E9",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [6, 10],
+          "day": "Thursday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "F10",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [3, 7],
+          "day": "Thursday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "F10",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [4, 8, 12],
+          "day": "Thursday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "F11",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [3, 7],
+          "day": "Friday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "F11",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [4, 6, 11],
+          "day": "Friday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "F12",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [3, 7],
+          "day": "Friday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "F12",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [4, 6, 11],
+          "day": "Friday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "F3",
+          "endTime": "1800",
+          "startTime": "1500",
+          "weeks": [3, 7],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "F3",
+          "endTime": "1800",
+          "startTime": "1500",
+          "weeks": [4, 8, 12],
+          "day": "Monday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "F4",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [3, 7],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "F4",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [4, 8, 12],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "F5",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [3, 7],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "F5",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [4, 8, 12],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "F6",
+          "endTime": "1800",
+          "startTime": "1500",
+          "weeks": [3, 7],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "F6",
+          "endTime": "1800",
+          "startTime": "1500",
+          "weeks": [4, 8, 12],
+          "day": "Tuesday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "F7",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [3, 7],
+          "day": "Wednesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "F7",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [4, 8, 12],
+          "day": "Wednesday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "F8",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [3, 7],
+          "day": "Wednesday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "F8",
+          "endTime": "1500",
+          "startTime": "1200",
+          "weeks": [4, 8, 12],
+          "day": "Wednesday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        },
+        {
+          "classNo": "F9",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [3, 7],
+          "day": "Thursday",
+          "lessonType": "Workshop",
+          "venue": "S12-0402"
+        },
+        {
+          "classNo": "F9",
+          "endTime": "1200",
+          "startTime": "0900",
+          "weeks": [4, 8, 12],
+          "day": "Thursday",
+          "lessonType": "Workshop",
+          "venue": "S16-0208"
+        }
+      ]
+    }
+  ]
+}

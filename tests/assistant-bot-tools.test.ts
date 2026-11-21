@@ -45,6 +45,7 @@ function setup() {
       .mockResolvedValue("2 November 2026: S$8.90 logged."),
     expenditureReport: vi.fn().mockResolvedValue("Weekly expenditure report"),
     expenditureBreakdown: vi.fn().mockResolvedValue("Thu 3 Dec: S$9.80"),
+    classesOn: vi.fn().mockResolvedValue("No classes."),
   } satisfies BotActions;
   const toolbox = new AssistantToolbox(
     {} as CanvasClient,

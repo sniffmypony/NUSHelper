@@ -1,6 +1,12 @@
 import { and, asc, eq } from "drizzle-orm";
 import type { Telegraf } from "telegraf";
-import { todayInSingapore } from "../dates.js";
+import { DateTime } from "luxon";
+import {
+  addDays,
+  isValidIsoDate,
+  SINGAPORE_TIME_ZONE,
+  todayInSingapore,
+} from "../dates.js";
 import { db } from "../db/client.js";
 import { timetableLessons } from "../db/schema.js";
 import {
@@ -21,6 +27,16 @@ import {
   type RawLesson,
 } from "./timetable-link.js";
 import { acknowledge, setButtons } from "../telegram-buttons.js";
+import { acadWeekLabel, periodName } from "./week.js";
+import { isCalendarConfigured } from "../calendar/config.js";
+import { getCalendarGateway } from "../calendar/google.js";
+import {
+  formatExam,
+  formatExamSync,
+  syncExamEvents,
+  type Exam,
+  type ExamCalendar,
+} from "./exams.js";
 
 // The class timetable (/timetable): imported once from a NUSMods share link
 // and stored, so the morning message needs no network call. Classes are only
@@ -38,8 +54,17 @@ export const TIMETABLE_USAGE = [
 ].join("\n");
 
 type ModuleData = {
-  semesterData?: Array<{ semester: number; timetable?: RawLesson[] }>;
+  title?: string;
+  semesterData?: Array<{
+    semester: number;
+    timetable?: RawLesson[];
+    examDate?: string;
+    examDuration?: number;
+  }>;
 };
+
+// One module's term on NUSMods: its classes and, if it has one, its final.
+type ModuleTerm = { lessons: RawLesson[]; exam: Exam | null };
 
 export type FetchLike = (
   url: string,
@@ -118,12 +143,12 @@ async function expandShortLink(
   }
 }
 
-async function fetchTimetable(
+async function fetchModuleTerm(
   acadYear: string,
   moduleCode: string,
   semester: number,
   fetchImpl: FetchLike,
-): Promise<RawLesson[] | null> {
+): Promise<ModuleTerm | null> {
   const response = await fetchImpl(
     `${NUSMODS_API}/${acadYear}/modules/${encodeURIComponent(moduleCode)}.json`,
     { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
@@ -132,7 +157,22 @@ async function fetchTimetable(
   if (!response.ok) throw new Error(`NUSMods returned HTTP ${response.status}`);
   const data = (await response.json()) as ModuleData;
   const term = data.semesterData?.find((item) => item.semester === semester);
-  return term?.timetable ?? null;
+  if (!term) return null;
+  const exam =
+    term.examDate && term.examDuration
+      ? {
+          moduleCode,
+          title: data.title ?? moduleCode,
+          start: term.examDate,
+          durationMinutes: term.examDuration,
+        }
+      : null;
+  return { lessons: term.timetable ?? [], exam };
+}
+
+// Finals go on Google Calendar only when Calendar is set up.
+function defaultExamCalendar(): (() => Promise<ExamCalendar>) | null {
+  return isCalendarConfigured() ? getCalendarGateway : null;
 }
 
 // A semester 1 link sent after semester 1 has ended is for the coming year.
@@ -157,6 +197,7 @@ export async function importTimetable(
   now = new Date(),
   store: TimetableStore = timetableStore,
   fetchImpl: FetchLike = fetch as unknown as FetchLike,
+  examCalendar: (() => Promise<ExamCalendar>) | null = defaultExamCalendar(),
 ): Promise<string> {
   const parsed = parseShareLink(await expandShortLink(link, fetchImpl));
   if (!parsed) {
@@ -168,7 +209,7 @@ export async function importTimetable(
     const perModule = await Promise.all(
       parsed.modules.map(async (module) => ({
         module,
-        timetable: await fetchTimetable(
+        term: await fetchModuleTerm(
           acadYear,
           module.moduleCode,
           parsed.semester,
@@ -177,14 +218,17 @@ export async function importTimetable(
       })),
     );
     // None of the modules runs in that year and semester: try the other year.
-    if (perModule.every((item) => item.timetable === null)) continue;
+    if (perModule.every((item) => item.term === null)) continue;
 
     const lessons: NewLesson[] = [];
     const missing: string[] = [];
-    for (const { module, timetable } of perModule) {
-      const chosen = timetable ? selectLessons(module.config, timetable) : [];
+    const exams: Exam[] = [];
+    for (const { module, term } of perModule) {
+      if (term?.exam) exams.push(term.exam);
+      const chosen = term ? selectLessons(module.config, term.lessons) : [];
       if (chosen.length === 0) {
-        missing.push(module.moduleCode);
+        // A module with nothing chosen (e.g. CFG1002=) simply has no classes.
+        if (module.config || !term) missing.push(module.moduleCode);
         continue;
       }
       for (const lesson of chosen) {
@@ -208,7 +252,21 @@ export async function importTimetable(
     }
     if (lessons.length === 0) continue;
 
+    const previousModules = (await store.all())
+      .filter(
+        (lesson) =>
+          lesson.acadYear === acadYear && lesson.semester === parsed.semester,
+      )
+      .map((lesson) => lesson.moduleCode);
     await store.replaceAll(lessons);
+    exams.sort((a, b) => a.start.localeCompare(b.start));
+    const examLines = await examSection(
+      examCalendar,
+      acadYear,
+      parsed.semester,
+      exams,
+      previousModules,
+    );
     const moduleCount = new Set(lessons.map((lesson) => lesson.moduleCode))
       .size;
     return [
@@ -220,11 +278,48 @@ export async function importTimetable(
         : []),
       "",
       formatWeek(lessons),
+      ...examLines,
       "",
-      "Each day's classes appear in the 8am message during teaching weeks 1–13. Recess, reading, exam and vacation weeks stay quiet.",
+      "Each day's classes appear in the 8am message during teaching weeks 1–13, and /classes shows any day's. Recess, reading, exam and vacation weeks stay quiet.",
     ].join("\n");
   }
   return "I couldn't find those modules' classes on NUSMods for that semester. Check the link, or try again once NUSMods has the new timetable.";
+}
+
+// The finals list, and how putting them on Google Calendar went.
+async function examSection(
+  examCalendar: (() => Promise<ExamCalendar>) | null,
+  acadYear: string,
+  semester: number,
+  exams: Exam[],
+  previousModules: string[],
+): Promise<string[]> {
+  const lines =
+    exams.length > 0
+      ? ["", "Finals:", ...exams.map((exam) => formatExam(exam))]
+      : [];
+  if (!examCalendar || (exams.length === 0 && previousModules.length === 0)) {
+    return lines;
+  }
+  try {
+    const result = await syncExamEvents(
+      await examCalendar(),
+      acadYear,
+      semester,
+      exams,
+      previousModules,
+    );
+    const summary = formatExamSync(result);
+    if (summary) lines.push("", summary);
+  } catch (error) {
+    const type = error instanceof Error ? error.name : typeof error;
+    console.error(`Exam calendar sync failed (${type})`);
+    lines.push(
+      "",
+      "⚠️ I couldn't reach Google Calendar, so the finals weren't added. Send the link again to retry.",
+    );
+  }
+  return lines;
 }
 
 function formatWeek(lessons: NewLesson[]): string {
@@ -289,6 +384,78 @@ export async function todaysClassesSection(
   ].join("\n");
 }
 
+// /classes and the assistant's classes_on tool: one day's classes with
+// venues, only those that run that week.
+export async function classesOn(
+  date: string,
+  store: TimetableStore = timetableStore,
+): Promise<string> {
+  const header = `${DateTime.fromISO(date).toFormat("ccc d LLL yyyy")} · ${acadWeekLabel(date)}`;
+  const saved = await store.all();
+  if (saved.length === 0) {
+    return `${header}\nNo timetable is saved. Send your NUSMods share link to add one.`;
+  }
+  const week = teachingWeek(date);
+  if (!week)
+    return `${header}\nNo classes (${periodName(acadWeekInfo(date))}).`;
+  const thisTerm = saved.filter(
+    (lesson) =>
+      lesson.acadYear === week.year && lesson.semester === week.semester,
+  );
+  if (thisTerm.length === 0) {
+    const { acadYear, semester } = saved[0];
+    return `${header}\nYour saved timetable is for ${SEMESTER_LABEL[semester]}, AY${acadYear.replace("-", "/")}. Send this semester's NUSMods link to see these classes.`;
+  }
+  const weekday = DateTime.fromISO(date, { zone: SINGAPORE_TIME_ZONE }).weekday;
+  const lessons = thisTerm
+    .filter(
+      (lesson) =>
+        lesson.day === weekday && lessonRunsOn(lesson.weeks, date, week.week),
+    )
+    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  if (lessons.length === 0) return `${header}\nNo classes.`;
+  return [
+    header,
+    ...lessons.map((lesson) =>
+      formatClass({ ...lesson, venue: lesson.venue ?? "" }),
+    ),
+  ].join("\n");
+}
+
+const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+// /classes [today|tomorrow|mon..sun|DD-MM-YYYY]. A weekday means its next
+// occurrence, today included. Returns YYYY-MM-DD, or null if not understood.
+export function parseClassesCommand(
+  text: string,
+  today: string,
+): string | null {
+  const match = /^\/classes(?:@\w+)?(?:\s+(.+?))?\s*$/i.exec(text.trim());
+  if (!match) return null;
+  const arg = (match[1] ?? "today").toLowerCase();
+  if (arg === "today") return today;
+  if (arg === "tomorrow" || arg === "tmr") return addDays(today, 1);
+  const weekday = WEEKDAYS.findIndex((day) => arg.startsWith(day));
+  if (weekday >= 0 && /^[a-z]+$/.test(arg)) {
+    const current = DateTime.fromISO(today, {
+      zone: SINGAPORE_TIME_ZONE,
+    }).weekday;
+    return addDays(today, (weekday + 1 - current + 7) % 7);
+  }
+  const date = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(arg);
+  if (!date) return null;
+  const iso = `${date[3]}-${date[2].padStart(2, "0")}-${date[1].padStart(2, "0")}`;
+  return isValidIsoDate(iso) ? iso : null;
+}
+
+// A NUSMods timetable or short link anywhere in a message.
+const SHARE_LINK_IN_TEXT =
+  /https:\/\/(?:(?:www\.)?nusmods\.com\/timetable\/|shorten\.nusmods\.com\/)\S+/i;
+
+export function findShareLink(text: string): string | null {
+  return SHARE_LINK_IN_TEXT.exec(text)?.[0] ?? null;
+}
+
 // Like every other deletion, clearing the timetable waits for a Delete tap.
 export const CLEAR_TIMETABLE_KEYBOARD = {
   inline_keyboard: [
@@ -316,6 +483,34 @@ export function registerTimetableCommands(bot: Telegraf): void {
     } catch (error) {
       const type = error instanceof Error ? error.name : typeof error;
       console.error(`Timetable command failed (${type})`);
+      return ctx.reply(
+        "I couldn't reach NUSMods or save the timetable just now. Please try again in a bit.",
+      );
+    }
+  });
+
+  bot.command("classes", async (ctx) => {
+    const date = parseClassesCommand(ctx.message.text, todayInSingapore());
+    if (!date) {
+      return ctx.reply(
+        "Usage: /classes [today|tomorrow|mon-sun|DD-MM-YYYY]\ne.g. /classes tomorrow",
+      );
+    }
+    return ctx.reply(await classesOn(date));
+  });
+
+  // A share link sent on its own or inside a message is saved like
+  // /timetable <link>, instead of going to the assistant.
+  bot.on("message", async (ctx, next) => {
+    const text = "text" in ctx.message ? ctx.message.text : undefined;
+    const link = text && !text.startsWith("/") ? findShareLink(text) : null;
+    if (!link) return next();
+    try {
+      await ctx.sendChatAction("typing");
+      return await ctx.reply(await importTimetable(link));
+    } catch (error) {
+      const type = error instanceof Error ? error.name : typeof error;
+      console.error(`Timetable link failed (${type})`);
       return ctx.reply(
         "I couldn't reach NUSMods or save the timetable just now. Please try again in a bit.",
       );
