@@ -109,7 +109,7 @@ export function systemPrompt(
     "The bot's features, all of which you have tools for:",
     ...(features.canvas
       ? [
-          "- Canvas: active modules, upcoming assignments, searching and sending module files.",
+          "- Canvas: active modules, upcoming assignments, searching and sending module files. Every morning the bot copies upcoming deadlines to Google Calendar (if set up), and an hour before each deadline it tells the user whether something is submitted.",
         ]
       : []),
     "- Long-term tasks (/task, /list, /done, /remove): add, list, mark done, delete.",

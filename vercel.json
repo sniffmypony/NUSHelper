@@ -5,6 +5,7 @@
   },
   "crons": [
     { "path": "/api/cron/weekly-digest", "schedule": "0 0 * * 1" },
+    { "path": "/api/cron/canvas-deadlines", "schedule": "30 23 * * *" },
     { "path": "/api/cron/daily-morning", "schedule": "0 0 * * *" },
     { "path": "/api/cron/checkin-and-clear", "schedule": "0 15 * * *" }
   ]

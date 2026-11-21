@@ -348,7 +348,7 @@ bot.command("help", (ctx) => {
       "e.g. what's due this week? / send me the lecture 5 slides for CS2103T",
       "/effort — how hard it thinks: auto (default), low, medium or high",
       "Study answers have a Think harder button to ask again at high effort.",
-      "Canvas deadlines appear in the 8am message and the Monday digest.",
+      "Canvas deadlines appear in the 8am message and the Monday digest, go on Google Calendar each morning, and get a submitted-or-not check an hour before.",
       "",
       "🗂 Topics — sort my messages into Planner, Study, Canvas files and Expenditure",
       "/topics — create the topics (needs Threaded mode on in @BotFather)",

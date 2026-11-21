@@ -54,6 +54,8 @@ how much did I spend each day from 3 to 8 Nov?
 prove that sqrt(2) is irrational
 ```
 
+**Canvas deadlines on Calendar.** With Canvas set up, a daily job at 7:30am copies every assignment due in the next 180 days and, with Google Calendar set up, adds each as `📌 Due: <CODE> <name>`, the hour ending at the deadline (due 23:59 → 22:59–23:59). It tells you about new deadlines, ones moved on Canvas (the event moves too) and ones removed from Canvas (the event is deleted). An hour before each deadline the bot checks Canvas: ⚠️ if nothing is submitted, ✅ if something is, or a plain reminder for work not handed in through Canvas (on paper, external tools).
+
 Calendar messages need three comma-separated fields, `<time>, <title>, <DD-MM-YYYY>`; put a title containing a comma in double quotes. Write `all day` instead of a time for an all-day event, and add a fourth field `daily`, `weekdays`, `weekly`, `monthly` or `yearly` to repeat it, e.g. `all day, Mum's birthday, 19-08-2027, yearly` or `5pm-6pm, CS2102 project, 06-11-2026, weekly`. Monthly repeats on the same day of the month and yearly on the same date. The assistant can do the same ("add Mum's birthday on 19 Aug every year"). The bot shows a preview first, and nothing is created until you press **Create**. You can send several `/todo`, `/remind` or calendar lines in one message; malformed lines are skipped and reported.
 
 ### Reminders, repeating to-dos and the nightly check-in
@@ -191,12 +193,13 @@ See `.env.example` for the full list with comments.
 
 Vercel cron runs in UTC; Singapore is UTC+8.
 
-| Job                 | UTC schedule            | Singapore time | Purpose                                                                                          |
-| ------------------- | ----------------------- | -------------- | ------------------------------------------------------------------------------------------------ |
-| `weekly-digest`     | `0 0 * * 1`             | Monday 8am     | Calendar events, tasks and Canvas deadlines for the week.                                        |
-| `daily-morning`     | `0 0 * * *`             | Daily 8am      | Repeating to-dos, task rollover, classes, Canvas deadlines due in 48 hours, 3-day calendar view. |
-| `checkin-and-clear` | `0 15 * * *`            | Daily 11pm     | Clear the to-do list and send it with Move to tomorrow buttons.                                  |
-| `reminder-dispatch` | every minute (Supabase) | —              | Reminders and the 11:30pm / 1am / 7am expenditure steps.                                         |
+| Job                 | UTC schedule            | Singapore time | Purpose                                                                                                  |
+| ------------------- | ----------------------- | -------------- | -------------------------------------------------------------------------------------------------------- |
+| `weekly-digest`     | `0 0 * * 1`             | Monday 8am     | Calendar events, tasks and Canvas deadlines for the week.                                                |
+| `canvas-deadlines`  | `30 23 * * *`           | Daily 7:30am   | Copies upcoming Canvas deadlines, puts them on Google Calendar, reports new/moved/removed ones.          |
+| `daily-morning`     | `0 0 * * *`             | Daily 8am      | Repeating to-dos, task rollover, classes, Canvas deadlines due in 48 hours, 3-day calendar view.         |
+| `checkin-and-clear` | `0 15 * * *`            | Daily 11pm     | Clear the to-do list and send it with Move to tomorrow buttons.                                          |
+| `reminder-dispatch` | every minute (Supabase) | —              | Reminders, the 11:30pm / 1am / 7am expenditure steps, and the check an hour before each Canvas deadline. |
 
 ## Security and privacy
 
