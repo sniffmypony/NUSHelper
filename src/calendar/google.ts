@@ -262,6 +262,32 @@ export class GoogleCalendarGateway implements CalendarGateway {
       requestBody: { ...requestBody, id: eventId },
     });
   }
+
+  // Creates an event under an id the bot chose, unless that id is already
+  // used. Google keeps the id of a deleted event too, so an event the user
+  // edited or deleted is left exactly as they left it.
+  async addEventIfMissing(
+    eventId: string,
+    event: BotOwnedEvent,
+  ): Promise<"created" | "exists"> {
+    try {
+      await this.client.events.insert({
+        calendarId: FIXED_CALENDAR_ID,
+        sendUpdates: "none",
+        requestBody: {
+          id: eventId,
+          summary: event.title,
+          description: event.description,
+          start: { dateTime: event.startDateTime, timeZone: FIXED_TIME_ZONE },
+          end: { dateTime: event.endDateTime, timeZone: FIXED_TIME_ZONE },
+        },
+      });
+      return "created";
+    } catch (error) {
+      if (errorStatus(error) === 409) return "exists";
+      throw error;
+    }
+  }
 }
 
 let gatewayPromise: Promise<GoogleCalendarGateway> | undefined;

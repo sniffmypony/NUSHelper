@@ -13,12 +13,14 @@ import { primaryModuleCode } from "./modules.js";
 //
 // The daily sync (api/cron/canvas-deadlines) copies every upcoming assignment
 // with a due date into canvas_deadlines and puts it on Google Calendar as the
-// hour ending at the deadline (due 23:59 → 22:59–23:59). The event id comes
-// from the assignment id, so a moved deadline moves its event; an assignment
-// that disappears from Canvas has its event removed.
+// hour ending at the deadline (due 23:59 → 22:59–23:59), titled like the
+// user's own events ("ST2334 Quiz 9") with only the deadline in the notes.
+// The event id comes from the assignment id. An event is created once and
+// then left alone, so the user's edits and deletions stick; only a deadline
+// moved on Canvas rewrites its event, and one removed from Canvas deletes it.
 //
 // The per-minute dispatcher (api/cron/reminder-dispatch) asks Canvas about
-// each deadline an hour before it and says whether something is submitted.
+// each deadline an hour before it and pings only if nothing is submitted.
 
 const SYNC_DAYS = 180;
 export const CHECK_BEFORE_MS = 60 * 60_000;
@@ -54,7 +56,16 @@ export interface CanvasDeadlineSource {
 
 export interface DeadlineCalendar {
   putEvent(eventId: string, event: BotOwnedEvent): Promise<void>;
+  addEventIfMissing(
+    eventId: string,
+    event: BotOwnedEvent,
+  ): Promise<"created" | "exists">;
   delete(eventId: string): Promise<"deleted" | "already-deleted">;
+}
+
+// Canvas names sometimes carry runs of spaces ("ST2334     Quiz").
+export function tidyName(name: string): string {
+  return name.replace(/\s+/g, " ").trim();
 }
 
 function errorType(error: unknown): string {
@@ -76,12 +87,8 @@ function local(date: Date): DateTime {
 export function deadlineEvent(deadline: StoredDeadline): BotOwnedEvent {
   const due = local(deadline.dueAt);
   return {
-    title: `📌 Due: ${deadline.moduleCode} ${deadline.name}`,
-    description: [
-      `Canvas deadline: ${due.toFormat("ccc d LLL yyyy, HH:mm")}.`,
-      ...(deadline.htmlUrl ? [deadline.htmlUrl] : []),
-      "Added by NUSHelper; it moves with the deadline on Canvas.",
-    ].join("\n"),
+    title: `${deadline.moduleCode} ${tidyName(deadline.name)}`,
+    description: `Due ${due.toFormat("ccc d LLL yyyy, HH:mm")}`,
     startDateTime: due
       .minus({ hours: 1 })
       .toISO({ suppressMilliseconds: true })!,
@@ -136,7 +143,7 @@ export async function syncDeadlines(
           assignmentId: assignment.id,
           courseId: course.id,
           moduleCode: primaryModuleCode(course),
-          name: assignment.name,
+          name: tidyName(assignment.name),
           dueAt: due,
           htmlUrl: assignment.html_url ?? null,
         });
@@ -177,16 +184,22 @@ export async function syncDeadlines(
   if (forget.length > 0) await store.remove(forget);
 
   if (calendar) {
-    // Every upcoming deadline is written each day, so an event deleted or
-    // edited by hand comes back as Canvas has it.
+    // A moved deadline rewrites its event. Every other upcoming deadline is
+    // only created if its event id was never used, which also retries one
+    // whose creation failed before, and never touches an existing event.
+    const moved = new Set(
+      result.moved.map((deadline) => deadline.assignmentId),
+    );
     const writes = [
-      ...current.map(
-        (deadline) => () =>
-          calendar.putEvent(
-            deadlineEventId(deadline.assignmentId),
-            deadlineEvent({ ...deadline, checkedForDueAt: null }),
-          ),
-      ),
+      ...current.map((deadline) => async () => {
+        const id = deadlineEventId(deadline.assignmentId);
+        const event = deadlineEvent({ ...deadline, checkedForDueAt: null });
+        if (moved.has(deadline.assignmentId)) {
+          await calendar.putEvent(id, event);
+        } else {
+          await calendar.addEventIfMissing(id, event);
+        }
+      }),
       ...result.removed.map((deadline) => async () => {
         await calendar.delete(deadlineEventId(deadline.assignmentId));
       }),
@@ -283,10 +296,11 @@ export function submissionState(assignment: CanvasAssignment): SubmissionState {
   return submission ? "missing" : "unknown";
 }
 
+// The ping for a deadline that isn't known to be submitted. Submitted work
+// gets no message at all.
 export function formatDeadlineCheck(
   deadline: StoredDeadline,
-  state: SubmissionState,
-  submittedAt: string | null,
+  state: Exclude<SubmissionState, "submitted">,
   now: Date,
 ): string {
   const minutes = Math.max(
@@ -294,52 +308,50 @@ export function formatDeadlineCheck(
     Math.round((deadline.dueAt.getTime() - now.getTime()) / 60_000),
   );
   const left = minutes >= 60 ? "in 1 hour" : `in ${minutes} min`;
-  const what = `${deadline.moduleCode}: ${deadline.name}`;
+  const what = `${deadline.moduleCode}: ${tidyName(deadline.name)}`;
   const due = local(deadline.dueAt).toFormat("HH:mm");
   const link = deadline.htmlUrl ? `\n${deadline.htmlUrl}` : "";
-  if (state === "submitted") {
-    const at = submittedAt
-      ? ` (submitted ${local(new Date(submittedAt)).toFormat("ccc d LLL, HH:mm")})`
-      : "";
-    return `✅ ${what} is due at ${due} (${left}). Your submission is in${at}, you're good.`;
-  }
   if (state === "missing") {
     return `⚠️ ${what} is due at ${due} (${left}) and nothing is submitted yet. Submit something now!${link}`;
   }
   return `⏰ ${what} is due at ${due} (${left}). I can't see submissions for this one on Canvas, so check it's handed in.${link}`;
 }
 
-// Sends the one-hour check for every deadline that needs it. A Canvas
-// failure still sends the check, without the submission state.
+// Checks every deadline an hour before it. Submitted work is skipped
+// silently; anything else gets a ping. If Canvas can't be asked, the bot
+// can't tell, so it pings anyway.
 export async function runDeadlineChecks(
   store: DeadlineStore,
   source: Pick<CanvasDeadlineSource, "getAssignment">,
   send: (text: string) => Promise<void>,
   now: Date,
-): Promise<{ sent: number; failed: number }> {
+): Promise<{ sent: number; skipped: number; failed: number }> {
   const due = await store.claimChecks(now);
   let sent = 0;
+  let skipped = 0;
   let failed = 0;
   for (const deadline of due) {
     let state: SubmissionState = "unknown";
-    let submittedAt: string | null = null;
     try {
       const assignment = await source.getAssignment(
         deadline.courseId,
         deadline.assignmentId,
       );
       state = submissionState(assignment);
-      submittedAt = assignment.submission?.submitted_at ?? null;
     } catch (error) {
       console.error(`Canvas submission check failed (${errorType(error)})`);
     }
+    if (state === "submitted") {
+      skipped += 1;
+      continue;
+    }
     try {
-      await send(formatDeadlineCheck(deadline, state, submittedAt, now));
+      await send(formatDeadlineCheck(deadline, state, now));
       sent += 1;
     } catch (error) {
       failed += 1;
       console.error(`Deadline check delivery failed (${errorType(error)})`);
     }
   }
-  return { sent, failed };
+  return { sent, skipped, failed };
 }

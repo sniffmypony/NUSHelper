@@ -85,9 +85,20 @@ function source(byCourse: Record<number, CanvasAssignment[] | Error>) {
   } satisfies CanvasDeadlineSource;
 }
 
+// Like Google: an event id, once used (even by a deleted event), can't be
+// created again.
 function fakeCalendar() {
+  const used = new Set<string>();
   return {
-    putEvent: vi.fn().mockResolvedValue(undefined),
+    used,
+    putEvent: vi.fn(async (eventId: string) => {
+      used.add(eventId);
+    }),
+    addEventIfMissing: vi.fn(async (eventId: string) => {
+      if (used.has(eventId)) return "exists" as const;
+      used.add(eventId);
+      return "created" as const;
+    }),
     delete: vi.fn().mockResolvedValue("deleted" as const),
   };
 }
@@ -114,14 +125,17 @@ describe("daily Canvas deadline sync", () => {
 
     expect(result.added.map((d) => d.assignmentId)).toEqual([201, 101]);
     expect([...store.rows.keys()].sort()).toEqual([101, 201]);
-    expect(calendar.putEvent).toHaveBeenCalledWith(
+    // Titled like the user's own events, with only the deadline as notes.
+    expect(calendar.addEventIfMissing).toHaveBeenCalledWith(
       deadlineEventId(101),
-      expect.objectContaining({
-        title: "📌 Due: CS2102 Project Part 2",
+      {
+        title: "CS2102 Project Part 2",
+        description: "Due Thu 26 Nov 2026, 23:59",
         startDateTime: "2026-11-26T22:59:00+08:00",
         endDateTime: "2026-11-26T23:59:00+08:00",
-      }),
+      },
     );
+    expect(calendar.putEvent).not.toHaveBeenCalled();
     expect(formatSyncResult(result, true)).toBe(
       [
         "📌 New Canvas deadlines, added to Google Calendar:",
@@ -142,8 +156,17 @@ describe("daily Canvas deadline sync", () => {
     };
     await syncDeadlines(source(first), store, calendar, NOW);
 
+    // The next day's sync leaves existing events alone, so the user's own
+    // edits (or older-style events) are kept.
+    calendar.addEventIfMissing.mockClear();
     const unchanged = await syncDeadlines(source(first), store, calendar, NOW);
     expect(formatSyncResult(unchanged, true)).toBeNull();
+    expect(calendar.putEvent).not.toHaveBeenCalled();
+    expect(
+      await Promise.all(
+        calendar.addEventIfMissing.mock.results.map((call) => call.value),
+      ),
+    ).toEqual(["exists", "exists"]);
 
     calendar.putEvent.mockClear();
     const result = await syncDeadlines(
@@ -224,16 +247,40 @@ describe("daily Canvas deadline sync", () => {
 
   it("reports Calendar failures and retries them the next day", async () => {
     const calendar = fakeCalendar();
-    calendar.putEvent.mockRejectedValue(new Error("quota"));
-    const result = await syncDeadlines(
-      source({ 1: [assignment(101, "2026-11-26T15:59:00Z")] }),
-      new MemoryStore(),
-      calendar,
-      NOW,
-    );
+    const store = new MemoryStore();
+    const canvas = source({ 1: [assignment(101, "2026-11-26T15:59:00Z")] });
+    calendar.addEventIfMissing.mockRejectedValueOnce(new Error("quota"));
+    const result = await syncDeadlines(canvas, store, calendar, NOW);
     expect(result.calendarFailed).toBe(1);
     expect(formatSyncResult(result, true)).toContain(
       "⚠️ 1 Google Calendar update failed; tomorrow's sync will retry.",
+    );
+
+    // Already stored, so not "new" the next day, but its event is created.
+    const retry = await syncDeadlines(canvas, store, calendar, NOW);
+    expect(retry.calendarFailed).toBe(0);
+    expect(calendar.used.has(deadlineEventId(101))).toBe(true);
+  });
+
+  it("tidies runs of spaces in Canvas names", async () => {
+    const store = new MemoryStore();
+    const calendar = fakeCalendar();
+    await syncDeadlines(
+      source({
+        2: [
+          assignment(201, "2026-11-22T15:59:00Z", {
+            name: "    Post-Lecture  Quiz Week 12 ",
+          }),
+        ],
+      }),
+      store,
+      calendar,
+      NOW,
+    );
+    expect(store.rows.get(201)?.name).toBe("Post-Lecture Quiz Week 12");
+    expect(calendar.addEventIfMissing).toHaveBeenCalledWith(
+      deadlineEventId(201),
+      expect.objectContaining({ title: "ST2334 Post-Lecture Quiz Week 12" }),
     );
   });
 
@@ -281,10 +328,11 @@ describe("one hour before a deadline", () => {
         send,
         new Date("2026-11-26T14:58:00Z"),
       ),
-    ).toEqual({ sent: 0, failed: 0 });
+    ).toEqual({ sent: 0, skipped: 0, failed: 0 });
 
     expect(await runDeadlineChecks(store, canvas, send, AT_22_59)).toEqual({
       sent: 1,
+      skipped: 0,
       failed: 0,
     });
     expect(send).toHaveBeenCalledWith(
@@ -302,27 +350,33 @@ describe("one hour before a deadline", () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
-  it("reassures when a submission is in", async () => {
+  it("sends nothing when a submission is in", async () => {
     const store = await storeWith(DUE);
     const send = vi.fn().mockResolvedValue(undefined);
+    const canvas = {
+      getAssignment: vi.fn().mockResolvedValue(
+        assignment(101, DUE, {
+          submission: {
+            workflow_state: "submitted",
+            submitted_at: "2026-11-26T13:14:00Z",
+          },
+        }),
+      ),
+    };
+    expect(await runDeadlineChecks(store, canvas, send, AT_22_59)).toEqual({
+      sent: 0,
+      skipped: 1,
+      failed: 0,
+    });
+    expect(send).not.toHaveBeenCalled();
+    // Still claimed, so the next minute doesn't ask Canvas again.
     await runDeadlineChecks(
       store,
-      {
-        getAssignment: vi.fn().mockResolvedValue(
-          assignment(101, DUE, {
-            submission: {
-              workflow_state: "submitted",
-              submitted_at: "2026-11-26T13:14:00Z",
-            },
-          }),
-        ),
-      },
+      canvas,
       send,
-      AT_22_59,
+      new Date("2026-11-26T15:00:00Z"),
     );
-    expect(send).toHaveBeenCalledWith(
-      "✅ CS2102: Project Part 2 is due at 23:59 (in 1 hour). Your submission is in (submitted Thu 26 Nov, 21:14), you're good.",
-    );
+    expect(canvas.getAssignment).toHaveBeenCalledTimes(1);
   });
 
   it("can't tell for work handed in elsewhere, or when Canvas fails", async () => {
