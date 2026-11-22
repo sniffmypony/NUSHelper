@@ -26,16 +26,16 @@
     "unpdf": "1.9.1"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
+    "@eslint/js": "^10.0.1",
     "@types/luxon": "^3.7.6",
     "@types/node": "^20.19.43",
     "@vercel/node": "^30.0.0",
     "drizzle-kit": "^0.31.11",
-    "eslint": "^9.39.5",
+    "eslint": "^10.14.0",
     "prettier": "^3.9.10",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.2",
-    "vite": "^7.3.8",
+    "vite": "^8.3.6",
     "vitest": "^4.1.12"
   }
 }
