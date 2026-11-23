@@ -9,6 +9,7 @@ import {
 } from "../env.js";
 import { describeTimetable, importTimetable } from "../nus/timetable.js";
 import { forgetLoadedSettings, refreshSettings } from "../settings/runtime.js";
+import { consumeLoginToken, loginLinkStore } from "./login-links.js";
 import { settingsStore } from "../settings/store.js";
 import type { WebDependencies } from "./router.js";
 
@@ -75,6 +76,7 @@ export const webDependencies: WebDependencies = {
 
   describeTimetable: () => describeTimetable(),
   importTimetable: (link) => importTimetable(link),
+  consumeLoginToken: (token) => consumeLoginToken(loginLinkStore, token),
 
   async settingsChanged() {
     forgetLoadedSettings();

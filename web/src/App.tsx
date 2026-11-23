@@ -9,6 +9,7 @@ import { SoonPage } from "./pages/Soon";
 export function App() {
   const path = usePath();
   const [me, setMe] = useState<Me | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     api<Me>("me")
@@ -20,13 +21,33 @@ export function App() {
 
   useEffect(refresh, [refresh]);
 
+  // A sign-in link from the bot's /web command: /login#token=...
+  // The token is removed from the address bar before it is used.
   useEffect(() => {
-    if (me?.authenticated && (path === "/" || path === ""))
+    if (path !== "/login") return;
+    const token = new URLSearchParams(window.location.hash.slice(1)).get(
+      "token",
+    );
+    window.history.replaceState(null, "", "/login");
+    if (!token) return;
+    api("auth/link", { method: "POST", body: { token } })
+      .then(() => {
+        navigate("/settings");
+        refresh();
+      })
+      .catch((failure: Error) => setLinkError(failure.message));
+  }, [path, refresh]);
+
+  useEffect(() => {
+    if (me?.authenticated && ["/", "", "/login"].includes(path)) {
       navigate("/settings");
+    }
   }, [me, path]);
 
   if (!me) return null;
-  if (!me.authenticated) return <LoginPage onSignedIn={refresh} />;
+  if (!me.authenticated) {
+    return <LoginPage onSignedIn={refresh} linkError={linkError} />;
+  }
 
   const page = NAV.find((item) => path.startsWith(item.path));
   return (

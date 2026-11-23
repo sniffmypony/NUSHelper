@@ -411,3 +411,14 @@ export const settingsAudit = pgTable("settings_audit", {
     .notNull()
     .defaultNow(),
 });
+
+// One-time website sign-in links sent by the bot's /web command. Only a
+// hash of each token is stored; a link works once, for 10 minutes.
+export const webLoginLinks = pgTable("web_login_links", {
+  tokenHash: text("token_hash").primaryKey(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
