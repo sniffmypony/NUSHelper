@@ -15,6 +15,10 @@ vi.mock("../src/calendar/google.js", () => ({
   ensureCalendarReadable: fakes.ensureCalendarReadable,
 }));
 
+vi.mock("../src/settings/runtime.js", () => ({
+  refreshSettings: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("../src/calendar/request-context.js", () => ({
   withVercelOidcToken: fakes.withVercelOidcToken,
 }));

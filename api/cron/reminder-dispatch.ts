@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { refreshSettings } from "../../src/settings/runtime.js";
 import { dispatchDueReminders } from "../../src/reminder-dispatcher.js";
 import { reminderStore } from "../../src/reminder-store.js";
 import { snoozeKeyboard } from "../../src/reminder-snooze.js";
@@ -27,6 +28,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   ) {
     return res.status(401).send("unauthorized");
   }
+
+  // Settings changed on the website override Vercel's.
+  await refreshSettings();
 
   const now = new Date();
   let reminderResult: unknown;
