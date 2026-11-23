@@ -99,6 +99,8 @@ Any message that isn't a command, a number-only message or a calendar line goes 
 - reads files: reply to any file or photo with a question, or send a PDF, PowerPoint (`.pptx`), Word (`.docx`), text or code file with a caption. PDFs are read as text plus images of up to 6 pages, so formulas, tables and diagrams come through (your AI provider only needs to accept images);
 - with Canvas set up, lists modules and deadlines, finds and sends course files (up to 10 at once, as one album; files sent before are re-sent instantly), and reads them, so "solve Q2" works right after it sends a tutorial.
 
+Names keep your spelling. The assistant writes the text of reminders, tasks, to-dos, repeating items and calendar events itself and may tidy ordinary words ("abt" becomes "about"), but it is told to copy names exactly, and before anything is saved, a capitalised word that is one letter off a word you typed (two for longer words, same first letter) gets your spelling back: "ask iggy abt poll" is saved as "Ask Iggy about the poll", never "Igy".
+
 Rich messages (LaTeX, formatting) need a Telegram app from June 2026 or later; otherwise the same reply arrives as plain text.
 
 #### Thinking effort

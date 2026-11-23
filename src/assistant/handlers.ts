@@ -48,6 +48,7 @@ import {
   type EffortSetting,
 } from "./effort.js";
 import { ModelTimeoutError, streamCompletion } from "./model-client.js";
+import { keepUserSpelling } from "./user-spelling.js";
 import { conversationKey, threadIdOf } from "../topic-context.js";
 import {
   acknowledge,
@@ -571,7 +572,7 @@ export async function answerAssistantMessage(
     let changedSomething = false;
     const execute = (name: string, args: string) => {
       if (!READ_ONLY_TOOLS.has(name)) changedSomething = true;
-      return toolbox.execute(name, args);
+      return toolbox.execute(name, keepUserSpelling(name, args, text));
     };
     let result: Awaited<ReturnType<typeof runAssistant>> | undefined;
     let used: Effort = start;
