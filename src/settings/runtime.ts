@@ -24,10 +24,10 @@ export async function refreshSettings(
 ): Promise<void> {
   if (now - loadedAt < MAX_AGE_MS) return;
   try {
-    const [values, secrets] = await Promise.all([
-      store.values(),
-      store.secrets(),
-    ]);
+    // One after the other: the bot has a single database connection, and
+    // Supabase's transaction pooler can hang on queries pipelined on one.
+    const values = await store.values();
+    const secrets = await store.secrets();
     const overrides = new Map<string, string>();
     for (const [key, { value }] of values) overrides.set(key, value);
     const token = botToken();

@@ -192,10 +192,10 @@ export async function handleWebRequest(
     }
 
     if (method === "GET" && route === "settings") {
-      const [values, secrets] = await Promise.all([
-        deps.store.values(),
-        deps.store.secrets(),
-      ]);
+      // Sequential, as in refreshSettings: no pipelined queries on the
+      // single pooled connection.
+      const values = await deps.store.values();
+      const secrets = await deps.store.secrets();
       const fromVercel = (names: string[]) =>
         names.map((name) => deps.env(name)).find(Boolean);
       return json(200, {
