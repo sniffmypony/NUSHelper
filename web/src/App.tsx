@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type Me } from "./api";
 import { NAV, Shell } from "./components/Shell";
 import { navigate, usePath } from "./navigation";
+import { CalendarPage } from "./pages/Calendar";
 import { LoginPage } from "./pages/Login";
 import { SettingsPage } from "./pages/Settings";
 import { SoonPage } from "./pages/Soon";
@@ -32,7 +33,7 @@ export function App() {
     if (!token) return;
     api("auth/link", { method: "POST", body: { token } })
       .then(() => {
-        navigate("/settings");
+        navigate("/calendar");
         refresh();
       })
       .catch((failure: Error) => setLinkError(failure.message));
@@ -40,7 +41,7 @@ export function App() {
 
   useEffect(() => {
     if (me?.authenticated && ["/", "", "/login"].includes(path)) {
-      navigate("/settings");
+      navigate("/calendar");
     }
   }, [me, path]);
 
@@ -52,7 +53,9 @@ export function App() {
   const page = NAV.find((item) => path.startsWith(item.path));
   return (
     <Shell path={path}>
-      {page?.path === "/settings" || !page ? (
+      {page?.path === "/calendar" ? (
+        <CalendarPage />
+      ) : page?.path === "/settings" || !page ? (
         <SettingsPage me={me} onSessionChange={refresh} />
       ) : (
         <SoonPage label={page.label} />
