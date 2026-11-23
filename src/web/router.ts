@@ -48,6 +48,7 @@ export interface WebDependencies {
   checkCalendar(): Promise<void>;
   describeTimetable(): Promise<string>;
   importTimetable(link: string): Promise<string>;
+  consumeLoginToken(token: string): Promise<boolean>;
   settingsChanged(): Promise<void>;
 }
 
@@ -126,6 +127,28 @@ export async function handleWebRequest(
       uid: check.id,
       iat: now,
       authAt: check.authDate,
+      v: await sessionVersion(deps.store),
+    };
+    return json(
+      200,
+      { ok: true },
+      sessionCookie(signSession(session, deps.botToken()), SESSION_SECONDS),
+    );
+  }
+
+  // A one-time link from the bot's /web command. Counts as a fresh sign-in.
+  if (method === "POST" && route === "auth/link") {
+    const token = text(request.body, "token");
+    if (!token || !(await deps.consumeLoginToken(token))) {
+      return fail(
+        401,
+        "That sign-in link has expired or was already used. Send /web to the bot for a new one.",
+      );
+    }
+    const session: Session = {
+      uid: deps.ownerId(),
+      iat: now,
+      authAt: now,
       v: await sessionVersion(deps.store),
     };
     return json(
