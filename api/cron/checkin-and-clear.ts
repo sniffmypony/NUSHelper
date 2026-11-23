@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { refreshSettings } from "../../src/settings/runtime.js";
 import { asc, sql } from "drizzle-orm";
 import { db } from "../../src/db/client.js";
 import { todos } from "../../src/db/schema.js";
@@ -15,6 +16,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!isVercelCron(req.headers.authorization)) {
     return res.status(401).send("unauthorized");
   }
+
+  // Settings changed on the website override Vercel's.
+  await refreshSettings();
 
   let items;
   try {

@@ -111,6 +111,18 @@ One message may take up to 270 seconds (Vercel stops the function at 300). Repli
 
 Models that don't accept `reasoning_effort` still work: after the first rejection the bot stops sending it and uses the model's default.
 
+## Website
+
+The same Vercel project serves a private website at the project's address (for example `https://<project>.vercel.app`). It is a planner and control panel for the bot; this first version has **Settings**, and the other pages (Today, Calendar, Chat, Tasks, Spending, Timetable, Deadlines) are coming.
+
+- **Sign-in:** Telegram Login, only for `TELEGRAM_OWNER_ID`. Once, set the domain for your bot: in @BotFather send `/setdomain`, pick the bot, and send the website's domain without `https://`. A sign-in lasts 60 days; changing keys needs a sign-in within the last 10 minutes. **Sign out everywhere** ends every session.
+- **Settings:** the main and backup AI models (picked from your SoCLaaS model list, with a Test button), the SoCLaaS API key and Canvas token, the matriculation year, and the NUSMods timetable link. A value saved here wins over the Vercel environment variable of the same name; **Use Vercel's** removes it again. The bot reads them at the start of every request, at most every 30 seconds, so a change applies within about half a minute.
+- **Keys** are stored AES-256-GCM encrypted in `bot_secrets`, with a key derived from the bot token, and are never shown again (only their last four characters). Changing the bot token makes them unreadable; the bot then uses Vercel's values and the website asks for them again.
+- **Google Calendar:** shows the calendar in use, the service account to share it with, and checks access.
+- **Activity:** `settings_audit` records what changed and when, never the values.
+
+The site is built from `web/` (React, Vite, Tailwind) into `web/dist` by `pnpm --filter nushelper-web build`; its API is one function, `api/web.ts`. For local work run `vercel dev` and, in `web/`, `pnpm dev`.
+
 ## Requirements
 
 | You need                                                   | Free?      | Required?         |

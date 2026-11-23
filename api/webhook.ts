@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { refreshSettings } from "../src/settings/runtime.js";
 import { bot } from "../src/bot.js";
 import { isCalendarConfigured } from "../src/calendar/config.js";
 import { ensureCalendarReadable } from "../src/calendar/google.js";
@@ -23,6 +24,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error("Webhook request rejected: missing or wrong secret token");
     return res.status(401).send("unauthorized");
   }
+
+  // Settings changed on the website override Vercel's.
+  await refreshSettings();
 
   try {
     await withVercelOidcToken(req.headers["x-vercel-oidc-token"], async () => {
