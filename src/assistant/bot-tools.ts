@@ -86,6 +86,10 @@ function tool(
 
 const isoDate = (description: string) => ({ type: "string", description });
 
+// For the text the user's item is saved with.
+const NAME_RULE =
+  "Keep every name (people, places, modules, apps) exactly as the user typed it; you may capitalise it and tidy other words.";
+
 export const botActionTools: ChatCompletionFunctionTool[] = [
   tool(
     "academic_week",
@@ -101,7 +105,7 @@ export const botActionTools: ChatCompletionFunctionTool[] = [
     "add_task",
     "Add a long-term task (same as /task), optionally with a module and due date.",
     {
-      description: { type: "string" },
+      description: { type: "string", description: NAME_RULE },
       module_code: { type: "string", description: "Optional, e.g. CS2102." },
       due_date: isoDate("Optional due date as YYYY-MM-DD."),
     },
@@ -123,7 +127,7 @@ export const botActionTools: ChatCompletionFunctionTool[] = [
   tool(
     "add_todo",
     "Add an item to today's to-do list (/todo).",
-    { description: { type: "string" } },
+    { description: { type: "string", description: NAME_RULE } },
     ["description"],
   ),
   tool("list_todos", "Show today's to-do list with ids (/todos)."),
@@ -142,7 +146,7 @@ export const botActionTools: ChatCompletionFunctionTool[] = [
         description: "24-hour Singapore time as HHMM, e.g. 1800 for 6pm.",
       },
       date: isoDate("Day as YYYY-MM-DD; leave out for today."),
-      description: { type: "string" },
+      description: { type: "string", description: NAME_RULE },
     },
     ["time", "description"],
   ),
@@ -157,7 +161,7 @@ export const botActionTools: ChatCompletionFunctionTool[] = [
     "add_repeating",
     "Add an item that joins the to-do list by itself (/every): every day, on chosen weekdays, or on a day of each month.",
     {
-      description: { type: "string" },
+      description: { type: "string", description: NAME_RULE },
       frequency: { type: "string", enum: ["daily", "weekly", "monthly"] },
       weekdays: {
         type: "string",
@@ -192,7 +196,7 @@ export const botActionTools: ChatCompletionFunctionTool[] = [
         description:
           "True for an all-day event (birthdays, deadlines, holidays).",
       },
-      title: { type: "string" },
+      title: { type: "string", description: NAME_RULE },
       date: {
         type: "string",
         description:

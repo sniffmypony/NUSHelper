@@ -489,3 +489,47 @@ describe("backup model when the AI service fails", () => {
     );
   });
 });
+
+describe("names in saved items", () => {
+  it("saves a to-do with the name spelled as the user typed it", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const addTodo = vi
+      .fn()
+      .mockResolvedValue({ message: "Added to today's list: Ask Iggy" });
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(
+        completion({
+          role: "assistant",
+          content: null,
+          tool_calls: [
+            {
+              id: "a",
+              type: "function",
+              function: {
+                name: "add_todo",
+                arguments: '{"description":"Ask Igy about the poll"}',
+              },
+            },
+          ],
+        }),
+      )
+      .mockResolvedValue(completion({ role: "assistant", content: "Added." }));
+
+    await answerAssistantMessage(
+      fakeTelegram(),
+      42,
+      "add a todo to ask iggy abt poll",
+      {
+        store: fakeStore(),
+        settings: fakeSettings(),
+        runInBackground: vi.fn(),
+        createCompletion: create as unknown as CreateCompletion,
+        model: "m",
+      },
+      { addTodo } as unknown as BotActions,
+    );
+
+    expect(addTodo).toHaveBeenCalledWith("Ask Iggy about the poll");
+  });
+});
