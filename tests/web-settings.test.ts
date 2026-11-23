@@ -388,3 +388,43 @@ describe("website API", () => {
     expect(store.log[0]).toMatchObject({ key: "timetable" });
   });
 });
+
+describe("one query at a time on the single database connection", () => {
+  // Supabase's transaction pooler can hang on queries pipelined on one
+  // connection, which stalled every request when settings were read in
+  // parallel.
+  function trackingStore() {
+    const store = new MemoryStore();
+    let inFlight = 0;
+    let most = 0;
+    const track =
+      <T>(read: () => Promise<T>) =>
+      async () => {
+        inFlight += 1;
+        most = Math.max(most, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        inFlight -= 1;
+        return read();
+      };
+    store.values = track(store.values.bind(store));
+    store.secrets = track(store.secrets.bind(store));
+    return { store, most: () => most };
+  }
+
+  it("when loading settings for the bot", async () => {
+    const { store, most } = trackingStore();
+    await refreshSettings(store, Date.now() + 60 * 60_000);
+    expect(most()).toBe(1);
+    replaceSettingOverrides(new Map());
+  });
+
+  it("when the website lists settings", async () => {
+    const { call, cookieFor, deps } = setup();
+    const { store, most } = trackingStore();
+    deps.store = store;
+    expect(
+      (await call({ route: "settings", cookie: cookieFor() })).status,
+    ).toBe(200);
+    expect(most()).toBe(1);
+  });
+});
