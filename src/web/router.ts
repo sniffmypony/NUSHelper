@@ -16,6 +16,8 @@ import {
   type Session,
 } from "./session.js";
 import { verifyTelegramLogin } from "./telegram-login.js";
+import type { CalendarActions } from "./calendar-actions.js";
+import { calendarRoute } from "./calendar-routes.js";
 
 // The website's API (/api/web/...). Everything except the sign-in needs the
 // owner's session cookie; changes also need the X-NUSHelper header, which a
@@ -49,6 +51,7 @@ export interface WebDependencies {
   describeTimetable(): Promise<string>;
   importTimetable(link: string): Promise<string>;
   consumeLoginToken(token: string): Promise<boolean>;
+  calendar: CalendarActions;
   settingsChanged(): Promise<void>;
 }
 
@@ -305,6 +308,14 @@ export async function handleWebRequest(
       }
       return json(200, { text: result });
     }
+
+    const calendar = await calendarRoute(
+      method,
+      route,
+      request.body,
+      deps.calendar,
+    );
+    if (calendar) return json(calendar.status, calendar.body);
 
     if (method === "GET" && route === "audit") {
       return json(200, { entries: await deps.store.audit(50) });

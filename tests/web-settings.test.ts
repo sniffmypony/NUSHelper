@@ -94,6 +94,7 @@ function setup(now = NOW) {
       async (token: string) => token === "good-token-abcdefghijklmnop",
     ),
     settingsChanged: vi.fn(async () => {}),
+    calendar: {} as WebDependencies["calendar"],
   };
   const cookieFor = (authAt = now, iat = now, v = 0) =>
     `nh_session=${signSession({ uid: OWNER, iat, authAt, v }, TOKEN)}`;

@@ -3,7 +3,7 @@ import { navigate } from "../navigation";
 
 export const NAV = [
   { path: "/today", label: "Today", icon: "☀️", ready: false },
-  { path: "/calendar", label: "Calendar", icon: "📅", ready: false },
+  { path: "/calendar", label: "Calendar", icon: "📅", ready: true },
   { path: "/chat", label: "Chat", icon: "💬", ready: false },
   { path: "/tasks", label: "Tasks", icon: "✅", ready: false },
   { path: "/spending", label: "Spending", icon: "💰", ready: false },
@@ -96,7 +96,7 @@ export function Shell({
             <NavItems path={path} onPick={() => setOpen(false)} />
           </div>
         )}
-        <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 md:px-8 md:py-10">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-10">
           {children}
         </main>
       </div>
