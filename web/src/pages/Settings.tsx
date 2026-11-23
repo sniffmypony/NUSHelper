@@ -621,7 +621,7 @@ export function SettingsPage({
             <SignIn
               onSignedIn={onSessionChange}
               title="Confirm it's you"
-              description="Sign in again to change keys. This lasts 10 minutes."
+              description="Sign in again to change keys, or send /web to the bot and open its link. This lasts 10 minutes."
             />
           </div>
         )}

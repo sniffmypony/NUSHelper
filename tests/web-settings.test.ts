@@ -90,6 +90,9 @@ function setup(now = NOW) {
     checkCalendar: vi.fn(async () => {}),
     describeTimetable: async () => "No timetable is saved.",
     importTimetable: vi.fn(async () => "Saved your Semester 1 timetable"),
+    consumeLoginToken: vi.fn(
+      async (token: string) => token === "good-token-abcdefghijklmnop",
+    ),
     settingsChanged: vi.fn(async () => {}),
   };
   const cookieFor = (authAt = now, iat = now, v = 0) =>

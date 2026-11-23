@@ -28,6 +28,12 @@ import {
 import { registerCarryoverButtons } from "./todo-carryover.js";
 import { classesOn, registerTimetableCommands } from "./nus/timetable.js";
 import { describeAcadWeek, parseWeekCommand } from "./nus/week.js";
+import {
+  createLoginToken,
+  loginLink,
+  loginLinkStore,
+  websiteUrl,
+} from "./web/login-links.js";
 import { registerReminderSnooze } from "./reminder-snooze.js";
 import { isPrivateOwner } from "./security.js";
 import { registerTaskPicker } from "./task-picker.js";
@@ -325,6 +331,7 @@ bot.command("help", (ctx) => {
       "",
       "🗓 NUS academic week",
       "/week [DD-MM-YYYY] — semester and week, e.g. Y2S1W7, AY 26/27, and when finals start",
+      "/web — a one-time link to sign in to the website",
       "",
       "🏫 Classes — shown in the 8am message in teaching weeks 1–13",
       "/timetable <NUSMods share link> — save your timetable (or just send the link); finals go on Google Calendar",
@@ -368,6 +375,23 @@ bot.command("week", (ctx) => {
     return ctx.reply("Usage: /week or /week DD-MM-YYYY\ne.g. /week 01-03-2027");
   }
   return ctx.reply(describeAcadWeek(date));
+});
+
+// Only the owner gets this far (see the owner gate above), so the link
+// reaches no one else. Link previews are off: a preview fetch must not
+// open it.
+bot.command("web", async (ctx) => {
+  const base = websiteUrl();
+  if (!base) {
+    return ctx.reply(
+      "The website's address isn't known. Set WEB_URL in Vercel.",
+    );
+  }
+  const token = await createLoginToken(loginLinkStore);
+  return ctx.reply(
+    `Sign in to the website (works once, for 10 minutes):\n${loginLink(base, token)}`,
+    { link_preview_options: { is_disabled: true } },
+  );
 });
 
 bot.command("start", (ctx) =>
