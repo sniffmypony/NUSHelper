@@ -1,5 +1,12 @@
+import { settingOverride } from "./setting-overrides.js";
+
+// A value saved on the website (src/settings) wins over the Vercel variable.
+function readSetting(name: string): string | undefined {
+  return settingOverride(name)?.trim() || process.env[name]?.trim();
+}
+
 export function requireEnv(name: string): string {
-  const value = process.env[name]?.trim();
+  const value = readSetting(name);
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
@@ -7,6 +14,12 @@ export function requireEnv(name: string): string {
 }
 
 export function optionalEnv(...names: string[]): string | undefined {
+  // Website values first, for every name, so a saved LLM_MODEL beats the
+  // SOCLAAS_MODEL fallback set in Vercel.
+  for (const name of names) {
+    const value = settingOverride(name)?.trim();
+    if (value) return value;
+  }
   for (const name of names) {
     const value = process.env[name]?.trim();
     if (value) return value;

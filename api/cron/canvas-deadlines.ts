@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { refreshSettings } from "../../src/settings/runtime.js";
 import { isCalendarConfigured } from "../../src/calendar/config.js";
 import { getCalendarGateway } from "../../src/calendar/google.js";
 import { withVercelOidcToken } from "../../src/calendar/request-context.js";
@@ -18,6 +19,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!isVercelCron(req.headers.authorization)) {
     return res.status(401).send("unauthorized");
   }
+
+  // Settings changed on the website override Vercel's.
+  await refreshSettings();
   if (!isCanvasConfigured()) return res.status(200).send("canvas off");
 
   try {

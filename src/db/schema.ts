@@ -380,3 +380,34 @@ export const canvasDeadlines = pgTable("canvas_deadlines", {
     .notNull()
     .defaultNow(),
 });
+
+// Bot settings changed on the website (src/settings). Each value overrides
+// the Vercel environment variable named by its key.
+export const botSettings = pgTable("bot_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Keys saved on the website, encrypted (src/settings/crypto.ts). Only the
+// last four characters are kept readable, to show which key is saved.
+export const botSecrets = pgTable("bot_secrets", {
+  key: text("key").primaryKey(),
+  ciphertext: text("ciphertext").notNull(),
+  lastFour: text("last_four").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// What changed on the website and when; never the values themselves.
+export const settingsAudit = pgTable("settings_audit", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull(),
+  action: text("action").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

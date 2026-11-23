@@ -1,3 +1,5 @@
+packages:
+  - web
 allowBuilds:
   esbuild: true
 # Security fixes for packages pulled in by dev-only tools (@vercel/node types,
