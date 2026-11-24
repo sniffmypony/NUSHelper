@@ -4,7 +4,7 @@ import { navigate } from "../navigation";
 export const NAV = [
   { path: "/today", label: "Today", icon: "☀️", ready: false },
   { path: "/calendar", label: "Calendar", icon: "📅", ready: true },
-  { path: "/chat", label: "Chat", icon: "💬", ready: false },
+  { path: "/chat", label: "Chat", icon: "💬", ready: true },
   { path: "/tasks", label: "Tasks", icon: "✅", ready: false },
   { path: "/spending", label: "Spending", icon: "💰", ready: false },
   { path: "/timetable", label: "Timetable", icon: "🏫", ready: false },

@@ -18,6 +18,8 @@ import {
 import { verifyTelegramLogin } from "./telegram-login.js";
 import type { CalendarActions } from "./calendar-actions.js";
 import { calendarRoute } from "./calendar-routes.js";
+import type { ChatEvent } from "./chat.js";
+import { chatRoute, type ChatDependencies } from "./chat-routes.js";
 
 // The website's API (/api/web/...). Everything except the sign-in needs the
 // owner's session cookie; changes also need the X-NUSHelper header, which a
@@ -29,12 +31,15 @@ export interface WebRequest {
   cookie?: string;
   csrfHeader?: string;
   body?: unknown;
+  search?: string; // ?q= on a GET
 }
 
 export interface WebResponse {
   status: number;
   body: unknown;
   setCookie?: string;
+  // A chat reply: events are sent as they happen (newline-separated JSON).
+  stream?: (emit: (event: ChatEvent) => void) => Promise<void>;
 }
 
 export interface WebDependencies {
@@ -53,6 +58,7 @@ export interface WebDependencies {
   importTimetable(link: string): Promise<string>;
   consumeLoginToken(token: string): Promise<boolean>;
   calendar: CalendarActions;
+  chat: ChatDependencies;
   settingsChanged(): Promise<void>;
 }
 
@@ -328,6 +334,19 @@ export async function handleWebRequest(
       deps.calendar,
     );
     if (calendar) return json(calendar.status, calendar.body);
+
+    const chat = await chatRoute(
+      method,
+      route,
+      request.body,
+      deps.chat,
+      request.search,
+    );
+    if (chat) {
+      return "stream" in chat
+        ? { status: 200, body: null, stream: chat.stream }
+        : json(chat.status, chat.body);
+    }
 
     if (method === "GET" && route === "audit") {
       return json(200, { entries: await deps.store.audit(50) });

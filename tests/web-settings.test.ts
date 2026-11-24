@@ -95,6 +95,7 @@ function setup(now = NOW) {
     ),
     settingsChanged: vi.fn(async () => {}),
     calendar: {} as WebDependencies["calendar"],
+    chat: {} as WebDependencies["chat"],
   };
   const cookieFor = (authAt = now, iat = now, v = 0) =>
     `nh_session=${signSession({ uid: OWNER, iat, authAt, v }, TOKEN)}`;

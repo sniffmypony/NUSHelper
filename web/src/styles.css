@@ -15,3 +15,50 @@ body,
 body {
   @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
 }
+
+/* Assistant replies in Chat (Markdown). */
+.chat-markdown {
+  @apply space-y-3 text-sm leading-relaxed break-words;
+}
+.chat-markdown ul {
+  @apply list-disc space-y-1 pl-5;
+}
+.chat-markdown ol {
+  @apply list-decimal space-y-1 pl-5;
+}
+.chat-markdown h1,
+.chat-markdown h2,
+.chat-markdown h3 {
+  @apply font-semibold;
+}
+.chat-markdown h1 {
+  @apply text-lg;
+}
+.chat-markdown h2 {
+  @apply text-base;
+}
+.chat-markdown a {
+  @apply text-indigo-600 underline dark:text-indigo-400;
+}
+.chat-markdown code {
+  @apply rounded bg-slate-100 px-1 py-0.5 font-mono text-[0.85em] dark:bg-slate-800;
+}
+.chat-markdown pre {
+  @apply overflow-x-auto rounded-lg bg-slate-100 p-3 dark:bg-slate-800;
+}
+.chat-markdown pre code {
+  @apply bg-transparent p-0;
+}
+.chat-markdown blockquote {
+  @apply border-l-4 border-slate-300 pl-3 text-slate-600 dark:border-slate-700 dark:text-slate-300;
+}
+.chat-markdown table {
+  @apply block overflow-x-auto border-collapse text-left;
+}
+.chat-markdown th,
+.chat-markdown td {
+  @apply border border-slate-200 px-2 py-1 dark:border-slate-700;
+}
+.chat-markdown .katex-display {
+  @apply overflow-x-auto overflow-y-hidden py-1;
+}
