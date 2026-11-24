@@ -18,8 +18,10 @@ export function Card({
 }) {
   return (
     <section className="rounded-2xl border border-line bg-surface shadow-card">
-      <header className="border-b border-line px-5 py-4">
-        <h2 className="text-base font-semibold">{title}</h2>
+      {/* Tinted in the secondary blue; 15 px corners inside the card's 16 px
+          and 1 px border. */}
+      <header className="rounded-t-[15px] border-b border-line bg-brand-soft px-5 py-4">
+        <h2 className="text-base font-semibold text-brand-text">{title}</h2>
         {description && (
           <p className="mt-0.5 text-sm text-muted">{description}</p>
         )}
@@ -58,7 +60,8 @@ type Variant = "primary" | "secondary" | "danger" | "ghost";
 
 const VARIANTS: Record<Variant, string> = {
   primary: "bg-accent text-on-accent hover:bg-accent-hover",
-  secondary: "border border-line-strong bg-surface text-ink hover:bg-hover",
+  secondary:
+    "border border-line-strong bg-surface text-brand-text hover:bg-brand-soft",
   danger: "border border-danger/30 bg-surface text-danger hover:bg-danger-soft",
   ghost: "text-muted hover:bg-hover hover:text-ink",
 };
@@ -137,7 +140,7 @@ const SOURCE_LABELS: Record<Source, string> = {
 
 const SOURCE_STYLES: Record<Source, string> = {
   website: "bg-accent-soft text-accent-text",
-  vercel: "bg-sunken text-muted",
+  vercel: "bg-brand-soft text-brand-text",
   unset: "bg-warn-soft text-warn",
 };
 

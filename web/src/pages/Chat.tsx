@@ -128,10 +128,10 @@ function Cards({
   );
 }
 
-// Your messages are tinted, not solid accent: the accent is kept for the
-// 10% (buttons, links, the active item), never large areas.
+// Your messages are in the secondary NUS blue; the orange accent is kept for
+// the 10% (buttons, links, the active item), never large areas.
 const USER_BUBBLE =
-  "max-w-[85%] whitespace-pre-wrap break-words rounded-[20px] rounded-br-md bg-accent-soft px-4 py-2.5 text-sm text-ink";
+  "max-w-[85%] whitespace-pre-wrap break-words rounded-[20px] rounded-br-md bg-bubble px-4 py-2.5 text-sm text-nav-ink";
 // 20 px corners with 12 px padding, so the cards inside get 8 px.
 const REPLY_BUBBLE =
   "max-w-[92%] min-w-0 rounded-[20px] rounded-bl-md border p-3";
@@ -226,7 +226,7 @@ function ChatList({
                   }}
                   className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-[transform,background-color,color] duration-150 ease-out active:scale-[0.97] motion-reduce:active:scale-100 ${
                     chat.id === activeId
-                      ? "bg-accent-soft text-accent-text"
+                      ? "bg-brand-soft font-medium text-brand-text"
                       : "text-muted hover:bg-hover hover:text-ink"
                   }`}
                 >
