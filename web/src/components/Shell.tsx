@@ -44,16 +44,18 @@ function NavItems({ path, onPick }: { path: string; onPick: () => void }) {
               onPick();
             }}
             aria-current={active ? "page" : undefined}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-[transform,background-color,color] duration-150 ease-out active:scale-[0.97] motion-reduce:active:scale-100 ${
+            // On the blue navigation: the active page gets a lighter fill and
+            // an orange marker (the accent), the rest stay quiet.
+            className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-[transform,background-color,color] duration-150 ease-out active:scale-[0.97] motion-reduce:active:scale-100 ${
               active
-                ? "bg-accent-soft text-accent-text"
-                : "text-muted hover:bg-hover hover:text-ink"
+                ? "bg-nav-active text-nav-ink before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-accent"
+                : "text-nav-muted hover:bg-nav-hover hover:text-nav-ink"
             }`}
           >
-            <Icon {...ICON} />
+            <Icon {...ICON} className={active ? "text-accent" : ""} />
             <span className="flex-1">{item.label}</span>
             {!item.ready && (
-              <span className="rounded bg-sunken px-1.5 text-[10px] font-semibold uppercase tracking-wide text-faint">
+              <span className="rounded bg-nav-hover px-1.5 text-[10px] font-semibold uppercase tracking-wide text-nav-muted">
                 Soon
               </span>
             )}
@@ -69,8 +71,10 @@ function Brand() {
     <div className="flex items-center gap-2.5 px-3">
       <Logo size={32} />
       <div>
-        <div className="text-sm font-semibold leading-tight">NUSHelper</div>
-        <div className="text-xs text-muted">Planner & assistant</div>
+        <div className="text-sm font-semibold leading-tight text-nav-ink">
+          NUSHelper
+        </div>
+        <div className="text-xs text-nav-muted">Planner & assistant</div>
       </div>
     </div>
   );
@@ -86,16 +90,16 @@ export function Shell({
   const [open, setOpen] = useState(false);
   return (
     <div className="flex min-h-full">
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col gap-6 border-r border-line bg-surface px-3 py-5 md:flex">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col gap-6 bg-nav px-3 py-5 md:flex">
         <Brand />
         <NavItems path={path} onPick={() => {}} />
         <div className="mt-auto px-3">
-          <ThemeSwitch />
+          <ThemeSwitch onNav />
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-surface/90 px-4 py-3 backdrop-blur md:hidden">
+        <header className="sticky top-0 z-20 flex items-center justify-between bg-nav px-4 py-3 md:hidden">
           <Brand />
           <div className="flex items-center gap-1">
             <ThemeButton />
@@ -104,7 +108,7 @@ export function Shell({
               onClick={() => setOpen((value) => !value)}
               aria-expanded={open}
               aria-label={open ? "Close menu" : "Menu"}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-[transform,background-color,color] duration-150 ease-out hover:bg-hover hover:text-ink active:scale-[0.97] motion-reduce:active:scale-100"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-nav-muted transition-[transform,background-color,color] duration-150 ease-out hover:bg-nav-hover hover:text-nav-ink active:scale-[0.97] motion-reduce:active:scale-100"
             >
               <SwapIcon
                 show={open ? "close" : "menu"}
@@ -117,7 +121,7 @@ export function Shell({
           </div>
         </header>
         {open && (
-          <div className="origin-top animate-settle border-b border-line bg-surface px-3 py-3 md:hidden">
+          <div className="origin-top animate-settle bg-nav px-3 pb-3 md:hidden">
             <NavItems path={path} onPick={() => setOpen(false)} />
           </div>
         )}

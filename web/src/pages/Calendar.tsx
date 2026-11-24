@@ -86,6 +86,12 @@ function shortWeek(label: string): string {
   return named ? named[1] : head;
 }
 
+// Exams (finals the bot added, or any event called an exam) get their own
+// colour; other Google Calendar events share the event colour.
+function isExam(title: string): boolean {
+  return /\b(final|finals|exam|midterm|quiz)\b/i.test(title);
+}
+
 function Dot({ className }: { className: string }) {
   return (
     <span className={`inline-block h-1.5 w-1.5 rounded-full ${className}`} />
@@ -108,60 +114,67 @@ function DayCell({
   onPick: () => void;
 }) {
   const isMonday = fromIso(date).getUTCDay() === 1;
+  // Each item is a pill in its category's colour (styles.css).
   const items = day
     ? [
         ...day.deadlines.map((d) => ({
           text: `${d.moduleCode} due`,
-          tone: "text-danger",
+          pill: "pill-deadline",
         })),
         ...day.events.map((e) => ({
-          text: e.title,
-          tone: "text-accent-text",
+          text: e.allDay || !e.start ? e.title : `${e.start} ${e.title}`,
+          pill: isExam(e.title) ? "pill-exam" : "pill-event",
         })),
         ...day.reminders.map((r) => ({
           text: `${r.time} ${r.description}`,
-          tone: "text-warn",
+          pill: "pill-reminder",
         })),
+        ...day.tasks.map((t) => ({ text: t.description, pill: "pill-task" })),
       ]
     : [];
+  const exams = day?.events.some((e) => isExam(e.title)) ?? false;
+  const otherEvents = day?.events.some((e) => !isExam(e.title)) ?? false;
   return (
     <button
       type="button"
       onClick={onPick}
       className={`flex min-h-16 flex-col gap-0.5 border-b border-r border-line p-1.5 text-left transition-[background-color] duration-150 ease-out md:min-h-28 md:p-2 ${
         selected
-          ? "bg-accent-soft ring-2 ring-inset ring-accent"
+          ? "bg-brand-soft ring-2 ring-inset ring-accent"
           : "hover:bg-hover"
       } ${inMonth ? "" : "bg-sunken text-faint "}`}
     >
       <div className="flex items-center justify-between gap-1">
         <span
           className={`grid h-6 w-6 place-items-center rounded-full text-xs font-semibold ${
-            today ? "bg-accent text-on-accent" : ""
+            today ? "bg-accent text-on-accent" : inMonth ? "text-ink" : ""
           }`}
         >
           {fromIso(date).getUTCDate()}
         </span>
         {isMonday && day && (
-          <span className="hidden truncate text-[10px] font-medium text-faint md:inline">
+          <span className="hidden truncate rounded bg-brand-soft px-1 text-[10px] font-semibold text-brand-text md:inline">
             {shortWeek(day.week)}
           </span>
         )}
       </div>
       {day?.spending && day.spending.cents > 0 && (
-        <span className="w-fit max-w-full truncate rounded bg-ok-soft px-1 text-[10px] font-semibold text-ok md:text-[11px]">
+        <span className="pill pill-spend w-fit max-w-full truncate rounded px-1 text-[10px] font-semibold md:text-[11px]">
           <span className="hidden md:inline">S$</span>
           {(day.spending.cents / 100).toFixed(2)}
         </span>
       )}
       <div className="hidden flex-col gap-0.5 md:flex">
         {day && day.classes.length > 0 && (
-          <span className="truncate text-[11px] text-muted">
+          <span className="pill pill-class truncate rounded px-1 text-[11px]">
             {day.classes.length} class{day.classes.length === 1 ? "" : "es"}
           </span>
         )}
         {items.slice(0, 3).map((item, index) => (
-          <span key={index} className={`truncate text-[11px] ${item.tone}`}>
+          <span
+            key={index}
+            className={`pill ${item.pill} truncate rounded px-1 text-[11px]`}
+          >
             {item.text}
           </span>
         ))}
@@ -174,7 +187,8 @@ function DayCell({
       {day && (
         <div className="mt-auto flex gap-0.5 md:hidden">
           {day.classes.length > 0 && <Dot className="bg-cat-class" />}
-          {day.events.length > 0 && <Dot className="bg-cat-event" />}
+          {exams && <Dot className="bg-cat-exam" />}
+          {otherEvents && <Dot className="bg-cat-event" />}
           {day.deadlines.length > 0 && <Dot className="bg-cat-deadline" />}
           {day.reminders.length > 0 && <Dot className="bg-cat-reminder" />}
           {day.tasks.length > 0 && <Dot className="bg-cat-task" />}
@@ -185,12 +199,22 @@ function DayCell({
 }
 
 // Each part of the day panel opens and closes (an accordion).
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  title,
+  dot,
+  children,
+}: {
+  title: string;
+  // The category colour, matching the calendar's pills and dots.
+  dot: string;
+  children: ReactNode;
+}) {
   return (
     <Accordion
       className="border-t border-line px-4 py-3"
       title={
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+        <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand-text">
+          <Dot className={dot} />
           {title}
         </h3>
       }
@@ -275,7 +299,8 @@ function DayPanel({
 
   return (
     <div className="animate-settle rounded-2xl border border-line bg-surface shadow-card">
-      <header className="px-4 py-3">
+      {/* 15 px top corners: the panel's 16 px minus its 1 px border. */}
+      <header className="rounded-t-[15px] bg-brand-soft px-4 py-3">
         <h2 className="text-base font-semibold">
           {formatDay(date, {
             weekday: "long",
@@ -288,7 +313,7 @@ function DayPanel({
         {status && <Notice tone={status.tone}>{status.text}</Notice>}
       </header>
 
-      <Section title="Spending">
+      <Section title="Spending" dot="bg-cat-spend">
         <p className="text-sm">
           {day?.spending ? (
             <span className="font-semibold">
@@ -323,7 +348,7 @@ function DayPanel({
         </Shake>
       </Section>
 
-      <Section title="Classes">
+      <Section title="Classes" dot="bg-cat-class">
         {day && day.classes.length > 0 ? (
           <ul className="space-y-1 text-sm">
             {day.classes.map((c, i) => (
@@ -341,7 +366,7 @@ function DayPanel({
         )}
       </Section>
 
-      <Section title="Deadlines">
+      <Section title="Deadlines" dot="bg-cat-deadline">
         {day && day.deadlines.length > 0 ? (
           <ul className="space-y-1 text-sm">
             {day.deadlines.map((d, i) => (
@@ -367,7 +392,7 @@ function DayPanel({
         )}
       </Section>
 
-      <Section title="Events">
+      <Section title="Events" dot="bg-cat-event">
         {day && day.events.length > 0 ? (
           <ul className="space-y-1.5 text-sm">
             {day.events.map((e) => (
@@ -543,7 +568,7 @@ function DayPanel({
         </form>
       </Section>
 
-      <Section title="Reminders">
+      <Section title="Reminders" dot="bg-cat-reminder">
         {day && day.reminders.length > 0 ? (
           <ul className="space-y-2 text-sm">
             {day.reminders.map((r) => (
@@ -668,7 +693,7 @@ function DayPanel({
         </p>
       </Section>
 
-      <Section title="Tasks due">
+      <Section title="Tasks due" dot="bg-cat-task">
         {day && day.tasks.length > 0 ? (
           <ul className="space-y-1 text-sm">
             {day.tasks.map((t) => (
@@ -775,7 +800,7 @@ export function CalendarPage() {
 
       <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
         <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
-          <div className="grid grid-cols-7 border-b border-line bg-sunken text-center text-[11px] font-semibold uppercase tracking-wide text-muted">
+          <div className="grid grid-cols-7 border-b border-line bg-brand-soft text-center text-[11px] font-semibold uppercase tracking-wide text-brand-text">
             {WEEKDAYS.map((weekday) => (
               <div key={weekday} className="py-2">
                 {weekday}
