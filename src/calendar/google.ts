@@ -1,10 +1,6 @@
 import { calendar, type calendar_v3 } from "@googleapis/calendar";
 import { createCalendarAuthClient } from "./auth.js";
-import {
-  FIXED_CALENDAR_ID,
-  FIXED_TIME_ZONE,
-  getCalendarConfig,
-} from "./config.js";
+import { calendarId, FIXED_TIME_ZONE, getCalendarConfig } from "./config.js";
 import { recurrenceRule, type ParsedCalendarEvent } from "./parser.js";
 import type {
   BotOwnedEvent,
@@ -83,9 +79,10 @@ export function eventTiming(
 export class GoogleCalendarGateway implements CalendarGateway {
   constructor(private readonly client: calendar_v3.Calendar) {}
 
-  async checkReadable(): Promise<void> {
+  // `id` lets the website test a calendar before switching to it.
+  async checkReadable(id = calendarId()): Promise<void> {
     await this.client.events.list({
-      calendarId: FIXED_CALENDAR_ID,
+      calendarId: id,
       maxResults: 1,
       singleEvents: true,
       timeMin: new Date().toISOString(),
@@ -100,7 +97,7 @@ export class GoogleCalendarGateway implements CalendarGateway {
     let pageToken: string | undefined;
     do {
       const response = await this.client.events.list({
-        calendarId: FIXED_CALENDAR_ID,
+        calendarId: calendarId(),
         timeMin,
         timeMax,
         timeZone: FIXED_TIME_ZONE,
@@ -123,7 +120,7 @@ export class GoogleCalendarGateway implements CalendarGateway {
   async getAgendaEvent(eventId: string): Promise<CalendarAgendaEvent | null> {
     try {
       const response = await this.client.events.get({
-        calendarId: FIXED_CALENDAR_ID,
+        calendarId: calendarId(),
         eventId,
       });
       return agendaEvent(response.data);
@@ -137,7 +134,7 @@ export class GoogleCalendarGateway implements CalendarGateway {
   async get(eventId: string): Promise<StoredGoogleEvent | null> {
     try {
       const response = await this.client.events.get({
-        calendarId: FIXED_CALENDAR_ID,
+        calendarId: calendarId(),
         eventId,
       });
       return storedEvent(response.data);
@@ -155,7 +152,7 @@ export class GoogleCalendarGateway implements CalendarGateway {
     messageId: number,
   ): Promise<StoredGoogleEvent> {
     if (
-      event.calendarId !== FIXED_CALENDAR_ID ||
+      event.calendarId !== calendarId() ||
       event.timeZone !== FIXED_TIME_ZONE
     ) {
       throw new Error(
@@ -165,7 +162,7 @@ export class GoogleCalendarGateway implements CalendarGateway {
 
     try {
       const response = await this.client.events.insert({
-        calendarId: FIXED_CALENDAR_ID,
+        calendarId: calendarId(),
         sendUpdates: "none",
         requestBody: {
           id: eventId,
@@ -195,7 +192,7 @@ export class GoogleCalendarGateway implements CalendarGateway {
     event: ParsedCalendarEvent,
   ): Promise<StoredGoogleEvent | null> {
     if (
-      event.calendarId !== FIXED_CALENDAR_ID ||
+      event.calendarId !== calendarId() ||
       event.timeZone !== FIXED_TIME_ZONE
     ) {
       throw new Error(
@@ -204,7 +201,7 @@ export class GoogleCalendarGateway implements CalendarGateway {
     }
     try {
       const response = await this.client.events.patch({
-        calendarId: FIXED_CALENDAR_ID,
+        calendarId: calendarId(),
         eventId,
         sendUpdates: "none",
         requestBody: {
@@ -222,7 +219,7 @@ export class GoogleCalendarGateway implements CalendarGateway {
   async delete(eventId: string): Promise<"deleted" | "already-deleted"> {
     try {
       await this.client.events.delete({
-        calendarId: FIXED_CALENDAR_ID,
+        calendarId: calendarId(),
         eventId,
         sendUpdates: "none",
       });
@@ -247,7 +244,7 @@ export class GoogleCalendarGateway implements CalendarGateway {
     };
     try {
       await this.client.events.patch({
-        calendarId: FIXED_CALENDAR_ID,
+        calendarId: calendarId(),
         eventId,
         sendUpdates: "none",
         requestBody,
@@ -257,7 +254,7 @@ export class GoogleCalendarGateway implements CalendarGateway {
       if (errorStatus(error) !== 404) throw error;
     }
     await this.client.events.insert({
-      calendarId: FIXED_CALENDAR_ID,
+      calendarId: calendarId(),
       sendUpdates: "none",
       requestBody: { ...requestBody, id: eventId },
     });
@@ -272,7 +269,7 @@ export class GoogleCalendarGateway implements CalendarGateway {
   ): Promise<"created" | "exists"> {
     try {
       await this.client.events.insert({
-        calendarId: FIXED_CALENDAR_ID,
+        calendarId: calendarId(),
         sendUpdates: "none",
         requestBody: {
           id: eventId,
@@ -291,8 +288,10 @@ export class GoogleCalendarGateway implements CalendarGateway {
 }
 
 let gatewayPromise: Promise<GoogleCalendarGateway> | undefined;
-let accessCheckPromise: Promise<void> | undefined;
-let accessChecked = false;
+// The calendar can be switched on the website, so access is remembered per
+// calendar ID.
+let accessCheckPromise: { id: string; promise: Promise<void> } | undefined;
+let accessCheckedFor: string | undefined;
 
 export async function getCalendarGateway(): Promise<GoogleCalendarGateway> {
   getCalendarConfig();
@@ -317,17 +316,23 @@ export async function getCalendarGateway(): Promise<GoogleCalendarGateway> {
 }
 
 export async function ensureCalendarReadable(): Promise<void> {
-  if (accessChecked) return;
-  accessCheckPromise ??= getCalendarGateway()
-    .then((gateway) => gateway.checkReadable())
-    .then(() => {
-      accessChecked = true;
-    })
-    .catch((error) => {
-      accessCheckPromise = undefined;
-      throw error;
-    });
-  return accessCheckPromise;
+  const id = calendarId();
+  if (accessCheckedFor === id) return;
+  if (accessCheckPromise?.id !== id) {
+    const promise = getCalendarGateway()
+      .then((gateway) => gateway.checkReadable(id))
+      .then(() => {
+        accessCheckedFor = id;
+      })
+      .catch((error) => {
+        if (accessCheckPromise?.promise === promise) {
+          accessCheckPromise = undefined;
+        }
+        throw error;
+      });
+    accessCheckPromise = { id, promise };
+  }
+  return accessCheckPromise.promise;
 }
 
 export function calendarErrorMessage(error: unknown): string {

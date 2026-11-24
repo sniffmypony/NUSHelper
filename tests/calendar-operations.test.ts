@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FIXED_CALENDAR_ID, FIXED_TIME_ZONE } from "../src/calendar/config.js";
+import { FIXED_TIME_ZONE } from "../src/calendar/config.js";
 import { CalendarOperations } from "../src/calendar/operations.js";
 import type { ParsedCalendarEvent } from "../src/calendar/parser.js";
 import type {
@@ -11,6 +11,8 @@ import type {
   StoredGoogleEvent,
 } from "../src/calendar/types.js";
 
+const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID?.trim() ?? "";
+
 const OWNER = "123";
 const NOW = new Date("2026-08-01T00:00:00Z");
 
@@ -21,7 +23,7 @@ function draft(title = "Homework"): ParsedCalendarEvent {
     endDateTime: "2026-08-22T18:00:00+08:00",
     allDay: false,
     repeat: null,
-    calendarId: FIXED_CALENDAR_ID,
+    calendarId: CALENDAR_ID,
     timeZone: FIXED_TIME_ZONE,
     isPast: false,
   };

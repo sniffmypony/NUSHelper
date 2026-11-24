@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/api.ts","./src/dates.ts","./src/main.tsx","./src/navigation.ts","./src/components/Shell.tsx","./src/components/TelegramLogin.tsx","./src/components/ui.tsx","./src/pages/Calendar.tsx","./src/pages/Login.tsx","./src/pages/Settings.tsx","./src/pages/Soon.tsx","./vite.config.ts"],"version":"6.0.3"}

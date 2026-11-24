@@ -26,6 +26,7 @@ export interface CalendarSources {
       description: string;
       scheduledAt: Date;
       status: string;
+      eventId: string | null;
     }>
   >;
   tasks(
@@ -85,6 +86,8 @@ export interface CalendarDay {
     description: string;
     time: string;
     status: string;
+    // Set when the reminder follows a Google Calendar event.
+    eventId: string | null;
   }>;
   tasks: Array<{ id: number; description: string; module: string | null }>;
   deadlines: Array<{
@@ -166,6 +169,7 @@ export async function calendarRange(
       description: row.description,
       time: local(row.scheduledAt).toFormat("HH:mm"),
       status: row.status,
+      eventId: row.eventId,
     });
   }
   for (const row of await sources.tasks(start, end)) {

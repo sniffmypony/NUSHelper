@@ -10,7 +10,6 @@ afterEach(() => {
   process.env.DEFAULT_TIMEZONE = savedTimeZone;
 });
 
-// The calendar ID is read when the module loads, as on a cold start.
 async function loadConfig(env: Record<string, string | undefined>) {
   vi.resetModules();
   for (const [key, value] of Object.entries(env)) {
@@ -21,17 +20,23 @@ async function loadConfig(env: Record<string, string | undefined>) {
 }
 
 describe("calendar configuration and authorization", () => {
-  it("uses only the calendar configured at startup", async () => {
+  it("uses the configured calendar, or the one saved on the website", async () => {
     const config = await loadConfig({
       GOOGLE_CALENDAR_ID: "me@example.com",
       DEFAULT_TIMEZONE: "Asia/Singapore",
     });
     expect(config.getCalendarConfig().calendarId).toBe("me@example.com");
 
-    process.env.GOOGLE_CALENDAR_ID = "attacker@example.com";
-    expect(() => config.getCalendarConfig()).toThrow(
-      "GOOGLE_CALENDAR_ID changed after startup",
+    const overrides = await import("../src/setting-overrides.js");
+    overrides.replaceSettingOverrides(
+      new Map([["GOOGLE_CALENDAR_ID", "other@example.com"]]),
     );
+    try {
+      expect(config.calendarId()).toBe("other@example.com");
+      expect(config.getCalendarConfig().calendarId).toBe("other@example.com");
+    } finally {
+      overrides.replaceSettingOverrides(new Map());
+    }
   });
 
   it("rejects a timezone other than Singapore", async () => {
@@ -47,7 +52,7 @@ describe("calendar configuration and authorization", () => {
   it("treats Google Calendar as optional", async () => {
     const off = await loadConfig({ GOOGLE_CALENDAR_ID: undefined });
     expect(off.isCalendarConfigured()).toBe(false);
-    expect(off.FIXED_CALENDAR_ID).toBe("");
+    expect(off.calendarId()).toBe("");
 
     const on = await loadConfig({ GOOGLE_CALENDAR_ID: "me@example.com" });
     expect(on.isCalendarConfigured()).toBe(true);

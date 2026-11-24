@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { FIXED_CALENDAR_ID, FIXED_TIME_ZONE } from "../src/calendar/config.js";
+import { FIXED_TIME_ZONE } from "../src/calendar/config.js";
 import { parseCalendarEventMessage } from "../src/calendar/parser.js";
+
+const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID?.trim() ?? "";
 
 const future = new Date("2026-01-01T00:00:00Z");
 
@@ -122,7 +124,7 @@ describe("calendar event parser", () => {
 
   it("always returns the fixed calendar and timezone", () => {
     const parsed = event("12-6, title with another@gmail.com, 22-08-2026");
-    expect(parsed.calendarId).toBe(FIXED_CALENDAR_ID);
+    expect(parsed.calendarId).toBe(CALENDAR_ID);
     expect(parsed.timeZone).toBe(FIXED_TIME_ZONE);
   });
 });
