@@ -2,8 +2,10 @@ import type {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
   ReactNode,
+  SelectHTMLAttributes,
 } from "react";
 import type { Source } from "../api";
+import { useShake } from "./motion";
 
 export function Card({
   title,
@@ -15,18 +17,14 @@ export function Card({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <header className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+    <section className="rounded-2xl border border-line bg-surface shadow-card">
+      <header className="border-b border-line px-5 py-4">
         <h2 className="text-base font-semibold">{title}</h2>
         {description && (
-          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-            {description}
-          </p>
+          <p className="mt-0.5 text-sm text-muted">{description}</p>
         )}
       </header>
-      <div className="divide-y divide-slate-100 dark:divide-slate-800">
-        {children}
-      </div>
+      <div className="divide-y divide-line">{children}</div>
     </section>
   );
 }
@@ -49,11 +47,7 @@ export function Row({
           {label}
           {aside}
         </div>
-        {help && (
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            {help}
-          </p>
-        )}
+        {help && <p className="mt-0.5 text-xs text-muted">{help}</p>}
       </div>
       <div className="min-w-0">{children}</div>
     </div>
@@ -63,15 +57,15 @@ export function Row({
 type Variant = "primary" | "secondary" | "danger" | "ghost";
 
 const VARIANTS: Record<Variant, string> = {
-  primary:
-    "bg-indigo-600 text-white hover:bg-indigo-500 disabled:bg-indigo-300 dark:disabled:bg-indigo-900",
-  secondary:
-    "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800",
-  danger:
-    "border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950",
-  ghost:
-    "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800",
+  primary: "bg-accent text-on-accent hover:bg-accent-hover",
+  secondary: "border border-line-strong bg-surface text-ink hover:bg-hover",
+  danger: "border border-danger/30 bg-surface text-danger hover:bg-danger-soft",
+  ghost: "text-muted hover:bg-hover hover:text-ink",
 };
+
+// Pressed buttons shrink to 0.97 for 150 ms, like a physical click.
+const PRESS =
+  "transition-[transform,background-color,color] duration-150 ease-out active:scale-[0.97] disabled:active:scale-100 motion-reduce:active:scale-100";
 
 export function Button({
   variant = "primary",
@@ -81,21 +75,56 @@ export function Button({
   return (
     <button
       {...props}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${className}`}
+      className={`inline-flex select-none items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${PRESS} ${VARIANTS[variant]} ${className}`}
     />
   );
 }
 
+export const FIELD =
+  "rounded-lg border bg-surface px-3 py-2 text-sm shadow-card outline-none transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-faint focus:ring-2";
+const FIELD_OK = "border-line-strong focus:border-accent focus:ring-accent/20";
+const FIELD_BAD = "border-danger focus:border-danger focus:ring-danger/20";
+
+// `invalid` turns the field red; raising `shake` shakes it, for input the
+// bot refused (web/DESIGN.md §1).
 export function Input({
   className = "",
+  invalid = false,
+  shake = 0,
   ...props
-}: InputHTMLAttributes<HTMLInputElement>) {
+}: InputHTMLAttributes<HTMLInputElement> & {
+  invalid?: boolean;
+  shake?: number;
+}) {
+  const ref = useShake<HTMLInputElement>(shake);
   // Full width unless the caller sets a width.
   const width = /(^|\s)w-/.test(className) ? "" : "w-full";
   return (
     <input
+      ref={ref}
       {...props}
-      className={`${width} rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-950 ${className}`}
+      aria-invalid={invalid || undefined}
+      className={`${width} ${FIELD} ${invalid ? FIELD_BAD : FIELD_OK} ${className}`}
+    />
+  );
+}
+
+export function Select({
+  className = "",
+  invalid = false,
+  shake = 0,
+  ...props
+}: SelectHTMLAttributes<HTMLSelectElement> & {
+  invalid?: boolean;
+  shake?: number;
+}) {
+  const ref = useShake<HTMLSelectElement>(shake);
+  return (
+    <select
+      ref={ref}
+      {...props}
+      aria-invalid={invalid || undefined}
+      className={`${FIELD} ${invalid ? FIELD_BAD : FIELD_OK} px-2 ${className}`}
     />
   );
 }
@@ -107,18 +136,15 @@ const SOURCE_LABELS: Record<Source, string> = {
 };
 
 const SOURCE_STYLES: Record<Source, string> = {
-  website:
-    "bg-indigo-50 text-indigo-700 ring-indigo-600/20 dark:bg-indigo-950 dark:text-indigo-300",
-  vercel:
-    "bg-slate-100 text-slate-600 ring-slate-500/20 dark:bg-slate-800 dark:text-slate-300",
-  unset:
-    "bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-950 dark:text-amber-300",
+  website: "bg-accent-soft text-accent-text",
+  vercel: "bg-sunken text-muted",
+  unset: "bg-warn-soft text-warn",
 };
 
 export function SourceBadge({ source }: { source: Source }) {
   return (
     <span
-      className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${SOURCE_STYLES[source]}`}
+      className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-line ring-inset ${SOURCE_STYLES[source]}`}
     >
       {SOURCE_LABELS[source]}
     </span>
@@ -133,11 +159,18 @@ export function Notice({
   children: ReactNode;
 }) {
   const styles = {
-    ok: "text-emerald-700 dark:text-emerald-400",
-    error: "text-red-600 dark:text-red-400",
-    info: "text-slate-500 dark:text-slate-400",
+    ok: "text-ok",
+    error: "text-danger",
+    info: "text-muted",
   }[tone];
-  return <p className={`mt-2 text-sm ${styles}`}>{children}</p>;
+  return (
+    <p
+      role={tone === "error" ? "alert" : undefined}
+      className={`mt-2 animate-settle text-sm ${styles}`}
+    >
+      {children}
+    </p>
+  );
 }
 
 export function formatDate(value: string | null): string {
