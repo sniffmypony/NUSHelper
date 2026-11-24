@@ -10,14 +10,32 @@ const CHOICES: Array<{ value: ThemeChoice; label: string; icon: typeof Sun }> =
     { value: "system", label: "System", icon: Monitor },
   ];
 
-// Light / Dark / System as a segmented control (Settings and the sidebar).
-export function ThemeSwitch({ labels = false }: { labels?: boolean }) {
+// Light / Dark / System as a segmented control (Settings and the sidebar;
+// `onNav` styles it for the blue navigation).
+export function ThemeSwitch({
+  labels = false,
+  onNav = false,
+}: {
+  labels?: boolean;
+  onNav?: boolean;
+}) {
   const theme = useTheme();
+  const styles = onNav
+    ? {
+        box: "bg-nav-hover",
+        on: "bg-nav-active text-nav-ink",
+        off: "text-nav-muted hover:text-nav-ink",
+      }
+    : {
+        box: "border border-line bg-sunken",
+        on: "bg-surface text-ink shadow-card",
+        off: "text-muted hover:text-ink",
+      };
   return (
     <div
       role="radiogroup"
       aria-label="Theme"
-      className="inline-flex rounded-lg border border-line bg-sunken p-0.5"
+      className={`inline-flex rounded-lg p-0.5 ${styles.box}`}
     >
       {CHOICES.map(({ value, label, icon: Icon }) => {
         const button = (
@@ -30,9 +48,7 @@ export function ThemeSwitch({ labels = false }: { labels?: boolean }) {
             onClick={() => setTheme(value)}
             // Inner radius = 8 px outer − 2 px padding.
             className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-[transform,background-color,color] duration-150 ease-out active:scale-[0.97] motion-reduce:active:scale-100 ${
-              theme === value
-                ? "bg-surface text-ink shadow-card"
-                : "text-muted hover:text-ink"
+              theme === value ? styles.on : styles.off
             }`}
           >
             <Icon {...ICON} />
@@ -66,7 +82,7 @@ export function ThemeButton() {
       type="button"
       onClick={() => setTheme(NEXT[theme])}
       aria-label={`Theme: ${label}. Change theme`}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-[transform,background-color,color] duration-150 ease-out hover:bg-hover hover:text-ink active:scale-[0.97] motion-reduce:active:scale-100"
+      className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-nav-muted transition-[transform,background-color,color] duration-150 ease-out hover:bg-nav-hover hover:text-nav-ink active:scale-[0.97] motion-reduce:active:scale-100"
     >
       <SwapIcon
         show={theme}

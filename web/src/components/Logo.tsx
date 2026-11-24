@@ -29,7 +29,7 @@ export function Logo({
     return still;
   }
   return (
-    // An accent tile, its gradient mixed in OKLCH (no grey middle), with the
+    // The orange tile, its gradient mixed in OKLCH (no grey middle), with the
     // chrome N on top. Corner radius as in the mark: 8/32 of its size.
     <div
       className="relative overflow-hidden shadow-card"
@@ -38,7 +38,7 @@ export function Logo({
         height: size,
         borderRadius: size / 4,
         background:
-          "linear-gradient(in oklch 135deg, oklch(0.5 0.23 277), oklch(0.36 0.17 290))",
+          "linear-gradient(in oklch 135deg, oklch(0.8 0.16 65), oklch(0.66 0.19 42))",
       }}
     >
       <ErrorBoundary fallback={still}>

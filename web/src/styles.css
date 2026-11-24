@@ -7,55 +7,87 @@
 
 :root {
   color-scheme: light;
-  --canvas: oklch(0.985 0.004 265);
+  /* 60%: calm, lightly blue-tinted base. */
+  --canvas: oklch(0.972 0.01 250);
   --surface: oklch(1 0 0);
   --raised: oklch(1 0 0);
-  --sunken: oklch(0.967 0.006 265);
-  --hover: oklch(0.3 0.03 265 / 0.06);
-  --line: oklch(0 0 0 / 0.12);
-  --line-strong: oklch(0 0 0 / 0.2);
-  --ink: oklch(0.21 0.02 265);
-  --muted: oklch(0.48 0.02 265);
-  --faint: oklch(0.6 0.015 265);
-  --accent: oklch(0.51 0.23 277);
-  --accent-hover: oklch(0.56 0.22 277);
-  --accent-text: oklch(0.5 0.22 277);
-  --accent-soft: oklch(0.955 0.025 277);
-  --on-accent: oklch(1 0 0);
+  --sunken: oklch(0.955 0.013 250);
+  --hover: oklch(0.38 0.13 255 / 0.07);
+  /* 30%: NUS blue for navigation, headers, borders and secondary text. */
+  --brand: oklch(0.37 0.13 256);
+  --brand-soft: oklch(0.945 0.028 250);
+  --brand-text: oklch(0.4 0.13 256);
+  --nav: oklch(0.33 0.12 257);
+  --nav-ink: oklch(0.97 0.012 250);
+  --nav-muted: oklch(0.8 0.05 250);
+  --nav-hover: oklch(1 0 0 / 0.08);
+  --nav-active: oklch(1 0 0 / 0.14);
+  --bubble: oklch(0.37 0.13 256);
+  --line: oklch(0.37 0.13 256 / 0.15);
+  --line-strong: oklch(0.37 0.13 256 / 0.28);
+  --ink: oklch(0.22 0.045 256);
+  --muted: oklch(0.46 0.06 256);
+  --faint: oklch(0.6 0.045 256);
+  /* 10%: NUS orange for actions, today, the active item and links. */
+  --accent: oklch(0.74 0.17 55);
+  --accent-hover: oklch(0.78 0.16 60);
+  --accent-text: oklch(0.55 0.16 48);
+  --accent-soft: oklch(0.95 0.045 65);
+  --on-accent: oklch(0.24 0.06 50);
   --danger: oklch(0.55 0.2 25);
-  --danger-soft: oklch(0.965 0.02 25);
-  --ok: oklch(0.52 0.12 155);
-  --ok-soft: oklch(0.965 0.03 155);
-  --warn: oklch(0.55 0.12 70);
-  --warn-soft: oklch(0.97 0.035 85);
-  --card-shadow: 0 1px 2px oklch(0 0 0 / 0.05), 0 1px 1px oklch(0 0 0 / 0.03);
-  --pop-shadow: 0 8px 24px oklch(0 0 0 / 0.12), 0 1px 2px oklch(0 0 0 / 0.08);
+  --danger-soft: oklch(0.96 0.025 25);
+  --ok: oklch(0.5 0.13 150);
+  --ok-soft: oklch(0.955 0.04 150);
+  --warn: oklch(0.55 0.13 75);
+  --warn-soft: oklch(0.965 0.045 85);
+  /* Calendar categories: one lightness and chroma, clearly different hues,
+     so each type is recognisable and none looks heavier (both themes). */
+  --cat-event: oklch(0.68 0.15 225);
+  --cat-exam: oklch(0.68 0.15 305);
+  --cat-deadline: oklch(0.68 0.15 25);
+  --cat-reminder: oklch(0.68 0.15 345);
+  --cat-class: oklch(0.68 0.15 270);
+  --cat-task: oklch(0.68 0.15 185);
+  --cat-spend: oklch(0.68 0.15 150);
+  --card-shadow:
+    0 1px 2px oklch(0.37 0.13 256 / 0.06), 0 1px 1px oklch(0 0 0 / 0.03);
+  --pop-shadow:
+    0 8px 24px oklch(0.37 0.13 256 / 0.16), 0 1px 2px oklch(0 0 0 / 0.08);
 }
 
-/* Dark: depth from lighter surfaces, not shadows. */
+/* Dark: navy base; depth from lighter surfaces, not shadows. */
 :root.dark {
   color-scheme: dark;
-  --canvas: oklch(0.165 0.012 265);
-  --surface: oklch(0.21 0.014 265);
-  --raised: oklch(0.26 0.016 265);
-  --sunken: oklch(0.185 0.012 265);
-  --hover: oklch(1 0 0 / 0.06);
-  --line: oklch(1 0 0 / 0.1);
-  --line-strong: oklch(1 0 0 / 0.17);
-  --ink: oklch(0.95 0.006 265);
-  --muted: oklch(0.74 0.014 265);
-  --faint: oklch(0.6 0.014 265);
-  --accent: oklch(0.58 0.2 277);
-  --accent-hover: oklch(0.64 0.18 277);
-  --accent-text: oklch(0.76 0.13 277);
-  --accent-soft: oklch(0.3 0.06 277);
-  --on-accent: oklch(1 0 0);
+  --canvas: oklch(0.17 0.028 256);
+  --surface: oklch(0.215 0.034 256);
+  --raised: oklch(0.26 0.04 256);
+  --sunken: oklch(0.19 0.03 256);
+  --hover: oklch(0.85 0.08 250 / 0.08);
+  --brand: oklch(0.62 0.14 252);
+  --brand-soft: oklch(0.26 0.05 256);
+  --brand-text: oklch(0.8 0.09 250);
+  --nav: oklch(0.24 0.07 257);
+  --nav-ink: oklch(0.96 0.012 250);
+  --nav-muted: oklch(0.74 0.05 250);
+  --nav-hover: oklch(1 0 0 / 0.07);
+  --nav-active: oklch(1 0 0 / 0.12);
+  --bubble: oklch(0.37 0.11 256);
+  --line: oklch(0.85 0.08 250 / 0.13);
+  --line-strong: oklch(0.85 0.08 250 / 0.22);
+  --ink: oklch(0.95 0.012 250);
+  --muted: oklch(0.76 0.04 250);
+  --faint: oklch(0.6 0.04 250);
+  --accent: oklch(0.76 0.16 58);
+  --accent-hover: oklch(0.8 0.15 62);
+  --accent-text: oklch(0.8 0.14 62);
+  --accent-soft: oklch(0.32 0.07 55);
+  --on-accent: oklch(0.22 0.06 50);
   --danger: oklch(0.72 0.16 25);
-  --danger-soft: oklch(0.28 0.06 25);
-  --ok: oklch(0.76 0.13 155);
-  --ok-soft: oklch(0.27 0.05 155);
-  --warn: oklch(0.8 0.12 80);
-  --warn-soft: oklch(0.29 0.05 80);
+  --danger-soft: oklch(0.29 0.07 25);
+  --ok: oklch(0.78 0.14 150);
+  --ok-soft: oklch(0.28 0.06 150);
+  --warn: oklch(0.82 0.13 80);
+  --warn-soft: oklch(0.3 0.06 80);
   --card-shadow: none;
   --pop-shadow: 0 0 0 1px oklch(1 0 0 / 0.06);
 }
@@ -66,6 +98,22 @@
   --color-raised: var(--raised);
   --color-sunken: var(--sunken);
   --color-hover: var(--hover);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-text: var(--brand-text);
+  --color-nav: var(--nav);
+  --color-nav-ink: var(--nav-ink);
+  --color-nav-muted: var(--nav-muted);
+  --color-nav-hover: var(--nav-hover);
+  --color-nav-active: var(--nav-active);
+  --color-bubble: var(--bubble);
+  --color-cat-event: var(--cat-event);
+  --color-cat-exam: var(--cat-exam);
+  --color-cat-deadline: var(--cat-deadline);
+  --color-cat-reminder: var(--cat-reminder);
+  --color-cat-class: var(--cat-class);
+  --color-cat-task: var(--cat-task);
+  --color-cat-spend: var(--cat-spend);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
   --color-ink: var(--ink);
@@ -91,14 +139,6 @@
     "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     sans-serif;
 
-  /* Calendar categories: one lightness and chroma, different hues, so no
-     category looks heavier than another (same in both themes). */
-  --color-cat-event: oklch(0.66 0.15 277);
-  --color-cat-reminder: oklch(0.66 0.15 70);
-  --color-cat-deadline: oklch(0.66 0.15 25);
-  --color-cat-class: oklch(0.66 0.15 230);
-  --color-cat-task: oklch(0.66 0.15 155);
-
   /* Motion (web/DESIGN.md §1). */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --animate-settle: settle 220ms var(--ease-out) both;
@@ -123,6 +163,35 @@
       transform: translateX(-24px);
     }
   }
+}
+
+/* A calendar item: tinted in its category colour, with a bar of it on the
+   left, and text in ink so it reads in both themes. */
+.pill {
+  background: color-mix(in oklch, var(--pill) 20%, transparent);
+  box-shadow: inset 2px 0 0 var(--pill);
+  color: var(--ink);
+}
+.pill-event {
+  --pill: var(--cat-event);
+}
+.pill-exam {
+  --pill: var(--cat-exam);
+}
+.pill-deadline {
+  --pill: var(--cat-deadline);
+}
+.pill-reminder {
+  --pill: var(--cat-reminder);
+}
+.pill-class {
+  --pill: var(--cat-class);
+}
+.pill-task {
+  --pill: var(--cat-task);
+}
+.pill-spend {
+  --pill: var(--cat-spend);
 }
 
 html,
