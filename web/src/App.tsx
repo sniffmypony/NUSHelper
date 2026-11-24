@@ -61,7 +61,7 @@ export function App() {
       {page?.path === "/calendar" ? (
         <CalendarPage />
       ) : page?.path === "/chat" ? (
-        <Suspense fallback={<p className="text-sm text-slate-400">Loading…</p>}>
+        <Suspense fallback={<p className="text-sm text-faint">Loading…</p>}>
           <ChatPage path={path} />
         </Suspense>
       ) : page?.path === "/settings" || !page ? (

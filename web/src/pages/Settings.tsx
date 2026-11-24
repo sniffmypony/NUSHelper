@@ -1,3 +1,4 @@
+import { Check, Copy } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   api,
@@ -7,12 +8,16 @@ import {
   type SettingRow,
   type SettingsResponse,
 } from "../api";
+import { ICON } from "../components/icons";
+import { Accordion, SwapIcon } from "../components/motion";
+import { ThemeSwitch } from "../components/ThemeSwitch";
 import {
   Button,
   Card,
   Input,
   Notice,
   Row,
+  Select,
   SourceBadge,
   formatDate,
 } from "../components/ui";
@@ -34,6 +39,18 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong.";
 }
 
+// Counts refusals (each new error status), so the field shakes once per
+// refusal, like a head shake (web/DESIGN.md §1).
+function useRefusals(status: Status): number {
+  const [count, setCount] = useState(0);
+  const [seen, setSeen] = useState<Status>(null);
+  if (status !== seen) {
+    setSeen(status);
+    if (status?.tone === "error") setCount(count + 1);
+  }
+  return count;
+}
+
 function ModelRow({
   setting,
   models,
@@ -46,6 +63,8 @@ function ModelRow({
   const [value, setValue] = useState(setting.value ?? "");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<Status>(null);
+  const refusals = useRefusals(status);
+  const refused = status?.tone === "error";
   useEffect(() => setValue(setting.value ?? ""), [setting.value]);
 
   const options = [
@@ -72,10 +91,12 @@ function ModelRow({
     >
       <div className="flex flex-wrap gap-2">
         {models ? (
-          <select
+          <Select
             value={value}
             onChange={(event) => setValue(event.target.value)}
-            className="w-full rounded-lg border sm:w-auto sm:min-w-0 sm:flex-1 border-slate-300 bg-white px-3 py-2 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-950"
+            shake={refusals}
+            invalid={refused}
+            className="w-full sm:w-auto sm:min-w-0 sm:flex-1"
           >
             {!value && <option value="">Choose a model…</option>}
             {options.map((model) => (
@@ -83,12 +104,14 @@ function ModelRow({
                 {model}
               </option>
             ))}
-          </select>
+          </Select>
         ) : (
           <Input
             value={value}
             onChange={(event) => setValue(event.target.value)}
             placeholder="e.g. qwen3.6:35b"
+            shake={refusals}
+            invalid={refused}
             className="w-full sm:w-auto sm:min-w-0 sm:flex-1"
           />
         )}
@@ -170,6 +193,7 @@ function KeyRow({
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<Status>(null);
+  const refusals = useRefusals(status);
 
   const describe =
     secret.source === "website"
@@ -209,7 +233,7 @@ function KeyRow({
       help={secret.help}
       aside={<SourceBadge source={secret.source} />}
     >
-      <p className="text-sm text-slate-600 dark:text-slate-300">{describe}</p>
+      <p className="text-sm text-muted">{describe}</p>
       {editing ? (
         <form
           className="mt-3 flex flex-wrap gap-2"
@@ -224,6 +248,8 @@ function KeyRow({
             value={value}
             onChange={(event) => setValue(event.target.value)}
             placeholder="Paste the new key"
+            shake={refusals}
+            invalid={status?.tone === "error"}
             className="w-full sm:w-auto sm:min-w-0 sm:flex-1"
           />
           <Button type="submit" disabled={busy || !value}>
@@ -276,6 +302,7 @@ function TextSettingRow({
 }) {
   const [value, setValue] = useState(setting.value ?? "");
   const [status, setStatus] = useState<Status>(null);
+  const refusals = useRefusals(status);
   useEffect(() => setValue(setting.value ?? ""), [setting.value]);
 
   const send = async (method: "PUT" | "DELETE") => {
@@ -308,6 +335,8 @@ function TextSettingRow({
           placeholder={placeholder}
           className="w-32"
           inputMode="numeric"
+          shake={refusals}
+          invalid={status?.tone === "error"}
         />
         <Button
           disabled={!value || value === setting.value}
@@ -338,6 +367,7 @@ function CalendarCard({
   const [status, setStatus] = useState<Status>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const refusals = useRefusals(status);
   const [value, setValue] = useState(calendar.calendarId);
   useEffect(() => setValue(calendar.calendarId), [calendar.calendarId]);
 
@@ -380,6 +410,8 @@ function CalendarCard({
           placeholder="you@gmail.com"
           spellCheck={false}
           autoCapitalize="off"
+          shake={refusals}
+          invalid={status?.tone === "error"}
         />
         <div className="mt-3 flex flex-wrap gap-2">
           <Button
@@ -441,7 +473,7 @@ function CalendarCard({
           help="Share a calendar with this address (Make changes to events) for the bot to use it."
         >
           <div className="flex flex-wrap items-center gap-2">
-            <code className="break-all rounded bg-slate-100 px-2 py-1 text-xs dark:bg-slate-800">
+            <code className="break-all rounded bg-sunken px-2 py-1 text-xs">
               {calendar.serviceAccountEmail}
             </code>
             <Button
@@ -449,9 +481,19 @@ function CalendarCard({
               onClick={() => {
                 void navigator.clipboard
                   .writeText(calendar.serviceAccountEmail!)
-                  .then(() => setCopied(true));
+                  .then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  });
               }}
             >
+              <SwapIcon
+                show={copied ? "copied" : "copy"}
+                icons={{
+                  copy: <Copy {...ICON} />,
+                  copied: <Check {...ICON} className="text-ok" />,
+                }}
+              />
               {copied ? "Copied" : "Copy"}
             </Button>
           </div>
@@ -466,6 +508,7 @@ function TimetableCard() {
   const [link, setLink] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Status>(null);
+  const refusals = useRefusals(result);
 
   const load = useCallback(() => {
     api<{ text: string }>("timetable")
@@ -508,6 +551,8 @@ function TimetableCard() {
             value={link}
             onChange={(event) => setLink(event.target.value)}
             placeholder="https://nusmods.com/timetable/sem-2/share?…"
+            shake={refusals}
+            invalid={result?.tone === "error"}
             className="w-full sm:w-auto sm:min-w-0 sm:flex-1"
           />
           <Button type="submit" disabled={busy || !link}>
@@ -518,8 +563,8 @@ function TimetableCard() {
           <pre
             className={`mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg p-3 text-xs ${
               result.tone === "ok"
-                ? "bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
-                : "bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200"
+                ? "bg-ok-soft text-ok"
+                : "bg-danger-soft text-danger"
             }`}
           >
             {result.text}
@@ -527,7 +572,7 @@ function TimetableCard() {
         )}
       </Row>
       <Row label="Saved now">
-        <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-700 dark:bg-slate-950 dark:text-slate-300">
+        <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-lg bg-sunken p-3 text-xs text-muted">
           {current ?? "Loading…"}
         </pre>
       </Row>
@@ -550,28 +595,34 @@ function SecurityCard({ onSessionChange }: { onSessionChange: () => void }) {
     >
       <Row label="Recent changes">
         {entries === null ? (
-          <p className="text-sm text-slate-400">Loading…</p>
+          <p className="text-sm text-faint">Loading…</p>
         ) : entries.length === 0 ? (
-          <p className="text-sm text-slate-500">No changes yet.</p>
+          <p className="text-sm text-muted">No changes yet.</p>
         ) : (
-          <ul className="space-y-1.5 text-sm">
-            {entries.map((entry, index) => (
-              <li
-                key={index}
-                className="flex flex-wrap justify-between gap-x-4"
-              >
-                <span>
-                  <span className="font-medium">
-                    {SETTING_LABELS[entry.key] ?? entry.key}
-                  </span>{" "}
-                  <span className="text-slate-500">{entry.action}</span>
-                </span>
-                <span className="text-xs text-slate-400">
-                  {formatDate(entry.createdAt)}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <Accordion
+            open={false}
+            summaryClassName="text-sm font-medium text-accent-text"
+            title={`Show the last ${entries.length} change${entries.length === 1 ? "" : "s"}`}
+          >
+            <ul className="space-y-1.5 pt-2 text-sm">
+              {entries.map((entry, index) => (
+                <li
+                  key={index}
+                  className="flex flex-wrap justify-between gap-x-4"
+                >
+                  <span>
+                    <span className="font-medium">
+                      {SETTING_LABELS[entry.key] ?? entry.key}
+                    </span>{" "}
+                    <span className="text-muted">{entry.action}</span>
+                  </span>
+                  <span className="text-xs text-faint">
+                    {formatDate(entry.createdAt)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Accordion>
         )}
       </Row>
       <Row label="Sign out">
@@ -632,7 +683,7 @@ export function SettingsPage({
   }, []);
 
   if (error) return <Notice tone="error">{error}</Notice>;
-  if (!data) return <p className="text-sm text-slate-400">Loading…</p>;
+  if (!data) return <p className="text-sm text-faint">Loading…</p>;
 
   const setting = (key: string) =>
     data.settings.find((row) => row.key === key)!;
@@ -641,10 +692,19 @@ export function SettingsPage({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <p className="mt-1 text-sm text-muted">
           Everything the bot uses. A value set here wins over the one in Vercel.
         </p>
       </div>
+
+      <Card title="Appearance">
+        <Row
+          label="Theme"
+          help="System follows your device. Saved in this browser."
+        >
+          <ThemeSwitch labels />
+        </Row>
+      </Card>
 
       <Card
         title="AI assistant"
@@ -673,7 +733,7 @@ export function SettingsPage({
         description="Stored encrypted. Saved keys are never shown again."
       >
         {!me.fresh && (
-          <div className="bg-amber-50 px-5 py-4 dark:bg-amber-950/40">
+          <div className="bg-warn-soft px-5 py-4">
             <SignIn
               onSignedIn={onSessionChange}
               title="Confirm it's you"
