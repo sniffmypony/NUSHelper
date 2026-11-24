@@ -1,0 +1,612 @@
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
+import { api } from "../api";
+import {
+  prepareUpload,
+  sendMessage,
+  type ChatCard,
+  type ChatMessage,
+  type ChatSummary,
+  type Upload,
+} from "../chat/api";
+import { Markdown } from "../chat/Markdown";
+import { Button, Input, Notice } from "../components/ui";
+import { navigate } from "../navigation";
+
+// Chat with the bot's assistant, like Telegram, with saved chats.
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : "Something went wrong.";
+}
+
+function shortDate(iso: string): string {
+  const date = new Date(iso);
+  const today = new Date();
+  return date.toDateString() === today.toDateString()
+    ? date.toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })
+    : date.toLocaleDateString("en-SG", { day: "numeric", month: "short" });
+}
+
+const CARD_BUTTONS: Record<ChatCard["type"], [string, string | null]> = {
+  delete: ["Delete", "Keep"],
+  "calendar-delete": ["Delete", "Keep"],
+  "calendar-create": ["Create", "Cancel"],
+  undo: ["Undo", null],
+};
+
+function Cards({
+  chatId,
+  message,
+  onChange,
+}: {
+  chatId: number;
+  message: ChatMessage;
+  onChange: (cards: ChatCard[]) => void;
+}) {
+  const [busy, setBusy] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const press = async (index: number, action: "confirm" | "cancel") => {
+    setBusy(index);
+    setError(null);
+    try {
+      const { card } = await api<{ card: ChatCard }>(
+        `chats/${chatId}/messages/${message.id}/cards/${index}`,
+        { method: "POST", body: { action } },
+      );
+      onChange(message.cards.map((c, i) => (i === index ? card : c)));
+    } catch (failure) {
+      setError(errorText(failure));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <div className="mt-3 space-y-2">
+      {message.cards.map((card, index) => {
+        const [confirm, cancel] = CARD_BUTTONS[card.type];
+        const open = card.state === "pending" || card.state === "failed";
+        return (
+          <div
+            key={index}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+          >
+            <p className="break-words">{card.label}</p>
+            {card.result && (
+              <p
+                className={`mt-1 text-xs ${card.state === "failed" ? "text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}
+              >
+                {card.result}
+              </p>
+            )}
+            {open && (
+              <div className="mt-2 flex gap-2">
+                <Button
+                  variant={card.type === "undo" ? "secondary" : "primary"}
+                  disabled={busy !== null}
+                  onClick={() => void press(index, "confirm")}
+                >
+                  {card.state === "failed" ? "Try again" : confirm}
+                </Button>
+                {cancel && (
+                  <Button
+                    variant="ghost"
+                    disabled={busy !== null}
+                    onClick={() => void press(index, "cancel")}
+                  >
+                    {cancel}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {error && <Notice tone="error">{error}</Notice>}
+    </div>
+  );
+}
+
+function Bubble({
+  chatId,
+  message,
+  onCards,
+}: {
+  chatId: number;
+  message: ChatMessage;
+  onCards?: (cards: ChatCard[]) => void;
+}) {
+  if (message.role === "user") {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-indigo-600 px-4 py-2.5 text-sm text-white">
+          {message.content}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex justify-start">
+      <div
+        className={`max-w-[92%] min-w-0 rounded-2xl rounded-bl-md border px-4 py-3 ${
+          message.failed
+            ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
+            : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+        }`}
+      >
+        {message.failed ? (
+          <p className="text-sm">{message.content}</p>
+        ) : (
+          <Markdown text={message.content} />
+        )}
+        {message.cards.length > 0 && onCards && (
+          <Cards chatId={chatId} message={message} onChange={onCards} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ChatList({
+  chats,
+  activeId,
+  search,
+  onSearch,
+  onNew,
+}: {
+  chats: ChatSummary[] | null;
+  activeId: number | null;
+  search: string;
+  onSearch: (value: string) => void;
+  onNew: () => void;
+}) {
+  return (
+    <div className="flex h-full flex-col gap-3">
+      <div className="flex gap-2">
+        <Input
+          value={search}
+          onChange={(event) => onSearch(event.target.value)}
+          placeholder="Search chats"
+          type="search"
+        />
+        <Button onClick={onNew} className="shrink-0">
+          New
+        </Button>
+      </div>
+      <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+        {chats === null ? (
+          <p className="px-2 text-sm text-slate-400">Loading…</p>
+        ) : chats.length === 0 ? (
+          <p className="px-2 text-sm text-slate-400">
+            {search ? "No chats match." : "No chats yet."}
+          </p>
+        ) : (
+          <ul className="space-y-0.5">
+            {chats.map((chat) => (
+              <li key={chat.id}>
+                <a
+                  href={`/chat/${chat.id}`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    navigate(`/chat/${chat.id}`);
+                  }}
+                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+                    chat.id === activeId
+                      ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
+                      : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  {chat.pinned && (
+                    <span aria-label="Pinned" title="Pinned">
+                      📌
+                    </span>
+                  )}
+                  <span className="min-w-0 flex-1 truncate">{chat.title}</span>
+                  <span className="shrink-0 text-xs text-slate-400">
+                    {shortDate(chat.updatedAt)}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const ACCEPT =
+  "image/jpeg,image/png,image/webp,.pdf,.pptx,.docx,.txt,.md,.csv,.json,.py,.java,.c,.cpp,.js,.ts,.sql,.tex";
+
+function Composer({
+  busy,
+  onSend,
+}: {
+  busy: boolean;
+  onSend: (text: string, upload: Upload | null) => Promise<boolean>;
+}) {
+  const [text, setText] = useState("");
+  const [upload, setUpload] = useState<{ name: string; data: Upload } | null>(
+    null,
+  );
+  const [error, setError] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const submit = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (busy || (!text.trim() && !upload)) return;
+    const sent = await onSend(text, upload?.data ?? null);
+    if (sent) {
+      setText("");
+      setUpload(null);
+    }
+  };
+
+  const onKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter sends; Shift+Enter starts a new line (phones keep Enter).
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !event.nativeEvent.isComposing &&
+      window.matchMedia("(pointer: fine)").matches
+    ) {
+      event.preventDefault();
+      void submit();
+    }
+  };
+
+  return (
+    <form
+      onSubmit={(event) => void submit(event)}
+      className="rounded-2xl border border-slate-300 bg-white p-2 shadow-sm focus-within:border-indigo-500 dark:border-slate-700 dark:bg-slate-900"
+    >
+      {upload && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-xs dark:bg-slate-800">
+          <span aria-hidden>{upload.data.image ? "🖼️" : "📄"}</span>
+          <span className="min-w-0 flex-1 truncate">{upload.name}</span>
+          <button
+            type="button"
+            className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+            onClick={() => setUpload(null)}
+          >
+            Remove
+          </button>
+        </div>
+      )}
+      <textarea
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onKeyDown={onKey}
+        rows={2}
+        maxLength={8000}
+        placeholder="Ask anything, or tell it to add a to-do, reminder or event…"
+        className="block max-h-48 w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-slate-400"
+      />
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <input
+          ref={fileInput}
+          type="file"
+          accept={ACCEPT}
+          className="hidden"
+          onChange={async (event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (!file) return;
+            setError(null);
+            try {
+              setUpload({ name: file.name, data: await prepareUpload(file) });
+            } catch (failure) {
+              setError(errorText(failure));
+            }
+          }}
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => fileInput.current?.click()}
+          disabled={busy}
+        >
+          📎 Attach
+        </Button>
+        <Button type="submit" disabled={busy || (!text.trim() && !upload)}>
+          {busy ? "Answering…" : "Send"}
+        </Button>
+      </div>
+      {error && (
+        <div className="mt-2">
+          <Notice tone="error">{error}</Notice>
+        </div>
+      )}
+    </form>
+  );
+}
+
+export function ChatPage({ path }: { path: string }) {
+  const match = /^\/chat\/(\d+)/.exec(path);
+  const activeId = match ? Number(match[1]) : null;
+
+  const [chats, setChats] = useState<ChatSummary[] | null>(null);
+  const [search, setSearch] = useState("");
+  const [chat, setChat] = useState<ChatSummary | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [pending, setPending] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const bottom = useRef<HTMLDivElement>(null);
+  // A message typed before its chat existed, sent once the chat opens.
+  const queued = useRef<{ text: string; upload: Upload | null } | null>(null);
+
+  const loadList = useCallback((query: string) => {
+    api<{ chats: ChatSummary[] }>(
+      query ? `chats?q=${encodeURIComponent(query)}` : "chats",
+    )
+      .then((result) => setChats(result.chats))
+      .catch(() => setChats([]));
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => loadList(search), search ? 300 : 0);
+    return () => clearTimeout(timer);
+  }, [search, loadList]);
+
+  useEffect(() => {
+    setLoadError(null);
+    setSendError(null);
+    setDraft(null);
+    setStatus(null);
+    if (activeId === null) {
+      setChat(null);
+      setMessages([]);
+      return;
+    }
+    let cancelled = false;
+    api<{ chat: ChatSummary; messages: ChatMessage[] }>(`chats/${activeId}`)
+      .then((result) => {
+        if (cancelled) return;
+        setChat(result.chat);
+        setMessages(result.messages);
+      })
+      .catch((failure) => !cancelled && setLoadError(errorText(failure)));
+    return () => {
+      cancelled = true;
+    };
+  }, [activeId]);
+
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ block: "end" });
+  }, [messages, draft, pending]);
+
+  const send = useCallback(
+    async (chatId: number, text: string, upload: Upload | null) => {
+      setBusy(true);
+      setSendError(null);
+      setPending(text || (upload?.image ? "[Photo]" : "[File]"));
+      setStatus("Sending");
+      try {
+        await sendMessage(chatId, { text, ...(upload ?? {}) }, (event) => {
+          if (event.type === "user") {
+            setPending(null);
+            setMessages((current) => [...current, event.message]);
+          } else if (event.type === "status") {
+            setStatus(event.text);
+          } else if (event.type === "draft") {
+            setDraft(event.text || null);
+          } else if (event.type === "done") {
+            setDraft(null);
+            setMessages((current) => [...current, event.message]);
+            setChat((current) =>
+              current ? { ...current, title: event.title } : current,
+            );
+          } else if (event.type === "error") {
+            setSendError(event.error);
+          }
+        });
+        return true;
+      } catch (failure) {
+        setSendError(errorText(failure));
+        return false;
+      } finally {
+        setBusy(false);
+        setStatus(null);
+        setDraft(null);
+        setPending(null);
+        loadList(search);
+      }
+    },
+    [loadList, search],
+  );
+
+  // Send the message typed on the empty page once its new chat has opened.
+  useEffect(() => {
+    if (activeId !== null && chat?.id === activeId && queued.current) {
+      const { text, upload } = queued.current;
+      queued.current = null;
+      void send(activeId, text, upload);
+    }
+  }, [activeId, chat, send]);
+
+  const newChat = async (first?: { text: string; upload: Upload | null }) => {
+    const { chat: created } = await api<{ chat: ChatSummary }>("chats", {
+      method: "POST",
+    });
+    queued.current = first ?? null;
+    navigate(`/chat/${created.id}`);
+  };
+
+  const onSend = async (text: string, upload: Upload | null) => {
+    if (activeId === null) {
+      try {
+        await newChat({ text, upload });
+        return true;
+      } catch (failure) {
+        setSendError(errorText(failure));
+        return false;
+      }
+    }
+    return send(activeId, text, upload);
+  };
+
+  const change = async (body: { title?: string; pinned?: boolean }) => {
+    if (!chat) return;
+    try {
+      await api(`chats/${chat.id}`, { method: "PATCH", body });
+      setChat({ ...chat, ...body });
+      loadList(search);
+    } catch (failure) {
+      setSendError(errorText(failure));
+    }
+  };
+
+  const remove = async () => {
+    if (
+      !chat ||
+      !window.confirm(`Delete "${chat.title}"? This can't be undone.`)
+    ) {
+      return;
+    }
+    try {
+      await api(`chats/${chat.id}`, { method: "DELETE" });
+      navigate("/chat");
+      loadList(search);
+    } catch (failure) {
+      setSendError(errorText(failure));
+    }
+  };
+
+  return (
+    <div className="flex h-[calc(100dvh-7.5rem)] gap-6 md:h-[calc(100dvh-5rem)]">
+      <aside
+        className={`w-full shrink-0 md:block md:w-64 ${activeId === null ? "block" : "hidden"}`}
+      >
+        <ChatList
+          chats={chats}
+          activeId={activeId}
+          search={search}
+          onSearch={setSearch}
+          onNew={() => void newChat().catch((f) => setSendError(errorText(f)))}
+        />
+      </aside>
+
+      <section
+        className={`min-w-0 flex-1 flex-col ${activeId === null ? "hidden md:flex" : "flex"}`}
+      >
+        <header className="flex items-center gap-2 border-b border-slate-200 pb-3 dark:border-slate-800">
+          {activeId !== null && (
+            <button
+              type="button"
+              className="text-sm text-indigo-600 md:hidden dark:text-indigo-400"
+              onClick={() => navigate("/chat")}
+            >
+              ‹ Chats
+            </button>
+          )}
+          <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">
+            {chat?.title ?? "New chat"}
+          </h1>
+          {chat && (
+            <div className="flex shrink-0 gap-1">
+              <Button
+                variant="ghost"
+                aria-label={chat.pinned ? "Unpin" : "Pin"}
+                onClick={() => void change({ pinned: !chat.pinned })}
+              >
+                <span aria-hidden className="sm:hidden">
+                  📌
+                </span>
+                <span className="hidden sm:inline">
+                  {chat.pinned ? "Unpin" : "Pin"}
+                </span>
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  const title = window.prompt("Rename chat", chat.title);
+                  if (title?.trim()) void change({ title: title.trim() });
+                }}
+                aria-label="Rename"
+              >
+                <span aria-hidden className="sm:hidden">
+                  ✏️
+                </span>
+                <span className="hidden sm:inline">Rename</span>
+              </Button>
+              <Button
+                variant="ghost"
+                aria-label="Delete"
+                onClick={() => void remove()}
+              >
+                <span aria-hidden className="sm:hidden">
+                  🗑️
+                </span>
+                <span className="hidden sm:inline">Delete</span>
+              </Button>
+            </div>
+          )}
+        </header>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-4">
+          {loadError && <Notice tone="error">{loadError}</Notice>}
+          {activeId === null && (
+            <div className="mx-auto max-w-md pt-10 text-center text-sm text-slate-500 dark:text-slate-400">
+              <p className="text-2xl">💬</p>
+              <p className="mt-2 font-medium text-slate-700 dark:text-slate-200">
+                Ask the assistant anything
+              </p>
+              <p className="mt-1">
+                It's the same assistant as on Telegram: Canvas files and
+                deadlines, your calendar, to-dos, reminders and spending.
+                Deleting or adding events asks you first.
+              </p>
+            </div>
+          )}
+          {chat &&
+            messages.map((message) => (
+              <Bubble
+                key={message.id}
+                chatId={chat.id}
+                message={message}
+                onCards={(cards) =>
+                  setMessages((current) =>
+                    current.map((m) =>
+                      m.id === message.id ? { ...m, cards } : m,
+                    ),
+                  )
+                }
+              />
+            ))}
+          {pending && (
+            <div className="flex justify-end">
+              <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-indigo-600/70 px-4 py-2.5 text-sm text-white">
+                {pending}
+              </div>
+            </div>
+          )}
+          {draft && (
+            <div className="flex justify-start">
+              <div className="max-w-[92%] min-w-0 rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
+                <Markdown text={draft} />
+              </div>
+            </div>
+          )}
+          {busy && status && !draft && (
+            <p className="animate-pulse text-sm text-slate-500 dark:text-slate-400">
+              {status}…
+            </p>
+          )}
+          {sendError && <Notice tone="error">{sendError}</Notice>}
+          <div ref={bottom} />
+        </div>
+
+        <Composer busy={busy} onSend={onSend} />
+      </section>
+    </div>
+  );
+}

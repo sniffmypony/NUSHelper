@@ -23,6 +23,8 @@ export class ModelTimeoutError extends Error {
 export interface CompletionOptions {
   // Aborted when this attempt's time is up.
   signal?: AbortSignal;
+  // Each piece of reply text as it arrives (the website shows it live).
+  onText?: (delta: string) => void;
 }
 
 type StreamingClient = Pick<OpenAI, "chat">;
@@ -53,7 +55,7 @@ export async function streamCompletion(
   const request = { ...body };
   if (effortUnsupported) delete request.reasoning_effort;
   try {
-    return await collect(client, request, options.signal, idleTimeoutMs);
+    return await collect(client, request, options, idleTimeoutMs);
   } catch (error) {
     if (request.reasoning_effort && rejectsEffort(error)) {
       effortUnsupported = true;
@@ -61,7 +63,7 @@ export async function streamCompletion(
         "The model rejected reasoning_effort; continuing without it",
       );
       delete request.reasoning_effort;
-      return collect(client, request, options.signal, idleTimeoutMs);
+      return collect(client, request, options, idleTimeoutMs);
     }
     throw error;
   }
@@ -70,7 +72,7 @@ export async function streamCompletion(
 async function collect(
   client: StreamingClient,
   body: ChatCompletionCreateParamsNonStreaming,
-  signal: AbortSignal | undefined,
+  { signal, onText }: CompletionOptions,
   idleTimeoutMs: number,
 ): Promise<ChatCompletion> {
   const controller = new AbortController();
@@ -104,7 +106,10 @@ async function collect(
       if (!choice) continue;
       if (choice.finish_reason) finishReason = choice.finish_reason;
       const delta = choice.delta ?? {};
-      if (delta.content) content += delta.content;
+      if (delta.content) {
+        content += delta.content;
+        onText?.(delta.content);
+      }
       for (const part of delta.tool_calls ?? []) {
         const call = (calls[part.index] ??= {
           id: "",

@@ -6,6 +6,7 @@ import { isCalendarConfigured } from "../calendar/config.js";
 import { canvasConfig, isCanvasConfigured, llmConfig } from "../env.js";
 import {
   runAssistant,
+  type AssistantResult,
   type Attachment,
   type CreateCompletion,
   type ReplyFormat,
@@ -64,7 +65,7 @@ export const PROGRESS_NOTE = "Working on it — this one needs more thought…";
 const MIN_ATTEMPT_MS = 10_000;
 // Tools that only look things up. A timed-out attempt that ran only these is
 // safe to repeat at a lower effort; anything else might be done twice.
-const READ_ONLY_TOOLS = new Set([
+export const READ_ONLY_TOOLS = new Set([
   "list_modules",
   "list_upcoming_assignments",
   "search_files",
@@ -329,14 +330,14 @@ export function attachmentFromMessage(
   return { kind: "file", fileId: document.file_id, name, mimeType };
 }
 
-function inputFile(document: OutgoingDocument): TelegramInputFile {
+export function inputFile(document: OutgoingDocument): TelegramInputFile {
   const { source } = document;
   if (source.kind === "cached") return source.fileId;
   if (source.kind === "url") return source.url;
   return { source: source.bytes, filename: document.filename };
 }
 
-function documentFileId(message: unknown): string | undefined {
+export function documentFileId(message: unknown): string | undefined {
   return (message as { document?: { file_id?: string } } | undefined)?.document
     ?.file_id;
 }
@@ -416,7 +417,12 @@ export function isServiceFailure(error: unknown): boolean {
 export const FALLBACK_MODEL_NOTE =
   "_The main AI model is unavailable right now, so the backup model answered._";
 
-function resolveClients(deps: AssistantDependencies): {
+export function resolveClients(
+  deps: Pick<
+    AssistantDependencies,
+    "createCompletion" | "canvas" | "model" | "fallbackModel"
+  >,
+): {
   createCompletion: CreateCompletion;
   canvas: CanvasClient | undefined;
   model: string;
@@ -481,6 +487,78 @@ function startChatAction(telegram: AssistantTelegram, chatId: number) {
       clearInterval(timer);
     },
   };
+}
+
+// Runs one message's attempts. Each effort level gets a time limit; one that
+// runs out falls back to the next lower level, unless the attempt already
+// did something (added a to-do, sent a file) that repeating would do twice.
+// When the model's service fails before anything was done, the backup model
+// is asked once, at the same effort. Shared by Telegram and the website.
+export async function runWithFallbacks(options: {
+  model: string;
+  fallbackModel: string | undefined;
+  start: Effort;
+  budgetMs: number;
+  // When the message arrived (time already spent counts against the budget).
+  started: number;
+  changedSomething: () => boolean;
+  attempt: (attempt: {
+    model: string;
+    effort: Effort;
+    signal: AbortSignal;
+  }) => Promise<AssistantResult>;
+}): Promise<{ result: AssistantResult; used: Effort; activeModel: string }> {
+  const { model, fallbackModel, start, budgetMs, started } = options;
+  let activeModel = model;
+  const levels = fallbackChain(start);
+  for (let index = 0; index < levels.length;) {
+    const level = levels[index];
+    const remaining = budgetMs - (Date.now() - started);
+    const limit = attemptLimitMs(start, level, remaining);
+    if (limit < MIN_ATTEMPT_MS) throw new ModelTimeoutError();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), limit);
+    const attemptStarted = Date.now();
+    try {
+      const result = await options.attempt({
+        model: activeModel,
+        effort: level,
+        signal: controller.signal,
+      });
+      return { result, used: level, activeModel };
+    } catch (error) {
+      if (
+        fallbackModel &&
+        activeModel !== fallbackModel &&
+        !options.changedSomething() &&
+        isServiceFailure(error)
+      ) {
+        const status =
+          error instanceof OpenAI.APIError && error.status
+            ? `HTTP ${error.status}`
+            : "no connection";
+        console.log(
+          `Assistant model failed (${status}) after ${Date.now() - attemptStarted}ms; trying the backup model`,
+        );
+        activeModel = fallbackModel;
+        continue;
+      }
+      if (
+        !(error instanceof ModelTimeoutError) ||
+        options.changedSomething() ||
+        level === "low"
+      ) {
+        throw error;
+      }
+      console.log(
+        `Assistant ${level} effort ran out of time after ${Date.now() - attemptStarted}ms; trying less effort`,
+      );
+      index += 1;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw new ModelTimeoutError();
 }
 
 export async function answerAssistantMessage(
@@ -566,30 +644,22 @@ export async function answerAssistantMessage(
         Boolean(attached),
       );
 
-    // Each level gets a time limit; one that runs out falls back to the next
-    // lower level, unless the attempt already did something (added a to-do,
-    // sent a file) that repeating would do twice.
     let changedSomething = false;
     const execute = (name: string, args: string) => {
       if (!READ_ONLY_TOOLS.has(name)) changedSomething = true;
       return toolbox.execute(name, keepUserSpelling(name, args, text));
     };
-    let result: Awaited<ReturnType<typeof runAssistant>> | undefined;
-    let used: Effort = start;
-    let activeModel = model;
-    const levels = fallbackChain(start);
-    for (let index = 0; index < levels.length;) {
-      const level = levels[index];
-      const remaining = budgetMs - (Date.now() - started);
-      const limit = attemptLimitMs(start, level, remaining);
-      if (limit < MIN_ATTEMPT_MS) throw new ModelTimeoutError();
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), limit);
-      const attemptStarted = Date.now();
-      try {
-        result = await runAssistant({
+    const { result, used, activeModel } = await runWithFallbacks({
+      model,
+      fallbackModel,
+      start,
+      budgetMs,
+      started,
+      changedSomething: () => changedSomething,
+      attempt: ({ model: attemptModel, effort, signal }) =>
+        runAssistant({
           create: createCompletion,
-          model: activeModel,
+          model: attemptModel,
           history,
           userText: text,
           image: imageUrl,
@@ -601,46 +671,10 @@ export async function answerAssistantMessage(
           takeImages: () => toolbox.takeImages(),
           execute,
           now,
-          effort: level,
-          signal: controller.signal,
-        });
-        used = level;
-        break;
-      } catch (error) {
-        // The service failed before anything was done: ask the backup
-        // model once, at the same effort.
-        if (
-          fallbackModel &&
-          activeModel !== fallbackModel &&
-          !changedSomething &&
-          isServiceFailure(error)
-        ) {
-          const status =
-            error instanceof OpenAI.APIError && error.status
-              ? `HTTP ${error.status}`
-              : "no connection";
-          console.log(
-            `Assistant model failed (${status}) after ${Date.now() - attemptStarted}ms; trying the backup model`,
-          );
-          activeModel = fallbackModel;
-          continue;
-        }
-        if (
-          !(error instanceof ModelTimeoutError) ||
-          changedSomething ||
-          level === "low"
-        ) {
-          throw error;
-        }
-        console.log(
-          `Assistant ${level} effort ran out of time after ${Date.now() - attemptStarted}ms; trying less effort`,
-        );
-        index += 1;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    if (!result) throw new ModelTimeoutError();
+          effort,
+          signal,
+        }),
+    });
 
     const notes = [
       ...(activeModel !== model ? [FALLBACK_MODEL_NOTE] : []),
@@ -711,7 +745,7 @@ export async function answerAssistantMessage(
   }
 }
 
-async function effortSetting(
+export async function effortSetting(
   settings: AssistantSettings | undefined,
   chatId: number,
 ): Promise<EffortSetting> {

@@ -233,6 +233,11 @@ export async function runAssistant(options: {
   effort?: Effort;
   // Aborted when this attempt's time is up; no new model call starts after.
   signal?: AbortSignal;
+  // Live progress for the website: the reply so far (cleaned, so reasoning
+  // is never shown; empty again when a new model call starts) and each tool
+  // as it runs. The final reply is the result, which may differ.
+  onDraft?: (text: string) => void;
+  onTool?: (name: string) => void;
 }): Promise<AssistantResult> {
   const features = options.features ?? ALL_FEATURES;
   const tools = toolsFor(features);
@@ -251,10 +256,23 @@ export async function runAssistant(options: {
   const create: CreateCompletion = async (body) => {
     if (options.signal?.aborted) throw new ModelTimeoutError();
     const started = Date.now();
+    let draft = "";
+    const onDraft = options.onDraft;
     try {
       return await options.create(
         options.effort ? { ...body, reasoning_effort: options.effort } : body,
-        { signal: options.signal },
+        {
+          signal: options.signal,
+          ...(onDraft
+            ? {
+                onText: (delta: string) => {
+                  draft += delta;
+                  const shown = cleanModelText(draft);
+                  if (!looksLikeToolMarkup(shown)) onDraft(shown);
+                },
+              }
+            : {}),
+        },
       );
     } finally {
       timings.modelMs += Date.now() - started;
@@ -323,7 +341,9 @@ export async function runAssistant(options: {
       tool_calls: toolCalls,
     });
     const outputs: string[] = [];
+    options.onDraft?.("");
     for (const call of toolCalls) {
+      options.onTool?.(call.function.name);
       const started = Date.now();
       const output = await options.execute(
         call.function.name,

@@ -27,7 +27,7 @@ import {
 } from "../src/assistant/handlers.js";
 import type { AssistantSettings } from "../src/assistant/store.js";
 import type { BotActions } from "../src/assistant/bot-tools.js";
-import type { CreateCompletion } from "../src/assistant/agent.js";
+import { runAssistant, type CreateCompletion } from "../src/assistant/agent.js";
 
 function completion(message: Record<string, unknown>): ChatCompletion {
   return {
@@ -188,6 +188,61 @@ describe("streaming completions", () => {
       },
     ]);
     expect(result.choices[0].finish_reason).toBe("tool_calls");
+  });
+
+  it("shows the reply as it is written, never the reasoning", async () => {
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(
+        streamOf([
+          { choices: [{ delta: { content: "<think>secret" } }] },
+          { choices: [{ delta: { content: "</think>Checking" } }] },
+          {
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: "t1",
+                      function: { name: "list_todos", arguments: "{}" },
+                    },
+                  ],
+                },
+                finish_reason: "tool_calls",
+              },
+            ],
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        streamOf([
+          { choices: [{ delta: { content: "You have " } }] },
+          { choices: [{ delta: { content: "one to-do." } }] },
+        ]),
+      );
+    const client = clientWith(create);
+    const drafts: string[] = [];
+    const tools: string[] = [];
+    const result = await runAssistant({
+      create: (body, options) => streamCompletion(client, body, options),
+      model: "m",
+      history: [],
+      userText: "todos?",
+      execute: async () => "1. milk",
+      onDraft: (text) => drafts.push(text),
+      onTool: (name) => tools.push(name),
+    });
+    expect(result.reply).toBe("You have one to-do.");
+    expect(drafts.join("|")).not.toContain("secret");
+    expect(drafts).toContain("Checking");
+    // Cleared when a tool runs, then the final reply builds up.
+    expect(drafts.slice(drafts.indexOf("Checking") + 1)).toEqual([
+      "",
+      "You have",
+      "You have one to-do.",
+    ]);
+    expect(tools).toEqual(["list_todos"]);
   });
 
   it("gives up when the stream goes quiet", async () => {

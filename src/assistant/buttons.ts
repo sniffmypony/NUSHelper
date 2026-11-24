@@ -20,7 +20,9 @@ const NOUN: Record<DeletableKind, string> = {
   rep: "repeating item",
 };
 
-async function describe(
+// What is about to be deleted, or null when it no longer exists. Also used
+// by the website's confirmation cards.
+export async function describeDeletable(
   kind: DeletableKind,
   id: number,
   ownerId: string,
@@ -43,7 +45,7 @@ async function describe(
     : null;
 }
 
-function performDelete(
+export function performDelete(
   kind: DeletableKind,
   id: number,
   ownerId: string,
@@ -60,7 +62,7 @@ export async function requestDeletion(
   kind: DeletableKind,
   id: number,
 ): Promise<string> {
-  const label = await describe(kind, id, ownerId);
+  const label = await describeDeletable(kind, id, ownerId);
   if (!label) {
     return `Error: that ${NOUN[kind]} was not found${kind === "rem" ? " or has already been sent" : ""}.`;
   }
