@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { FIXED_CALENDAR_ID, isCalendarConfigured } from "../calendar/config.js";
+import { calendarId, isCalendarConfigured } from "../calendar/config.js";
 import { getCalendarGateway } from "../calendar/google.js";
 import {
   llmConfig,
@@ -65,14 +65,16 @@ export const webDependencies: WebDependencies = {
 
   calendarInfo() {
     return {
-      calendarId: FIXED_CALENDAR_ID,
+      calendarId: calendarId(),
       serviceAccountEmail: optionalEnv("GCP_SERVICE_ACCOUNT_EMAIL") ?? null,
     };
   },
 
-  async checkCalendar() {
-    if (!isCalendarConfigured()) throw new Error("Calendar is not set up");
-    await (await getCalendarGateway()).checkReadable();
+  async checkCalendar(id) {
+    if (!id && !isCalendarConfigured()) {
+      throw new Error("Calendar is not set up");
+    }
+    await (await getCalendarGateway()).checkReadable(id || undefined);
   },
 
   describeTimetable: () => describeTimetable(),

@@ -21,6 +21,7 @@ function sources(overrides: Partial<CalendarSources> = {}): CalendarSources {
         description: "Ask Iggy about the poll",
         scheduledAt: new Date("2026-11-23T12:11:00Z"), // 20:11 SGT
         status: "sent",
+        eventId: null,
       },
     ],
     tasks: async () => [
@@ -128,18 +129,21 @@ describe("calendar range", () => {
             description: "Already sent",
             scheduledAt: new Date("2026-11-23T12:11:00Z"),
             status: "sent",
+            eventId: null,
           },
           {
             id: 2,
             description: "Due this minute",
             scheduledAt: new Date("2026-11-23T13:00:00Z"),
             status: "pending",
+            eventId: null,
           },
           {
             id: 3,
             description: "Later tonight",
             scheduledAt: new Date("2026-11-23T14:30:00Z"),
             status: "pending",
+            eventId: null,
           },
         ],
       }),
@@ -244,6 +248,7 @@ describe("calendar routes", () => {
       })),
       addEvent: vi.fn(async () => ok),
       deleteEvent: vi.fn(async () => ok),
+      linkReminder: vi.fn(async () => ok),
     } satisfies CalendarActions;
   }
 
@@ -309,6 +314,18 @@ describe("calendar routes", () => {
         )
       )?.status,
     ).toBe(400);
+  });
+
+  it("links a reminder to an event, with a whole number of minutes", async () => {
+    const a = actions();
+    const link = (route: string, offset: unknown) =>
+      calendarRoute("POST", route, { offset }, a);
+    expect((await link("events/abc123def/remind", 30))?.status).toBe(200);
+    expect(a.linkReminder).toHaveBeenCalledWith("abc123def", 30);
+    expect((await link("events/abc123def/remind", "30"))?.status).toBe(400);
+    expect((await link("events/abc123def/remind", -5))?.status).toBe(400);
+    expect((await link("events/a b/remind", 30))?.status).toBe(400);
+    expect(a.linkReminder).toHaveBeenCalledTimes(1);
   });
 
   it("builds the same calendar line the bot accepts", async () => {

@@ -47,7 +47,8 @@ export interface WebDependencies {
   listModels(): Promise<string[]>;
   testModel(model: string): Promise<{ ms: number }>;
   calendarInfo(): { calendarId: string; serviceAccountEmail: string | null };
-  checkCalendar(): Promise<void>;
+  // Checks the bot can read a calendar: the current one, or `id`.
+  checkCalendar(id?: string): Promise<void>;
   describeTimetable(): Promise<string>;
   importTimetable(link: string): Promise<string>;
   consumeLoginToken(token: string): Promise<boolean>;
@@ -253,6 +254,17 @@ export async function handleWebRequest(
         if (!value) return fail(400, "Enter a value.");
         const problem = definition.validate(value);
         if (problem) return fail(400, problem);
+        if (key === "GOOGLE_CALENDAR_ID") {
+          // Switch only to a calendar the bot can actually use.
+          try {
+            await deps.checkCalendar(value);
+          } catch (error) {
+            return fail(
+              400,
+              `The bot can't read that calendar (${reason(error)}). Share it with the bot's Google account first.`,
+            );
+          }
+        }
         if (kind === "secrets") {
           await deps.store.setSecret(
             key,

@@ -32,6 +32,7 @@ interface CalendarDay {
     description: string;
     time: string;
     status: string;
+    eventId: string | null;
   }>;
   tasks: Array<{ id: number; description: string; module: string | null }>;
   deadlines: Array<{
@@ -58,6 +59,18 @@ type Status = { tone: "ok" | "error"; text: string } | null;
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const REPEATS = ["", "daily", "weekdays", "weekly", "monthly", "yearly"];
+// "Remind me" choices, in minutes before the event (all-day events: 9am).
+const TIMED_OFFSETS: Array<[number, string]> = [
+  [0, "When it starts"],
+  [10, "10 min before"],
+  [30, "30 min before"],
+  [60, "1 hour before"],
+  [1440, "1 day before"],
+];
+const ALL_DAY_OFFSETS: Array<[number, string]> = [
+  [0, "9am on the day"],
+  [1440, "9am the day before"],
+];
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong.";
@@ -198,6 +211,11 @@ function DayPanel({
   const [reminderTime, setReminderTime] = useState("09:00");
   const [reminderText, setReminderText] = useState("");
   const [moving, setMoving] = useState<Record<number, string>>({});
+  // The event whose "Remind me" picker is open, and the chosen offset.
+  const [remindFor, setRemindFor] = useState<{
+    id: string;
+    offset: number;
+  } | null>(null);
   const [event, setEvent] = useState({
     title: "",
     allDay: false,
@@ -210,6 +228,7 @@ function DayPanel({
     setStatus(null);
     setAmount("");
     setMoving({});
+    setRemindFor(null);
   }, [date]);
 
   const run = async (work: () => Promise<{ message?: string }>) => {
@@ -333,50 +352,105 @@ function DayPanel({
         {day && day.events.length > 0 ? (
           <ul className="space-y-1.5 text-sm">
             {day.events.map((e) => (
-              <li
-                key={`${e.id}-${e.start}`}
-                className="flex items-start justify-between gap-2"
-              >
-                <span>
-                  <span className="font-medium">
-                    {e.allDay ? "All day" : `${e.start}–${e.end}`}
-                  </span>{" "}
-                  {e.url ? (
-                    <a
-                      href={e.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="hover:underline"
+              <li key={`${e.id}-${e.start}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <span>
+                    <span className="font-medium">
+                      {e.allDay ? "All day" : `${e.start}–${e.end}`}
+                    </span>{" "}
+                    {e.url ? (
+                      <a
+                        href={e.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="hover:underline"
+                      >
+                        {e.title}
+                      </a>
+                    ) : (
+                      e.title
+                    )}
+                  </span>
+                  <span className="flex shrink-0 gap-2 text-xs">
+                    {date >= todayIso() && (
+                      <button
+                        type="button"
+                        className="text-indigo-600 hover:underline dark:text-indigo-400"
+                        onClick={() =>
+                          setRemindFor(
+                            remindFor?.id === e.id
+                              ? null
+                              : { id: e.id, offset: e.allDay ? 0 : 30 },
+                          )
+                        }
+                      >
+                        Remind me
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="text-red-600 hover:underline dark:text-red-400"
+                      disabled={busy}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Delete "${e.title}" from Google Calendar? Its reminders are cancelled too.`,
+                          )
+                        ) {
+                          void run(() =>
+                            api<{ message: string }>(
+                              `events/${encodeURIComponent(e.id)}`,
+                              {
+                                method: "DELETE",
+                              },
+                            ),
+                          );
+                        }
+                      }}
                     >
-                      {e.title}
-                    </a>
-                  ) : (
-                    e.title
-                  )}
-                </span>
-                <button
-                  type="button"
-                  className="shrink-0 text-xs text-red-600 hover:underline dark:text-red-400"
-                  disabled={busy}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Delete "${e.title}" from Google Calendar?`,
-                      )
-                    ) {
+                      Delete
+                    </button>
+                  </span>
+                </div>
+                {remindFor?.id === e.id && (
+                  <form
+                    className="mt-1.5 flex flex-wrap gap-2"
+                    onSubmit={(submit) => {
+                      submit.preventDefault();
                       void run(() =>
                         api<{ message: string }>(
-                          `events/${encodeURIComponent(e.id)}`,
+                          `events/${encodeURIComponent(e.id)}/remind`,
                           {
-                            method: "DELETE",
+                            method: "POST",
+                            body: { offset: remindFor.offset },
                           },
                         ),
-                      );
-                    }
-                  }}
-                >
-                  Delete
-                </button>
+                      ).then((ok) => ok && setRemindFor(null));
+                    }}
+                  >
+                    <select
+                      value={remindFor.offset}
+                      onChange={(change) =>
+                        setRemindFor({
+                          id: e.id,
+                          offset: Number(change.target.value),
+                        })
+                      }
+                      className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                    >
+                      {(e.allDay ? ALL_DAY_OFFSETS : TIMED_OFFSETS).map(
+                        ([minutes, label]) => (
+                          <option key={minutes} value={minutes}>
+                            {label}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                    <Button type="submit" disabled={busy}>
+                      Set reminder
+                    </Button>
+                  </form>
+                )}
               </li>
             ))}
           </ul>
@@ -462,6 +536,14 @@ function DayPanel({
                     {r.status !== "pending" && (
                       <span className="ml-1 text-xs text-slate-400">
                         ({r.status})
+                      </span>
+                    )}
+                    {r.eventId && (
+                      <span
+                        className="ml-1 text-xs text-slate-400"
+                        title="Moves with its Google Calendar event, and is cancelled if the event is deleted. Moving it here unlinks it."
+                      >
+                        (follows event)
                       </span>
                     )}
                   </span>

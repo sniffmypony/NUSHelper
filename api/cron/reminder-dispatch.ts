@@ -12,6 +12,11 @@ import { canvasConfig, isCanvasConfigured } from "../../src/env.js";
 import { CanvasClient } from "../../src/canvas/client.js";
 import { deadlineStore } from "../../src/canvas/deadline-store.js";
 import { runDeadlineChecks } from "../../src/canvas/deadline-sync.js";
+import { isCalendarConfigured } from "../../src/calendar/config.js";
+import { getCalendarGateway } from "../../src/calendar/google.js";
+import { withVercelOidcToken } from "../../src/calendar/request-context.js";
+import { linkedReminderStore } from "../../src/linked-reminder-store.js";
+import { syncLinkedReminders } from "../../src/linked-reminders.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -37,6 +42,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let expenditureResult: unknown;
   let reminderError = false;
   let expenditureError = false;
+
+  // First, reminders linked to Calendar events follow any moved or deleted
+  // event. If Calendar can't be reached they keep their last known time.
+  let linkedResult: unknown = { skipped: "calendar off" };
+  if (isCalendarConfigured()) {
+    try {
+      linkedResult = await withVercelOidcToken(
+        req.headers["x-vercel-oidc-token"],
+        async () => {
+          const gateway = await getCalendarGateway();
+          return syncLinkedReminders(
+            linkedReminderStore,
+            (eventId) => gateway.getAgendaEvent(eventId),
+            now,
+          );
+        },
+      );
+    } catch (error) {
+      const type = error instanceof Error ? error.name : typeof error;
+      console.error(`Linked reminder sync failed (${type})`);
+      linkedResult = { error: "sync failed" };
+    }
+  }
 
   try {
     reminderResult = await dispatchDueReminders(
@@ -89,6 +117,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .status(reminderError || expenditureError || deadlineError ? 500 : 200)
     .json({
       reminders: reminderResult ?? { error: "dispatcher failed" },
+      linked: linkedResult,
       expenditure: expenditureResult ?? { error: "dispatcher failed" },
       deadlines: deadlineError
         ? { error: "dispatcher failed" }
