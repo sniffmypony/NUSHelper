@@ -1,5 +1,5 @@
 import { DateTime } from "luxon";
-import { FIXED_CALENDAR_ID, FIXED_TIME_ZONE } from "./config.js";
+import { calendarId, FIXED_TIME_ZONE } from "./config.js";
 
 export const CALENDAR_REPEATS = [
   "daily",
@@ -20,7 +20,7 @@ export type ParsedCalendarEvent = {
   allDay: boolean;
   repeat: CalendarRepeat | null;
   timeZone: typeof FIXED_TIME_ZONE;
-  calendarId: typeof FIXED_CALENDAR_ID;
+  calendarId: string;
   isPast: boolean;
 };
 
@@ -254,7 +254,7 @@ export function parseCalendarEventMessage(
         allDay: true,
         repeat,
         timeZone: FIXED_TIME_ZONE,
-        calendarId: FIXED_CALENDAR_ID,
+        calendarId: calendarId(),
         isPast: startsBefore(day.toISODate()!, now),
       },
     };
@@ -305,7 +305,7 @@ export function parseCalendarEventMessage(
       allDay: false,
       repeat,
       timeZone: FIXED_TIME_ZONE,
-      calendarId: FIXED_CALENDAR_ID,
+      calendarId: calendarId(),
       isPast: start.toMillis() < now.getTime(),
     },
   };
@@ -328,7 +328,7 @@ export function storedCalendarEvent(
     allDay: isDateOnly(row.startDateTime),
     repeat: row.repeat ? parseRepeat(row.repeat) : null,
     timeZone: FIXED_TIME_ZONE,
-    calendarId: FIXED_CALENDAR_ID,
+    calendarId: calendarId(),
     isPast: startsBefore(row.startDateTime, now),
   };
 }

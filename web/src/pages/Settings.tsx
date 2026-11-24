@@ -328,23 +328,77 @@ function TextSettingRow({
 
 function CalendarCard({
   calendar,
+  setting,
+  onSaved,
 }: {
   calendar: SettingsResponse["calendar"];
+  setting: SettingRow;
+  onSaved: () => void;
 }) {
   const [status, setStatus] = useState<Status>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [value, setValue] = useState(calendar.calendarId);
+  useEffect(() => setValue(calendar.calendarId), [calendar.calendarId]);
+
+  const send = async (method: "PUT" | "DELETE") => {
+    setBusy(true);
+    setStatus(null);
+    try {
+      await api(`settings/${setting.key}`, {
+        method,
+        body: method === "PUT" ? { value: value.trim() } : undefined,
+      });
+      setStatus({
+        tone: "ok",
+        text:
+          method === "PUT"
+            ? "Switched. The bot now uses this calendar."
+            : "Back to Vercel's calendar.",
+      });
+      onSaved();
+    } catch (error) {
+      setStatus({ tone: "error", text: errorText(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <Card
       title="Google Calendar"
       description="The calendar the bot reads and adds events to."
     >
-      <Row label="Calendar">
-        <p className="break-all text-sm">
-          {calendar.calendarId || "Not set up"}
-        </p>
+      <Row
+        label="Calendar"
+        help="A calendar id, e.g. you@gmail.com. Find it in Google Calendar under the calendar's Settings > Integrate calendar."
+        aside={<SourceBadge source={setting.source} />}
+      >
+        <Input
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          placeholder="you@gmail.com"
+          spellCheck={false}
+          autoCapitalize="off"
+        />
         <div className="mt-3 flex flex-wrap gap-2">
+          <Button
+            disabled={
+              busy || !value.trim() || value.trim() === calendar.calendarId
+            }
+            onClick={() => void send("PUT")}
+          >
+            Switch
+          </Button>
+          {setting.source === "website" && (
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() => void send("DELETE")}
+            >
+              Use Vercel's
+            </Button>
+          )}
           <Button
             variant="secondary"
             disabled={busy || !calendar.calendarId}
@@ -376,7 +430,9 @@ function CalendarCard({
         </div>
         {status && <Notice tone={status.tone}>{status.text}</Notice>}
         <Notice tone="info">
-          Switching to another calendar comes with the Calendar page.
+          Events already added stay on the old calendar. Upcoming Canvas
+          deadlines are added to the new one at the next daily sync; send your
+          NUSMods link again to add finals.
         </Notice>
       </Row>
       {calendar.serviceAccountEmail && (
@@ -635,7 +691,11 @@ export function SettingsPage({
         ))}
       </Card>
 
-      <CalendarCard calendar={data.calendar} />
+      <CalendarCard
+        calendar={data.calendar}
+        setting={setting("GOOGLE_CALENDAR_ID")}
+        onSaved={load}
+      />
       <TimetableCard />
 
       <Card title="Profile">

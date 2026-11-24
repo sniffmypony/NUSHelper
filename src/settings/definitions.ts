@@ -55,6 +55,17 @@ export const SETTINGS: SettingDefinition[] = [
         : "Enter a year like 2025.",
   },
   {
+    key: "GOOGLE_CALENDAR_ID",
+    label: "Calendar",
+    help: "The Google Calendar the bot reads and adds events to.",
+    secret: false,
+    env: ["GOOGLE_CALENDAR_ID"],
+    validate: (value) =>
+      value.length <= 254 && /^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(value)
+        ? null
+        : "Enter a calendar id like you@gmail.com or …@group.calendar.google.com.",
+  },
+  {
     key: "LLM_API_KEY",
     label: "SoCLaaS API key",
     help: "Used for every AI request.",

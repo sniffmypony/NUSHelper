@@ -87,6 +87,15 @@ export async function calendarRoute(
 
   const event = /^events(?:\/(.+))?$/.exec(route);
   if (event) {
+    const remind = /^(.+)\/remind$/.exec(event[1] ?? "");
+    if (method === "POST" && remind) {
+      if (!EVENT_ID.test(remind[1])) return bad("Unknown event.");
+      const offset = field(body, "offset");
+      if (!Number.isSafeInteger(offset) || (offset as number) < 0) {
+        return bad("Pick when to be reminded.");
+      }
+      return result(await actions.linkReminder(remind[1], offset as number));
+    }
     if (method === "DELETE" && event[1]) {
       if (!EVENT_ID.test(event[1])) return bad("Unknown event.");
       return result(await actions.deleteEvent(event[1]));

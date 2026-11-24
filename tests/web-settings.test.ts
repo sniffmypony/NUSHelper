@@ -320,6 +320,33 @@ describe("website API", () => {
     ).toBe(404);
   });
 
+  it("switches calendars only to one the bot can read", async () => {
+    const { call, cookieFor, store, deps } = setup();
+    const save = (value: string) =>
+      call({
+        method: "PUT",
+        route: "settings/GOOGLE_CALENDAR_ID",
+        cookie: cookieFor(),
+        body: { value },
+      });
+    expect((await save("not a calendar")).status).toBe(400);
+    expect(deps.checkCalendar).not.toHaveBeenCalled();
+
+    vi.mocked(deps.checkCalendar).mockRejectedValueOnce(
+      Object.assign(new Error("nope"), { status: 404 }),
+    );
+    const refused = await save("other@example.com");
+    expect(refused.status).toBe(400);
+    expect(JSON.stringify(refused.body)).toContain("HTTP 404");
+    expect(store.valueRows.has("GOOGLE_CALENDAR_ID")).toBe(false);
+
+    expect((await save("other@example.com")).status).toBe(200);
+    expect(deps.checkCalendar).toHaveBeenLastCalledWith("other@example.com");
+    expect(store.valueRows.get("GOOGLE_CALENDAR_ID")?.value).toBe(
+      "other@example.com",
+    );
+  });
+
   it("needs a fresh sign-in to change keys, and stores them encrypted", async () => {
     const { call, cookieFor, store } = setup();
     const put = (cookie: string) =>

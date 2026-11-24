@@ -114,6 +114,12 @@ export const reminders = pgTable(
     attempts: integer("attempts").notNull().default(0),
     claimedAt: timestamp("claimed_at", { withTimezone: true }),
     sentAt: timestamp("sent_at", { withTimezone: true }),
+    // A reminder linked to a Google Calendar event follows the event: it
+    // fires `eventOffsetMin` before the event starts (9am for an all-day
+    // event) and is checked against Calendar now and then.
+    eventId: text("event_id"),
+    eventOffsetMin: integer("event_offset_min"),
+    eventCheckedAt: timestamp("event_checked_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -1,9 +1,12 @@
 import { optionalEnv, requireEnv } from "../env.js";
 
-// The one Google Calendar this deployment may use, fixed by the deployment's
-// GOOGLE_CALENDAR_ID. Incoming messages can never choose another calendar.
-// Empty when Google Calendar is not set up; calendar features are then off.
-export const FIXED_CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID?.trim() ?? "";
+// The one Google Calendar the bot uses: GOOGLE_CALENDAR_ID, which the owner
+// can change on the website (Settings) or in Vercel. Incoming messages can
+// never choose another calendar. Empty when Google Calendar is not set up;
+// calendar features are then off.
+export function calendarId(): string {
+  return optionalEnv("GOOGLE_CALENDAR_ID") ?? "";
+}
 // NUSHelper is Singapore-only for now.
 export const FIXED_TIME_ZONE = "Asia/Singapore";
 export const CALENDAR_EVENTS_SCOPE =
@@ -22,16 +25,11 @@ export type CalendarConfig = {
 };
 
 export function isCalendarConfigured(): boolean {
-  return Boolean(process.env.GOOGLE_CALENDAR_ID?.trim());
+  return Boolean(calendarId());
 }
 
 export function getCalendarConfig(): CalendarConfig {
-  const calendarId = requireEnv("GOOGLE_CALENDAR_ID");
-  // The ID is read once at startup; a different value later would mean the
-  // environment changed under a running instance.
-  if (calendarId !== FIXED_CALENDAR_ID) {
-    throw new Error("GOOGLE_CALENDAR_ID changed after startup");
-  }
+  const id = requireEnv("GOOGLE_CALENDAR_ID");
 
   const timeZone = optionalEnv("DEFAULT_TIMEZONE") ?? FIXED_TIME_ZONE;
   if (timeZone !== FIXED_TIME_ZONE) {
@@ -39,7 +37,7 @@ export function getCalendarConfig(): CalendarConfig {
   }
 
   return {
-    calendarId: FIXED_CALENDAR_ID,
+    calendarId: id,
     timeZone: FIXED_TIME_ZONE,
     jsonCredentialsBase64: optionalEnv("GOOGLE_SERVICE_ACCOUNT_JSON_BASE64"),
     credentialsFile: optionalEnv("GOOGLE_APPLICATION_CREDENTIALS"),

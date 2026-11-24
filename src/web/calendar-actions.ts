@@ -17,7 +17,13 @@ import {
 } from "../expenditure.js";
 import type { ParsedReminderCommand } from "../message-lines.js";
 import { timetableStore } from "../nus/timetable.js";
-import { scheduleReminder, reminderProblemMessage } from "../reminders.js";
+import { offsetsFor, planLinkedReminder } from "../linked-reminders.js";
+import { reminderStore } from "../reminder-store.js";
+import {
+  formatReminderWhen,
+  reminderProblemMessage,
+  scheduleReminder,
+} from "../reminders.js";
 import { sendTo } from "../topics.js";
 import { calendarRange, type CalendarRange } from "./calendar.js";
 
@@ -40,6 +46,8 @@ export interface CalendarActions {
   ): Promise<ActionResult>;
   moveReminder(id: number, date: string, time: string): Promise<ActionResult>;
   cancelReminder(id: number): Promise<ActionResult>;
+  // A reminder that follows a Google Calendar event, `offsetMin` before it.
+  linkReminder(eventId: string, offsetMin: number): Promise<ActionResult>;
   addEvent(line: string): Promise<ActionResult>;
   deleteEvent(id: string): Promise<ActionResult>;
 }
@@ -71,6 +79,7 @@ export const calendarActions: CalendarActions = {
             description: reminders.description,
             scheduledAt: reminders.scheduledAt,
             status: reminders.status,
+            eventId: reminders.eventId,
           })
           .from(reminders)
           .where(
@@ -194,6 +203,10 @@ export const calendarActions: CalendarActions = {
       .set({
         scheduledAt: scheduled.schedule.scheduledAt,
         expiresAt: scheduled.schedule.expiresAt,
+        // Moved by hand: it no longer follows its event.
+        eventId: null,
+        eventOffsetMin: null,
+        eventCheckedAt: null,
         updatedAt: new Date(),
       })
       .where(
@@ -212,6 +225,42 @@ export const calendarActions: CalendarActions = {
   async cancelReminder(id) {
     const message = await cancelReminder(id, telegramOwnerId());
     return { ok: message.startsWith("Cancelled"), message };
+  },
+
+  async linkReminder(eventId, offsetMin) {
+    if (!isCalendarConfigured()) {
+      return { ok: false, message: "Google Calendar isn't set up." };
+    }
+    const event = await (await getCalendarGateway()).getAgendaEvent(eventId);
+    if (!event) return { ok: false, message: "That event is gone." };
+    if (!offsetsFor(event).includes(offsetMin)) {
+      return { ok: false, message: "Pick one of the listed times." };
+    }
+    const now = new Date();
+    const plan = planLinkedReminder(event, offsetMin, now);
+    if (plan.kind === "over") {
+      return { ok: false, message: "That event has already started." };
+    }
+    if (plan.scheduledAt.getTime() <= now.getTime()) {
+      return { ok: false, message: "That time has already passed." };
+    }
+    const owner = telegramOwnerId();
+    await reminderStore.create({
+      ownerId: owner,
+      chatId: owner,
+      sourceMessageId: webSourceId(),
+      sourceLine: 0,
+      description: plan.description,
+      scheduledAt: plan.scheduledAt,
+      expiresAt: plan.expiresAt,
+      eventId,
+      eventOffsetMin: offsetMin,
+      eventCheckedAt: now,
+    });
+    return {
+      ok: true,
+      message: `Reminder set for ${formatReminderWhen(plan.scheduledAt, now)}: ${plan.description}`,
+    };
   },
 
   async addEvent(line) {
@@ -237,6 +286,16 @@ export const calendarActions: CalendarActions = {
       return { ok: false, message: "Google Calendar isn't set up." };
     }
     const result = await (await getCalendarGateway()).delete(id);
+    // Its reminders go with it.
+    await db
+      .delete(reminders)
+      .where(
+        and(
+          eq(reminders.ownerId, telegramOwnerId()),
+          eq(reminders.eventId, id),
+          eq(reminders.status, "pending"),
+        ),
+      );
     return {
       ok: true,
       message:

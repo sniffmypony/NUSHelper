@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { calendar_v3 } from "@googleapis/calendar";
-import { FIXED_CALENDAR_ID, FIXED_TIME_ZONE } from "../src/calendar/config.js";
+import { FIXED_TIME_ZONE } from "../src/calendar/config.js";
 import { GoogleCalendarGateway } from "../src/calendar/google.js";
 import type { ParsedCalendarEvent } from "../src/calendar/parser.js";
+
+const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID?.trim() ?? "";
 
 function draft(): ParsedCalendarEvent {
   return {
@@ -11,7 +13,7 @@ function draft(): ParsedCalendarEvent {
     endDateTime: "2026-08-22T18:00:00+08:00",
     allDay: false,
     repeat: null,
-    calendarId: FIXED_CALENDAR_ID,
+    calendarId: CALENDAR_ID,
     timeZone: FIXED_TIME_ZONE,
     isPast: false,
   };
@@ -40,7 +42,7 @@ describe("Google Calendar gateway", () => {
     const subject = gateway();
     await subject.gateway.checkReadable();
     expect(subject.events.list).toHaveBeenCalledWith(
-      expect.objectContaining({ calendarId: FIXED_CALENDAR_ID }),
+      expect.objectContaining({ calendarId: CALENDAR_ID }),
     );
   });
 
@@ -107,7 +109,7 @@ describe("Google Calendar gateway", () => {
     const subject = gateway();
     await subject.gateway.create("event1", draft(), "op", "123", 4);
     expect(subject.events.insert).toHaveBeenCalledWith({
-      calendarId: FIXED_CALENDAR_ID,
+      calendarId: CALENDAR_ID,
       sendUpdates: "none",
       requestBody: expect.objectContaining({
         summary: "Homework",
@@ -143,7 +145,7 @@ describe("Google Calendar gateway", () => {
     await subject.gateway.update("event1", draft());
     expect(subject.events.patch).toHaveBeenCalledWith(
       expect.objectContaining({
-        calendarId: FIXED_CALENDAR_ID,
+        calendarId: CALENDAR_ID,
         eventId: "event1",
       }),
     );

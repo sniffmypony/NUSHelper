@@ -1,11 +1,7 @@
 import { Markup, type Context, type Telegraf } from "telegraf";
 import { singaporeDateRange } from "../dates.js";
 import { formatCalendarAgendaEvent } from "./agenda.js";
-import {
-  FIXED_CALENDAR_ID,
-  FIXED_TIME_ZONE,
-  isCalendarConfigured,
-} from "./config.js";
+import { calendarId, FIXED_TIME_ZONE, isCalendarConfigured } from "./config.js";
 
 export const CALENDAR_NOT_SET_UP =
   "Google Calendar isn't set up for this bot (GOOGLE_CALENDAR_ID is empty).";
@@ -78,7 +74,7 @@ function confirmationPreview(
     `Time: ${formatted.time}`,
     ...repeatLines(event),
     `Timezone: ${FIXED_TIME_ZONE}`,
-    `Calendar: ${FIXED_CALENDAR_ID}`,
+    `Calendar: ${calendarId()}`,
     ...(event.isPast ? ["", "Warning: This event is in the past."] : []),
   ].join("\n");
 }
@@ -97,7 +93,7 @@ function mappingSummary(
     `Time: ${formatted.time}`,
     ...repeatLines(event),
     `Timezone: ${FIXED_TIME_ZONE}`,
-    `Calendar: ${FIXED_CALENDAR_ID}`,
+    `Calendar: ${calendarId()}`,
   ].join("\n");
 }
 

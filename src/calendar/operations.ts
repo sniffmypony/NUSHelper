@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { FIXED_CALENDAR_ID } from "./config.js";
+import { calendarId } from "./config.js";
 import { storedCalendarEvent, type ParsedCalendarEvent } from "./parser.js";
 import type {
   CalendarEventMapping,
@@ -194,7 +194,7 @@ export class CalendarOperations {
         chatId: pending.chatId,
         messageId: pending.messageId,
         sourceLine: pending.sourceLine,
-        calendarId: FIXED_CALENDAR_ID,
+        calendarId: calendarId(),
         googleEventId: googleEvent.id,
         googleHtmlLink: googleEvent.htmlLink,
         actionToken: randomUUID(),
