@@ -23,6 +23,8 @@
   --nav-hover: oklch(1 0 0 / 0.08);
   --nav-active: oklch(1 0 0 / 0.14);
   --bubble: oklch(0.37 0.13 256);
+  /* Chart marks, checked with the dataviz validator against each surface. */
+  --chart-spend: oklch(0.6 0.15 150);
   --line: oklch(0.37 0.13 256 / 0.15);
   --line-strong: oklch(0.37 0.13 256 / 0.28);
   --ink: oklch(0.22 0.045 256);
@@ -72,6 +74,7 @@
   --nav-hover: oklch(1 0 0 / 0.07);
   --nav-active: oklch(1 0 0 / 0.12);
   --bubble: oklch(0.37 0.11 256);
+  --chart-spend: oklch(0.66 0.15 150);
   --line: oklch(0.85 0.08 250 / 0.13);
   --line-strong: oklch(0.85 0.08 250 / 0.22);
   --ink: oklch(0.95 0.012 250);
@@ -107,6 +110,7 @@
   --color-nav-hover: var(--nav-hover);
   --color-nav-active: var(--nav-active);
   --color-bubble: var(--bubble);
+  --color-chart-spend: var(--chart-spend);
   --color-cat-event: var(--cat-event);
   --color-cat-exam: var(--cat-exam);
   --color-cat-deadline: var(--cat-deadline);

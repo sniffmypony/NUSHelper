@@ -32,6 +32,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ),
   );
   if (response.setCookie) res.setHeader("Set-Cookie", response.setCookie);
+  if (response.download) {
+    const { filename, contentType, body } = response.download;
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    return res.status(200).send(body);
+  }
   if (response.stream) {
     // A chat reply: one JSON event per line, sent as it happens.
     res.status(200);

@@ -7,6 +7,7 @@ import {
 } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "../api";
+import { isExam } from "../components/category";
 import { ICON } from "../components/icons";
 import { Accordion, Shake } from "../components/motion";
 import { Button, Input, Notice } from "../components/ui";
@@ -19,7 +20,7 @@ import {
   todayIso,
 } from "../dates";
 
-interface CalendarDay {
+export interface CalendarDay {
   week: string;
   spending: { cents: number; status: string } | null;
   events: Array<{
@@ -53,7 +54,7 @@ interface CalendarDay {
   }>;
 }
 
-interface CalendarRange {
+export interface CalendarRange {
   days: Record<string, CalendarDay>;
   eventsError: string | null;
 }
@@ -84,12 +85,6 @@ function shortWeek(label: string): string {
   const head = label.split(",")[0].replace(/^Y\d+/, "");
   const named = /\s(\w+)/.exec(head);
   return named ? named[1] : head;
-}
-
-// Exams (finals the bot added, or any event called an exam) get their own
-// colour; other Google Calendar events share the event colour.
-function isExam(title: string): boolean {
-  return /\b(final|finals|exam|midterm|quiz)\b/i.test(title);
 }
 
 function Dot({ className }: { className: string }) {

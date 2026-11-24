@@ -20,6 +20,8 @@ import type { CalendarActions } from "./calendar-actions.js";
 import { calendarRoute } from "./calendar-routes.js";
 import type { ChatEvent } from "./chat.js";
 import { chatRoute, type ChatDependencies } from "./chat-routes.js";
+import type { PlannerActions } from "./planner-actions.js";
+import { plannerRoute } from "./planner-routes.js";
 
 // The website's API (/api/web/...). Everything except the sign-in needs the
 // owner's session cookie; changes also need the X-NUSHelper header, which a
@@ -40,6 +42,8 @@ export interface WebResponse {
   setCookie?: string;
   // A chat reply: events are sent as they happen (newline-separated JSON).
   stream?: (emit: (event: ChatEvent) => void) => Promise<void>;
+  // A file to save (CSV export).
+  download?: { filename: string; contentType: string; body: string };
 }
 
 export interface WebDependencies {
@@ -59,6 +63,7 @@ export interface WebDependencies {
   consumeLoginToken(token: string): Promise<boolean>;
   calendar: CalendarActions;
   chat: ChatDependencies;
+  planner: PlannerActions;
   settingsChanged(): Promise<void>;
 }
 
@@ -334,6 +339,18 @@ export async function handleWebRequest(
       deps.calendar,
     );
     if (calendar) return json(calendar.status, calendar.body);
+
+    const planner = await plannerRoute(
+      method,
+      route,
+      request.body,
+      deps.planner,
+    );
+    if (planner) {
+      return "download" in planner
+        ? { status: 200, body: null, download: planner.download }
+        : json(planner.status, planner.body);
+    }
 
     const chat = await chatRoute(
       method,
