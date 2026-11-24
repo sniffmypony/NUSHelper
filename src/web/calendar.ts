@@ -131,6 +131,7 @@ export async function calendarRange(
   start: string,
   end: string,
   sources: CalendarSources,
+  now = new Date(),
 ): Promise<CalendarRange> {
   const days: Record<string, CalendarDay> = {};
   for (let date = start; date <= end; date = addDays(date, 1)) {
@@ -157,6 +158,9 @@ export async function calendarRange(
     if (day) day.spending = { cents: row.totalCents, status: row.status };
   }
   for (const row of await sources.reminders(from, to)) {
+    // Only reminders still to come: once its time has passed, a reminder
+    // has done its job (other items stay, past or not).
+    if (row.scheduledAt.getTime() <= now.getTime()) continue;
     days[dayOf(row.scheduledAt)]?.reminders.push({
       id: row.id,
       description: row.description,

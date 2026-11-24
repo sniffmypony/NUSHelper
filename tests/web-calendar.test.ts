@@ -76,7 +76,12 @@ function sources(overrides: Partial<CalendarSources> = {}): CalendarSources {
 
 describe("calendar range", () => {
   it("puts each item on its Singapore day", async () => {
-    const range = await calendarRange("2026-11-23", "2026-11-29", sources());
+    const range = await calendarRange(
+      "2026-11-23",
+      "2026-11-29",
+      sources(),
+      new Date("2026-11-23T00:00:00Z"),
+    );
     const day = (date: string) => range.days[date];
     expect(Object.keys(range.days)).toHaveLength(7);
     expect(day("2026-11-23")).toMatchObject({
@@ -110,6 +115,46 @@ describe("calendar range", () => {
     expect(day("2026-11-29").events).toEqual([]);
     // Exam weeks have no classes.
     expect(day("2026-11-24").classes).toEqual([]);
+  });
+
+  it("leaves out reminders whose time has passed, but keeps past events", async () => {
+    const range = await calendarRange(
+      "2026-11-23",
+      "2026-11-29",
+      sources({
+        reminders: async () => [
+          {
+            id: 1,
+            description: "Already sent",
+            scheduledAt: new Date("2026-11-23T12:11:00Z"),
+            status: "sent",
+          },
+          {
+            id: 2,
+            description: "Due this minute",
+            scheduledAt: new Date("2026-11-23T13:00:00Z"),
+            status: "pending",
+          },
+          {
+            id: 3,
+            description: "Later tonight",
+            scheduledAt: new Date("2026-11-23T14:30:00Z"),
+            status: "pending",
+          },
+        ],
+      }),
+      new Date("2026-11-23T13:00:00Z"), // 21:00 in Singapore
+    );
+    expect(
+      range.days["2026-11-23"].reminders.map((r) => r.description),
+    ).toEqual(["Later tonight"]);
+    const past = await calendarRange(
+      "2026-11-28",
+      "2026-11-28",
+      sources(),
+      new Date("2026-12-01T00:00:00Z"),
+    );
+    expect(past.days["2026-11-28"].events.length).toBeGreaterThan(0);
   });
 
   it("shows classes only in the weeks they run", async () => {
