@@ -123,6 +123,8 @@ The same Vercel project serves a private website at the project's address (for e
 - **Google Calendar:** shows the calendar in use, the service account to share it with, and checks access.
 - **Activity:** `settings_audit` records what changed and when, never the values.
 
+- **Look:** light, dark or system theme (Settings → Appearance, or the top bar on a phone). The design rules every page follows are in [`web/DESIGN.md`](web/DESIGN.md).
+
 The site is built from `web/` (React, Vite, Tailwind) into `web/dist` by `pnpm --filter nushelper-web build`; its API is one function, `api/web.ts`. For local work run `vercel dev` and, in `web/`, `pnpm dev`.
 
 ## Requirements

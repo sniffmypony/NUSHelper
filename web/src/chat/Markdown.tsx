@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import { ScrollFade } from "../components/motion";
 
 // The assistant's replies: Markdown with $...$ and $$...$$ LaTeX, as on
 // Telegram. Raw HTML in a reply is shown as text, never run.
@@ -27,6 +28,17 @@ export function Markdown({ text }: { text: string }) {
             <a href={href} target="_blank" rel="noreferrer noopener">
               {children}
             </a>
+          ),
+          // Wide tables and code scroll sideways, fading where there's more.
+          table: ({ children }) => (
+            <ScrollFade>
+              <table>{children}</table>
+            </ScrollFade>
+          ),
+          pre: ({ children }) => (
+            <ScrollFade className="rounded-lg bg-sunken">
+              <pre>{children}</pre>
+            </ScrollFade>
           ),
         }}
       >

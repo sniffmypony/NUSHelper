@@ -9,7 +9,9 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
+    "@paper-design/shaders-react": "0.0.82",
     "katex": "0.16.47",
+    "lucide-react": "1.70.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-markdown": "10.1.0",

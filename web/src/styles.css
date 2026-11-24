@@ -1,9 +1,128 @@
 @import "tailwindcss";
 
+/* Design rules: web/DESIGN.md. Colours are OKLCH tokens that switch with
+   the theme, so pages use one class (bg-surface) instead of light/dark
+   pairs. The theme is a class on <html> (set by src/theme.ts). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+  --canvas: oklch(0.985 0.004 265);
+  --surface: oklch(1 0 0);
+  --raised: oklch(1 0 0);
+  --sunken: oklch(0.967 0.006 265);
+  --hover: oklch(0.3 0.03 265 / 0.06);
+  --line: oklch(0 0 0 / 0.12);
+  --line-strong: oklch(0 0 0 / 0.2);
+  --ink: oklch(0.21 0.02 265);
+  --muted: oklch(0.48 0.02 265);
+  --faint: oklch(0.6 0.015 265);
+  --accent: oklch(0.51 0.23 277);
+  --accent-hover: oklch(0.56 0.22 277);
+  --accent-text: oklch(0.5 0.22 277);
+  --accent-soft: oklch(0.955 0.025 277);
+  --on-accent: oklch(1 0 0);
+  --danger: oklch(0.55 0.2 25);
+  --danger-soft: oklch(0.965 0.02 25);
+  --ok: oklch(0.52 0.12 155);
+  --ok-soft: oklch(0.965 0.03 155);
+  --warn: oklch(0.55 0.12 70);
+  --warn-soft: oklch(0.97 0.035 85);
+  --card-shadow: 0 1px 2px oklch(0 0 0 / 0.05), 0 1px 1px oklch(0 0 0 / 0.03);
+  --pop-shadow: 0 8px 24px oklch(0 0 0 / 0.12), 0 1px 2px oklch(0 0 0 / 0.08);
+}
+
+/* Dark: depth from lighter surfaces, not shadows. */
+:root.dark {
+  color-scheme: dark;
+  --canvas: oklch(0.165 0.012 265);
+  --surface: oklch(0.21 0.014 265);
+  --raised: oklch(0.26 0.016 265);
+  --sunken: oklch(0.185 0.012 265);
+  --hover: oklch(1 0 0 / 0.06);
+  --line: oklch(1 0 0 / 0.1);
+  --line-strong: oklch(1 0 0 / 0.17);
+  --ink: oklch(0.95 0.006 265);
+  --muted: oklch(0.74 0.014 265);
+  --faint: oklch(0.6 0.014 265);
+  --accent: oklch(0.58 0.2 277);
+  --accent-hover: oklch(0.64 0.18 277);
+  --accent-text: oklch(0.76 0.13 277);
+  --accent-soft: oklch(0.3 0.06 277);
+  --on-accent: oklch(1 0 0);
+  --danger: oklch(0.72 0.16 25);
+  --danger-soft: oklch(0.28 0.06 25);
+  --ok: oklch(0.76 0.13 155);
+  --ok-soft: oklch(0.27 0.05 155);
+  --warn: oklch(0.8 0.12 80);
+  --warn-soft: oklch(0.29 0.05 80);
+  --card-shadow: none;
+  --pop-shadow: 0 0 0 1px oklch(1 0 0 / 0.06);
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-sunken: var(--sunken);
+  --color-hover: var(--hover);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --shadow-card: var(--card-shadow);
+  --shadow-pop: var(--pop-shadow);
+}
+
 @theme {
   --font-sans:
     "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     sans-serif;
+
+  /* Calendar categories: one lightness and chroma, different hues, so no
+     category looks heavier than another (same in both themes). */
+  --color-cat-event: oklch(0.66 0.15 277);
+  --color-cat-reminder: oklch(0.66 0.15 70);
+  --color-cat-deadline: oklch(0.66 0.15 25);
+  --color-cat-class: oklch(0.66 0.15 230);
+  --color-cat-task: oklch(0.66 0.15 155);
+
+  /* Motion (web/DESIGN.md §1). */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --animate-settle: settle 220ms var(--ease-out) both;
+  --animate-slide-from-right: slide-from-right 240ms var(--ease-out) both;
+  --animate-slide-from-left: slide-from-left 240ms var(--ease-out) both;
+
+  @keyframes settle {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+  @keyframes slide-from-right {
+    from {
+      opacity: 0;
+      transform: translateX(24px);
+    }
+  }
+  @keyframes slide-from-left {
+    from {
+      opacity: 0;
+      transform: translateX(-24px);
+    }
+  }
 }
 
 html,
@@ -13,7 +132,99 @@ body,
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+  @apply bg-canvas text-ink antialiased;
+}
+
+/* Accordions: <details> whose height animates to auto where the browser
+   allows it (Chrome/Edge 129+); elsewhere they open instantly. */
+@supports (interpolate-size: allow-keywords) {
+  :root {
+    interpolate-size: allow-keywords;
+  }
+}
+details.accordion::details-content {
+  block-size: 0;
+  overflow: clip;
+  transition:
+    block-size 250ms var(--ease-out),
+    content-visibility 250ms allow-discrete;
+}
+details.accordion[open]::details-content {
+  block-size: auto;
+}
+details.accordion > summary {
+  list-style: none;
+  cursor: pointer;
+}
+details.accordion > summary::-webkit-details-marker {
+  display: none;
+}
+details.accordion .accordion-chevron {
+  transition: transform 200ms var(--ease-out);
+}
+details.accordion[open] .accordion-chevron {
+  transform: rotate(90deg);
+}
+
+/* Icon swaps: the outgoing icon blurs away as the new one comes in. */
+.swap-icon {
+  transition:
+    opacity 150ms var(--ease-out),
+    filter 150ms var(--ease-out),
+    transform 150ms var(--ease-out);
+}
+.swap-icon[data-on="false"] {
+  opacity: 0;
+  filter: blur(4px);
+  transform: scale(0.6);
+}
+
+/* Scroll rows fade out on the side that has more to see. */
+.scroll-fade[data-more="right"] {
+  mask-image: linear-gradient(to right, black calc(100% - 32px), transparent);
+}
+.scroll-fade[data-more="left"] {
+  mask-image: linear-gradient(to left, black calc(100% - 32px), transparent);
+}
+.scroll-fade[data-more="both"] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 32px,
+    black calc(100% - 32px),
+    transparent
+  );
+}
+
+/* While the theme changes nothing transitions (src/theme.ts). */
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
+/* Reduced motion: no movement, quick fades only. (Buttons skip their
+   press scale with motion-reduce:, and Shake checks this itself.) */
+@media (prefers-reduced-motion: reduce) {
+  .animate-settle,
+  .animate-slide-from-right,
+  .animate-slide-from-left {
+    animation-name: fade-in;
+    animation-duration: 150ms;
+  }
+  .swap-icon[data-on="false"] {
+    filter: none;
+    transform: none;
+  }
+  details.accordion::details-content,
+  details.accordion .accordion-chevron {
+    transition: none;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
 }
 
 /* Assistant replies in Chat (Markdown). */
@@ -38,26 +249,26 @@ body {
   @apply text-base;
 }
 .chat-markdown a {
-  @apply text-indigo-600 underline dark:text-indigo-400;
+  @apply text-accent-text underline;
 }
 .chat-markdown code {
-  @apply rounded bg-slate-100 px-1 py-0.5 font-mono text-[0.85em] dark:bg-slate-800;
+  @apply rounded bg-sunken px-1 py-0.5 font-mono text-[0.85em];
 }
 .chat-markdown pre {
-  @apply overflow-x-auto rounded-lg bg-slate-100 p-3 dark:bg-slate-800;
+  @apply w-max min-w-full p-3;
 }
 .chat-markdown pre code {
   @apply bg-transparent p-0;
 }
 .chat-markdown blockquote {
-  @apply border-l-4 border-slate-300 pl-3 text-slate-600 dark:border-slate-700 dark:text-slate-300;
+  @apply border-l-4 border-line-strong pl-3 text-muted;
 }
 .chat-markdown table {
-  @apply block overflow-x-auto border-collapse text-left;
+  @apply border-collapse text-left;
 }
 .chat-markdown th,
 .chat-markdown td {
-  @apply border border-slate-200 px-2 py-1 dark:border-slate-700;
+  @apply border border-line px-2 py-1;
 }
 .chat-markdown .katex-display {
   @apply overflow-x-auto overflow-y-hidden py-1;

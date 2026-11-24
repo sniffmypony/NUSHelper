@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
+import { Logo } from "../components/Logo";
+import { Shake } from "../components/motion";
 import { TelegramLogin } from "../components/TelegramLogin";
 
 export function SignIn({
@@ -34,16 +36,18 @@ export function SignIn({
     <div className="flex flex-col items-center gap-4 text-center">
       <div>
         <h1 className="text-xl font-semibold">{title}</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          {description}
-        </p>
+        <p className="mt-1 text-sm text-muted">{description}</p>
       </div>
       {botUsername ? (
         <TelegramLogin botUsername={botUsername} onAuth={onAuth} />
       ) : (
-        !error && <p className="text-sm text-slate-400">Loading…</p>
+        !error && <p className="text-sm text-faint">Loading…</p>
       )}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <p role="alert" className="animate-settle text-sm text-danger">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -57,27 +61,33 @@ export function LoginPage({
 }) {
   return (
     <div className="flex min-h-full items-center justify-center px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <img src="/favicon.svg" alt="" className="mx-auto mb-6 h-12 w-12" />
+      <div className="w-full max-w-sm animate-settle rounded-3xl border border-line bg-surface p-8 shadow-card">
+        <div className="mx-auto mb-6 w-fit">
+          <Logo size={64} liquid />
+        </div>
         {linkError && (
-          <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-            {linkError}
-          </p>
+          // The refused link shakes the message, like a head shake.
+          <Shake trigger={1}>
+            <p
+              role="alert"
+              className="mb-4 rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger"
+            >
+              {linkError}
+            </p>
+          </Shake>
         )}
         <SignIn onSignedIn={onSignedIn} />
-        <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
-          <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+        <div className="my-6 flex items-center gap-3 text-xs text-faint">
+          <span className="h-px flex-1 bg-line" />
           or
-          <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+          <span className="h-px flex-1 bg-line" />
         </div>
-        <p className="text-sm text-slate-600 dark:text-slate-300">
+        <p className="text-sm text-muted">
           Send{" "}
-          <code className="rounded bg-slate-100 px-1.5 py-0.5 dark:bg-slate-800">
-            /web
-          </code>{" "}
+          <code className="rounded bg-sunken px-1.5 py-0.5 text-ink">/web</code>{" "}
           to your bot and tap the link it sends. It works once, for 10 minutes.
         </p>
-        <p className="mt-6 text-xs text-slate-400">
+        <p className="mt-6 text-xs text-faint">
           Private to the bot's owner. You stay signed in for 60 days.
         </p>
       </div>

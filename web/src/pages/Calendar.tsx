@@ -5,7 +5,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "../api";
+import { ICON } from "../components/icons";
+import { Accordion, Shake } from "../components/motion";
 import { Button, Input, Notice } from "../components/ui";
 import {
   addDays,
@@ -109,15 +112,15 @@ function DayCell({
     ? [
         ...day.deadlines.map((d) => ({
           text: `${d.moduleCode} due`,
-          tone: "text-red-600 dark:text-red-400",
+          tone: "text-danger",
         })),
         ...day.events.map((e) => ({
           text: e.title,
-          tone: "text-indigo-700 dark:text-indigo-300",
+          tone: "text-accent-text",
         })),
         ...day.reminders.map((r) => ({
           text: `${r.time} ${r.description}`,
-          tone: "text-amber-700 dark:text-amber-300",
+          tone: "text-warn",
         })),
       ]
     : [];
@@ -125,35 +128,35 @@ function DayCell({
     <button
       type="button"
       onClick={onPick}
-      className={`flex min-h-16 flex-col gap-0.5 border-b border-r border-slate-100 p-1.5 text-left transition-colors md:min-h-28 md:p-2 dark:border-slate-800 ${
+      className={`flex min-h-16 flex-col gap-0.5 border-b border-r border-line p-1.5 text-left transition-[background-color] duration-150 ease-out md:min-h-28 md:p-2 ${
         selected
-          ? "bg-indigo-50 ring-2 ring-inset ring-indigo-500 dark:bg-indigo-950/60"
-          : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
-      } ${inMonth ? "" : "bg-slate-50/60 text-slate-400 dark:bg-slate-950/40"}`}
+          ? "bg-accent-soft ring-2 ring-inset ring-accent"
+          : "hover:bg-hover"
+      } ${inMonth ? "" : "bg-sunken text-faint "}`}
     >
       <div className="flex items-center justify-between gap-1">
         <span
           className={`grid h-6 w-6 place-items-center rounded-full text-xs font-semibold ${
-            today ? "bg-indigo-600 text-white" : ""
+            today ? "bg-accent text-on-accent" : ""
           }`}
         >
           {fromIso(date).getUTCDate()}
         </span>
         {isMonday && day && (
-          <span className="hidden truncate text-[10px] font-medium text-slate-400 md:inline">
+          <span className="hidden truncate text-[10px] font-medium text-faint md:inline">
             {shortWeek(day.week)}
           </span>
         )}
       </div>
       {day?.spending && day.spending.cents > 0 && (
-        <span className="w-fit max-w-full truncate rounded bg-emerald-50 px-1 text-[10px] font-semibold text-emerald-700 md:text-[11px] dark:bg-emerald-950 dark:text-emerald-300">
+        <span className="w-fit max-w-full truncate rounded bg-ok-soft px-1 text-[10px] font-semibold text-ok md:text-[11px]">
           <span className="hidden md:inline">S$</span>
           {(day.spending.cents / 100).toFixed(2)}
         </span>
       )}
       <div className="hidden flex-col gap-0.5 md:flex">
         {day && day.classes.length > 0 && (
-          <span className="truncate text-[11px] text-slate-500">
+          <span className="truncate text-[11px] text-muted">
             {day.classes.length} class{day.classes.length === 1 ? "" : "es"}
           </span>
         )}
@@ -163,37 +166,42 @@ function DayCell({
           </span>
         ))}
         {items.length > 3 && (
-          <span className="text-[11px] text-slate-400">
+          <span className="text-[11px] text-faint">
             +{items.length - 3} more
           </span>
         )}
       </div>
       {day && (
         <div className="mt-auto flex gap-0.5 md:hidden">
-          {day.classes.length > 0 && <Dot className="bg-slate-400" />}
-          {day.events.length > 0 && <Dot className="bg-indigo-500" />}
-          {day.deadlines.length > 0 && <Dot className="bg-red-500" />}
-          {day.reminders.length > 0 && <Dot className="bg-amber-500" />}
-          {day.tasks.length > 0 && <Dot className="bg-sky-500" />}
+          {day.classes.length > 0 && <Dot className="bg-cat-class" />}
+          {day.events.length > 0 && <Dot className="bg-cat-event" />}
+          {day.deadlines.length > 0 && <Dot className="bg-cat-deadline" />}
+          {day.reminders.length > 0 && <Dot className="bg-cat-reminder" />}
+          {day.tasks.length > 0 && <Dot className="bg-cat-task" />}
         </div>
       )}
     </button>
   );
 }
 
+// Each part of the day panel opens and closes (an accordion).
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="border-t border-slate-100 px-4 py-3 dark:border-slate-800">
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {title}
-      </h3>
-      {children}
-    </section>
+    <Accordion
+      className="border-t border-line px-4 py-3"
+      title={
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+          {title}
+        </h3>
+      }
+    >
+      <div className="pt-2">{children}</div>
+    </Accordion>
   );
 }
 
 function Empty({ children }: { children: ReactNode }) {
-  return <p className="text-sm text-slate-400">{children}</p>;
+  return <p className="text-sm text-faint">{children}</p>;
 }
 
 function DayPanel({
@@ -247,16 +255,26 @@ function DayPanel({
     }
   };
 
+  // A refused amount turns the field red and shakes it.
+  const [amountRefused, setAmountRefused] = useState(0);
+  const [amountInvalid, setAmountInvalid] = useState(false);
   const spend = (mode: "add" | "remove") =>
     run(() =>
       api<{ message: string }>("spending", {
         method: "POST",
         body: { date, amount, mode },
       }),
-    ).then((ok) => ok && setAmount(""));
+    ).then((ok) => {
+      if (ok) {
+        setAmount("");
+      } else {
+        setAmountInvalid(true);
+        setAmountRefused((count) => count + 1);
+      }
+    });
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <div className="animate-settle rounded-2xl border border-line bg-surface shadow-card">
       <header className="px-4 py-3">
         <h2 className="text-base font-semibold">
           {formatDay(date, {
@@ -266,7 +284,7 @@ function DayPanel({
             year: "numeric",
           })}
         </h2>
-        {day && <p className="text-xs text-slate-500">{day.week}</p>}
+        {day && <p className="text-xs text-muted">{day.week}</p>}
         {status && <Notice tone={status.tone}>{status.text}</Notice>}
       </header>
 
@@ -277,15 +295,19 @@ function DayPanel({
               {formatMoney(day.spending.cents)}
             </span>
           ) : (
-            <span className="text-slate-400">Nothing logged</span>
+            <span className="text-faint">Nothing logged</span>
           )}
         </p>
-        <div className="mt-2 flex gap-2">
+        <Shake trigger={amountRefused} className="mt-2 flex gap-2">
           <Input
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => {
+              setAmount(e.target.value);
+              setAmountInvalid(false);
+            }}
             placeholder="e.g. 5.40 3"
             inputMode="decimal"
+            invalid={amountInvalid}
             className="min-w-0 flex-1"
           />
           <Button disabled={busy || !amount} onClick={() => void spend("add")}>
@@ -298,7 +320,7 @@ function DayPanel({
           >
             Remove
           </Button>
-        </div>
+        </Shake>
       </Section>
 
       <Section title="Classes">
@@ -310,10 +332,7 @@ function DayPanel({
                   {c.start}–{c.end}
                 </span>{" "}
                 {c.moduleCode} {c.lessonType}
-                <span className="text-slate-500">
-                  {" "}
-                  · {c.venue || "no venue"}
-                </span>
+                <span className="text-muted"> · {c.venue || "no venue"}</span>
               </li>
             ))}
           </ul>
@@ -326,7 +345,7 @@ function DayPanel({
         {day && day.deadlines.length > 0 ? (
           <ul className="space-y-1 text-sm">
             {day.deadlines.map((d, i) => (
-              <li key={i} className="text-red-700 dark:text-red-300">
+              <li key={i} className="text-danger">
                 {d.time} · {d.moduleCode}:{" "}
                 {d.url ? (
                   <a
@@ -375,7 +394,7 @@ function DayPanel({
                     {date >= todayIso() && (
                       <button
                         type="button"
-                        className="text-indigo-600 hover:underline dark:text-indigo-400"
+                        className="text-accent-text hover:underline"
                         onClick={() =>
                           setRemindFor(
                             remindFor?.id === e.id
@@ -389,7 +408,7 @@ function DayPanel({
                     )}
                     <button
                       type="button"
-                      className="text-red-600 hover:underline dark:text-red-400"
+                      className="text-danger hover:underline"
                       disabled={busy}
                       onClick={() => {
                         if (
@@ -436,7 +455,7 @@ function DayPanel({
                           offset: Number(change.target.value),
                         })
                       }
-                      className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      className="rounded-lg border border-line-strong bg-surface px-2 py-2 text-sm"
                     >
                       {(e.allDay ? ALL_DAY_OFFSETS : TIMED_OFFSETS).map(
                         ([minutes, label]) => (
@@ -458,7 +477,7 @@ function DayPanel({
           <Empty>No events</Empty>
         )}
         <form
-          className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 dark:bg-slate-950"
+          className="mt-3 space-y-2 rounded-lg bg-sunken p-3"
           onSubmit={(submit) => {
             submit.preventDefault();
             void run(() =>
@@ -509,7 +528,7 @@ function DayPanel({
             <select
               value={event.repeat}
               onChange={(e) => setEvent({ ...event, repeat: e.target.value })}
-              className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+              className="rounded-lg border border-line-strong bg-surface px-2 py-2 text-sm"
             >
               {REPEATS.map((repeat) => (
                 <option key={repeat} value={repeat}>
@@ -534,13 +553,13 @@ function DayPanel({
                     <span className="font-medium">{r.time}</span>{" "}
                     {r.description}
                     {r.status !== "pending" && (
-                      <span className="ml-1 text-xs text-slate-400">
+                      <span className="ml-1 text-xs text-faint">
                         ({r.status})
                       </span>
                     )}
                     {r.eventId && (
                       <span
-                        className="ml-1 text-xs text-slate-400"
+                        className="ml-1 text-xs text-faint"
                         title="Moves with its Google Calendar event, and is cancelled if the event is deleted. Moving it here unlinks it."
                       >
                         (follows event)
@@ -551,7 +570,7 @@ function DayPanel({
                     <span className="flex shrink-0 gap-2 text-xs">
                       <button
                         type="button"
-                        className="text-indigo-600 hover:underline dark:text-indigo-400"
+                        className="text-accent-text hover:underline"
                         onClick={() =>
                           setMoving({
                             ...moving,
@@ -563,7 +582,7 @@ function DayPanel({
                       </button>
                       <button
                         type="button"
-                        className="text-red-600 hover:underline dark:text-red-400"
+                        className="text-danger hover:underline"
                         disabled={busy}
                         onClick={() =>
                           void run(() =>
@@ -644,7 +663,7 @@ function DayPanel({
             Add
           </Button>
         </form>
-        <p className="mt-1.5 text-xs text-slate-400">
+        <p className="mt-1.5 text-xs text-faint">
           The bot texts you at this time.
         </p>
       </Section>
@@ -655,9 +674,7 @@ function DayPanel({
             {day.tasks.map((t) => (
               <li key={t.id}>
                 {t.description}
-                {t.module && (
-                  <span className="text-slate-500"> [{t.module}]</span>
-                )}
+                {t.module && <span className="text-muted"> [{t.module}]</span>}
               </li>
             ))}
           </ul>
@@ -676,6 +693,8 @@ export function CalendarPage() {
     return { year: date.getUTCFullYear(), month: date.getUTCMonth() };
   });
   const [selected, setSelected] = useState(today);
+  // Which way the month moved: the new one slides in from that side.
+  const [direction, setDirection] = useState<"left" | "right" | null>(null);
   const [range, setRange] = useState<CalendarRange | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -697,11 +716,13 @@ export function CalendarPage() {
   const dates: string[] = [];
   for (let date = start; date <= end; date = addDays(date, 1)) dates.push(date);
   const inMonth = (date: string) => fromIso(date).getUTCMonth() === month.month;
-  const shift = (by: number) =>
+  const shift = (by: number) => {
+    setDirection(by > 0 ? "right" : "left");
     setMonth(({ year, month: m }) => {
       const next = new Date(Date.UTC(year, m + by, 1));
       return { year: next.getUTCFullYear(), month: next.getUTCMonth() };
     });
+  };
   const title = new Date(
     Date.UTC(month.year, month.month, 1),
   ).toLocaleDateString("en-SG", {
@@ -720,12 +741,17 @@ export function CalendarPage() {
             onClick={() => shift(-1)}
             aria-label="Previous month"
           >
-            ‹
+            <ChevronLeft {...ICON} />
           </Button>
           <Button
             variant="secondary"
             onClick={() => {
               const date = fromIso(today);
+              const target = date.getUTCFullYear() * 12 + date.getUTCMonth();
+              const shown = month.year * 12 + month.month;
+              setDirection(
+                target > shown ? "right" : target < shown ? "left" : null,
+              );
               setMonth({
                 year: date.getUTCFullYear(),
                 month: date.getUTCMonth(),
@@ -740,7 +766,7 @@ export function CalendarPage() {
             onClick={() => shift(1)}
             aria-label="Next month"
           >
-            ›
+            <ChevronRight {...ICON} />
           </Button>
         </div>
       </div>
@@ -748,15 +774,24 @@ export function CalendarPage() {
       {range?.eventsError && <Notice tone="error">{range.eventsError}</Notice>}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-950">
+        <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+          <div className="grid grid-cols-7 border-b border-line bg-sunken text-center text-[11px] font-semibold uppercase tracking-wide text-muted">
             {WEEKDAYS.map((weekday) => (
               <div key={weekday} className="py-2">
                 {weekday}
               </div>
             ))}
           </div>
-          <div className={`grid grid-cols-7 ${range ? "" : "opacity-50"}`}>
+          <div
+            key={`${month.year}-${month.month}`}
+            className={`grid grid-cols-7 transition-opacity duration-150 ${range ? "" : "opacity-50"} ${
+              direction === "right"
+                ? "animate-slide-from-right"
+                : direction === "left"
+                  ? "animate-slide-from-left"
+                  : ""
+            }`}
+          >
             {dates.map((date) => (
               <DayCell
                 key={date}
@@ -772,6 +807,7 @@ export function CalendarPage() {
         </div>
         <div className="lg:sticky lg:top-6 lg:self-start">
           <DayPanel
+            key={selected}
             date={selected}
             day={range?.days[selected]}
             onChanged={load}

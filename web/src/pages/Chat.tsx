@@ -6,6 +6,19 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
+import {
+  ArrowUp,
+  ChevronLeft,
+  FileText,
+  Image as ImageIcon,
+  MessageSquare,
+  Paperclip,
+  Pencil,
+  Pin,
+  PinOff,
+  Trash2,
+  X,
+} from "lucide-react";
 import { api } from "../api";
 import {
   prepareUpload,
@@ -16,6 +29,8 @@ import {
   type Upload,
 } from "../chat/api";
 import { Markdown } from "../chat/Markdown";
+import { ICON } from "../components/icons";
+import { Shake, SwapIcon, Tooltip } from "../components/motion";
 import { Button, Input, Notice } from "../components/ui";
 import { navigate } from "../navigation";
 
@@ -74,12 +89,13 @@ function Cards({
         return (
           <div
             key={index}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+            // Inner radius 8 px = reply's 20 px − its 12 px padding.
+            className="rounded-[8px] border border-line bg-sunken px-3 py-2 text-sm"
           >
             <p className="break-words">{card.label}</p>
             {card.result && (
               <p
-                className={`mt-1 text-xs ${card.state === "failed" ? "text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}
+                className={`mt-1 text-xs ${card.state === "failed" ? "text-danger" : "text-muted"}`}
               >
                 {card.result}
               </p>
@@ -112,38 +128,50 @@ function Cards({
   );
 }
 
+// Your messages are tinted, not solid accent: the accent is kept for the
+// 10% (buttons, links, the active item), never large areas.
+const USER_BUBBLE =
+  "max-w-[85%] whitespace-pre-wrap break-words rounded-[20px] rounded-br-md bg-accent-soft px-4 py-2.5 text-sm text-ink";
+// 20 px corners with 12 px padding, so the cards inside get 8 px.
+const REPLY_BUBBLE =
+  "max-w-[92%] min-w-0 rounded-[20px] rounded-bl-md border p-3";
+
 function Bubble({
   chatId,
   message,
   onCards,
+  arriving,
 }: {
   chatId: number;
   message: ChatMessage;
   onCards?: (cards: ChatCard[]) => void;
+  // New in this visit: it settles in. Messages loaded with the chat don't.
+  arriving: boolean;
 }) {
+  const settle = arriving ? "animate-settle" : "";
   if (message.role === "user") {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-indigo-600 px-4 py-2.5 text-sm text-white">
-          {message.content}
-        </div>
+      <div className={`flex justify-end ${settle} origin-bottom-right`}>
+        <div className={USER_BUBBLE}>{message.content}</div>
       </div>
     );
   }
   return (
-    <div className="flex justify-start">
+    <div className={`flex justify-start ${settle} origin-bottom-left`}>
       <div
-        className={`max-w-[92%] min-w-0 rounded-2xl rounded-bl-md border px-4 py-3 ${
+        className={`${REPLY_BUBBLE} ${
           message.failed
-            ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
-            : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+            ? "border-danger/30 bg-danger-soft text-danger"
+            : "border-line bg-surface"
         }`}
       >
-        {message.failed ? (
-          <p className="text-sm">{message.content}</p>
-        ) : (
-          <Markdown text={message.content} />
-        )}
+        <div className="px-1">
+          {message.failed ? (
+            <p className="text-sm">{message.content}</p>
+          ) : (
+            <Markdown text={message.content} />
+          )}
+        </div>
         {message.cards.length > 0 && onCards && (
           <Cards chatId={chatId} message={message} onChange={onCards} />
         )}
@@ -175,14 +203,15 @@ function ChatList({
           type="search"
         />
         <Button onClick={onNew} className="shrink-0">
+          <Pencil {...ICON} />
           New
         </Button>
       </div>
       <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
         {chats === null ? (
-          <p className="px-2 text-sm text-slate-400">Loading…</p>
+          <p className="px-2 text-sm text-faint">Loading…</p>
         ) : chats.length === 0 ? (
-          <p className="px-2 text-sm text-slate-400">
+          <p className="px-2 text-sm text-faint">
             {search ? "No chats match." : "No chats yet."}
           </p>
         ) : (
@@ -195,19 +224,17 @@ function ChatList({
                     event.preventDefault();
                     navigate(`/chat/${chat.id}`);
                   }}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-[transform,background-color,color] duration-150 ease-out active:scale-[0.97] motion-reduce:active:scale-100 ${
                     chat.id === activeId
-                      ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
-                      : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                      ? "bg-accent-soft text-accent-text"
+                      : "text-muted hover:bg-hover hover:text-ink"
                   }`}
                 >
                   {chat.pinned && (
-                    <span aria-label="Pinned" title="Pinned">
-                      📌
-                    </span>
+                    <Pin {...ICON} size={14} aria-label="Pinned" />
                   )}
                   <span className="min-w-0 flex-1 truncate">{chat.title}</span>
-                  <span className="shrink-0 text-xs text-slate-400">
+                  <span className="shrink-0 text-xs text-faint">
                     {shortDate(chat.updatedAt)}
                   </span>
                 </a>
@@ -235,6 +262,8 @@ function Composer({
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  // Goes up each time an upload or message is refused: the box shakes.
+  const [refused, setRefused] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const submit = async (event?: FormEvent) => {
@@ -244,6 +273,8 @@ function Composer({
     if (sent) {
       setText("");
       setUpload(null);
+    } else {
+      setRefused((count) => count + 1);
     }
   };
 
@@ -261,68 +292,83 @@ function Composer({
   };
 
   return (
-    <form
-      onSubmit={(event) => void submit(event)}
-      className="rounded-2xl border border-slate-300 bg-white p-2 shadow-sm focus-within:border-indigo-500 dark:border-slate-700 dark:bg-slate-900"
-    >
-      {upload && (
-        <div className="mb-2 flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-xs dark:bg-slate-800">
-          <span aria-hidden>{upload.data.image ? "🖼️" : "📄"}</span>
-          <span className="min-w-0 flex-1 truncate">{upload.name}</span>
-          <button
-            type="button"
-            className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-            onClick={() => setUpload(null)}
-          >
-            Remove
-          </button>
-        </div>
-      )}
-      <textarea
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        onKeyDown={onKey}
-        rows={2}
-        maxLength={8000}
-        placeholder="Ask anything, or tell it to add a to-do, reminder or event…"
-        className="block max-h-48 w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-slate-400"
-      />
-      <div className="mt-1 flex items-center justify-between gap-2">
-        <input
-          ref={fileInput}
-          type="file"
-          accept={ACCEPT}
-          className="hidden"
-          onChange={async (event) => {
-            const file = event.target.files?.[0];
-            event.target.value = "";
-            if (!file) return;
-            setError(null);
-            try {
-              setUpload({ name: file.name, data: await prepareUpload(file) });
-            } catch (failure) {
-              setError(errorText(failure));
-            }
-          }}
+    <Shake trigger={refused}>
+      <form
+        onSubmit={(event) => void submit(event)}
+        className={`rounded-2xl border bg-surface p-2 shadow-card transition-[border-color] duration-150 ease-out ${
+          error
+            ? "border-danger"
+            : "border-line-strong focus-within:border-accent"
+        }`}
+      >
+        {upload && (
+          // 8 px corners inside the box's 16 px with 8 px padding.
+          <div className="mb-2 flex animate-settle items-center gap-2 rounded-lg bg-sunken px-3 py-1.5 text-xs">
+            {upload.data.image ? (
+              <ImageIcon {...ICON} size={14} />
+            ) : (
+              <FileText {...ICON} size={14} />
+            )}
+            <span className="min-w-0 flex-1 truncate">{upload.name}</span>
+            <button
+              type="button"
+              aria-label="Remove attachment"
+              className="rounded p-0.5 text-muted transition-[transform,color] duration-150 ease-out hover:text-ink active:scale-[0.97]"
+              onClick={() => setUpload(null)}
+            >
+              <X {...ICON} size={14} />
+            </button>
+          </div>
+        )}
+        <textarea
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onKeyDown={onKey}
+          rows={2}
+          maxLength={8000}
+          placeholder="Ask anything, or tell it to add a to-do, reminder or event…"
+          className="block max-h-48 w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-faint"
         />
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => fileInput.current?.click()}
-          disabled={busy}
-        >
-          📎 Attach
-        </Button>
-        <Button type="submit" disabled={busy || (!text.trim() && !upload)}>
-          {busy ? "Answering…" : "Send"}
-        </Button>
-      </div>
-      {error && (
-        <div className="mt-2">
-          <Notice tone="error">{error}</Notice>
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <input
+            ref={fileInput}
+            type="file"
+            accept={ACCEPT}
+            className="hidden"
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (!file) return;
+              setError(null);
+              try {
+                setUpload({ name: file.name, data: await prepareUpload(file) });
+              } catch (failure) {
+                setError(errorText(failure));
+                setRefused((count) => count + 1);
+              }
+            }}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => fileInput.current?.click()}
+            disabled={busy}
+          >
+            <Paperclip {...ICON} />
+            Attach
+          </Button>
+          <Button type="submit" disabled={busy || (!text.trim() && !upload)}>
+            {busy ? "Answering…" : "Send"}
+            {!busy && <ArrowUp {...ICON} />}
+          </Button>
         </div>
-      )}
-    </form>
+        {error && (
+          <div className="mt-2">
+            <Notice tone="error">{error}</Notice>
+          </div>
+        )}
+      </form>
+    </Shake>
   );
 }
 
@@ -341,6 +387,22 @@ export function ChatPage({ path }: { path: string }) {
   const [pending, setPending] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
+  // Messages with ids above this arrived during this visit (they settle in).
+  const [loadedUpTo, setLoadedUpTo] = useState(Infinity);
+  // On a phone the list and a chat swap places: opening a chat slides it in
+  // from the right, Back brings the list in from the left.
+  const [previousId, setPreviousId] = useState(activeId);
+  const [slide, setSlide] = useState<"right" | "left" | null>(null);
+  if (previousId !== activeId) {
+    setPreviousId(activeId);
+    setSlide(
+      previousId === null && activeId !== null
+        ? "right"
+        : previousId !== null && activeId === null
+          ? "left"
+          : null,
+    );
+  }
   // A message typed before its chat existed, sent once the chat opens.
   const queued = useRef<{ text: string; upload: Upload | null } | null>(null);
 
@@ -373,6 +435,7 @@ export function ChatPage({ path }: { path: string }) {
         if (cancelled) return;
         setChat(result.chat);
         setMessages(result.messages);
+        setLoadedUpTo(Math.max(0, ...result.messages.map((m) => m.id)));
       })
       .catch((failure) => !cancelled && setLoadError(errorText(failure)));
     return () => {
@@ -484,7 +547,8 @@ export function ChatPage({ path }: { path: string }) {
   return (
     <div className="flex h-[calc(100dvh-7.5rem)] gap-6 md:h-[calc(100dvh-5rem)]">
       <aside
-        className={`w-full shrink-0 md:block md:w-64 ${activeId === null ? "block" : "hidden"}`}
+        key={activeId === null ? "list" : "list-hidden"}
+        className={`w-full shrink-0 md:block md:w-64 ${activeId === null ? "block" : "hidden"} ${slide === "left" ? "max-md:animate-slide-from-left" : ""}`}
       >
         <ChatList
           chats={chats}
@@ -496,58 +560,61 @@ export function ChatPage({ path }: { path: string }) {
       </aside>
 
       <section
-        className={`min-w-0 flex-1 flex-col ${activeId === null ? "hidden md:flex" : "flex"}`}
+        key={activeId ?? "none"}
+        className={`min-w-0 flex-1 flex-col ${activeId === null ? "hidden md:flex" : "flex"} ${slide === "right" ? "max-md:animate-slide-from-right" : ""}`}
       >
-        <header className="flex items-center gap-2 border-b border-slate-200 pb-3 dark:border-slate-800">
+        <header className="flex items-center gap-2 border-b border-line pb-3">
           {activeId !== null && (
             <button
               type="button"
-              className="text-sm text-indigo-600 md:hidden dark:text-indigo-400"
+              className="-ml-1 inline-flex items-center rounded-lg py-1 pr-2 text-sm font-medium text-accent-text transition-transform duration-150 ease-out active:scale-[0.97] md:hidden"
               onClick={() => navigate("/chat")}
             >
-              ‹ Chats
+              <ChevronLeft {...ICON} />
+              Chats
             </button>
           )}
           <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">
             {chat?.title ?? "New chat"}
           </h1>
           {chat && (
-            <div className="flex shrink-0 gap-1">
-              <Button
-                variant="ghost"
-                aria-label={chat.pinned ? "Unpin" : "Pin"}
-                onClick={() => void change({ pinned: !chat.pinned })}
-              >
-                <span aria-hidden className="sm:hidden">
-                  📌
-                </span>
-                <span className="hidden sm:inline">
-                  {chat.pinned ? "Unpin" : "Pin"}
-                </span>
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  const title = window.prompt("Rename chat", chat.title);
-                  if (title?.trim()) void change({ title: title.trim() });
-                }}
-                aria-label="Rename"
-              >
-                <span aria-hidden className="sm:hidden">
-                  ✏️
-                </span>
-                <span className="hidden sm:inline">Rename</span>
-              </Button>
-              <Button
-                variant="ghost"
-                aria-label="Delete"
-                onClick={() => void remove()}
-              >
-                <span aria-hidden className="sm:hidden">
-                  🗑️
-                </span>
-                <span className="hidden sm:inline">Delete</span>
-              </Button>
+            <div className="flex shrink-0 gap-0.5">
+              <Tooltip label={chat.pinned ? "Unpin" : "Pin"}>
+                <Button
+                  variant="ghost"
+                  aria-label={chat.pinned ? "Unpin" : "Pin"}
+                  onClick={() => void change({ pinned: !chat.pinned })}
+                >
+                  <SwapIcon
+                    show={chat.pinned ? "pinned" : "unpinned"}
+                    icons={{
+                      unpinned: <Pin {...ICON} />,
+                      pinned: <PinOff {...ICON} />,
+                    }}
+                  />
+                </Button>
+              </Tooltip>
+              <Tooltip label="Rename">
+                <Button
+                  variant="ghost"
+                  aria-label="Rename"
+                  onClick={() => {
+                    const title = window.prompt("Rename chat", chat.title);
+                    if (title?.trim()) void change({ title: title.trim() });
+                  }}
+                >
+                  <Pencil {...ICON} />
+                </Button>
+              </Tooltip>
+              <Tooltip label="Delete">
+                <Button
+                  variant="ghost"
+                  aria-label="Delete"
+                  onClick={() => void remove()}
+                >
+                  <Trash2 {...ICON} />
+                </Button>
+              </Tooltip>
             </div>
           )}
         </header>
@@ -555,9 +622,11 @@ export function ChatPage({ path }: { path: string }) {
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-4">
           {loadError && <Notice tone="error">{loadError}</Notice>}
           {activeId === null && (
-            <div className="mx-auto max-w-md pt-10 text-center text-sm text-slate-500 dark:text-slate-400">
-              <p className="text-2xl">💬</p>
-              <p className="mt-2 font-medium text-slate-700 dark:text-slate-200">
+            <div className="mx-auto max-w-md animate-settle pt-10 text-center text-sm text-muted">
+              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-accent-text">
+                <MessageSquare {...ICON} size={22} />
+              </span>
+              <p className="mt-3 font-semibold text-ink">
                 Ask the assistant anything
               </p>
               <p className="mt-1">
@@ -573,6 +642,7 @@ export function ChatPage({ path }: { path: string }) {
                 key={message.id}
                 chatId={chat.id}
                 message={message}
+                arriving={message.id > loadedUpTo}
                 onCards={(cards) =>
                   setMessages((current) =>
                     current.map((m) =>
@@ -583,23 +653,21 @@ export function ChatPage({ path }: { path: string }) {
               />
             ))}
           {pending && (
-            <div className="flex justify-end">
-              <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-indigo-600/70 px-4 py-2.5 text-sm text-white">
-                {pending}
-              </div>
+            <div className="flex origin-bottom-right animate-settle justify-end opacity-70">
+              <div className={USER_BUBBLE}>{pending}</div>
             </div>
           )}
           {draft && (
-            <div className="flex justify-start">
-              <div className="max-w-[92%] min-w-0 rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
-                <Markdown text={draft} />
+            <div className="flex origin-bottom-left animate-settle justify-start">
+              <div className={`${REPLY_BUBBLE} border-line bg-surface`}>
+                <div className="px-1">
+                  <Markdown text={draft} />
+                </div>
               </div>
             </div>
           )}
           {busy && status && !draft && (
-            <p className="animate-pulse text-sm text-slate-500 dark:text-slate-400">
-              {status}…
-            </p>
+            <p className="animate-pulse text-sm text-muted">{status}…</p>
           )}
           {sendError && <Notice tone="error">{sendError}</Notice>}
           <div ref={bottom} />
