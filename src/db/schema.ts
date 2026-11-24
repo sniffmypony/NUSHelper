@@ -422,3 +422,41 @@ export const webLoginLinks = pgTable("web_login_links", {
     .notNull()
     .defaultNow(),
 });
+
+// The website's saved AI chats. Uploaded photos and files are never stored;
+// a message only notes that one was sent.
+export const webChats = pgTable("web_chats", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull().default("New chat"),
+  pinned: boolean("pinned").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const webChatMessages = pgTable(
+  "web_chat_messages",
+  {
+    id: serial("id").primaryKey(),
+    chatId: integer("chat_id")
+      .notNull()
+      .references(() => webChats.id, { onDelete: "cascade" }),
+    role: text("role").notNull(), // "user" | "assistant"
+    content: text("content").notNull(),
+    // Tool output kept so follow-ups can resolve ids (as on Telegram).
+    toolContext: text("tool_context"),
+    // Confirm/Cancel and Undo cards (see src/web/chat-cards.ts).
+    cards: jsonb("cards").notNull().default([]),
+    // An error reply: shown, but not sent back to the model as history.
+    failed: boolean("failed").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    byChat: index("web_chat_messages_chat_idx").on(table.chatId, table.id),
+  }),
+);

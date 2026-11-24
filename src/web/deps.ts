@@ -13,6 +13,10 @@ import { consumeLoginToken, loginLinkStore } from "./login-links.js";
 import { calendarActions } from "./calendar-actions.js";
 import { settingsStore } from "../settings/store.js";
 import type { WebDependencies } from "./router.js";
+import { performDelete } from "../assistant/buttons.js";
+import { assistantErrorMessage } from "../assistant/handlers.js";
+import { webAssist } from "./chat-assistant.js";
+import { chatStore } from "./chat-store.js";
 
 let botUsername: Promise<string> | undefined;
 
@@ -79,6 +83,16 @@ export const webDependencies: WebDependencies = {
   importTimetable: (link) => importTimetable(link),
   consumeLoginToken: (token) => consumeLoginToken(loginLinkStore, token),
   calendar: calendarActions,
+  chat: {
+    store: chatStore,
+    assist: webAssist,
+    errorMessage: assistantErrorMessage,
+    cards: {
+      performDelete: (kind, id) => performDelete(kind, id, telegramOwnerId()),
+      addCalendarEvent: (line) => calendarActions.addEvent(line),
+      deleteCalendarEvent: (eventId) => calendarActions.deleteEvent(eventId),
+    },
+  },
 
   async settingsChanged() {
     forgetLoadedSettings();

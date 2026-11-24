@@ -26,10 +26,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           cookie: req.headers.cookie,
           csrfHeader: Array.isArray(header) ? header[0] : header,
           body: req.body,
+          search: typeof req.query.q === "string" ? req.query.q : undefined,
         },
         webDependencies,
       ),
   );
   if (response.setCookie) res.setHeader("Set-Cookie", response.setCookie);
+  if (response.stream) {
+    // A chat reply: one JSON event per line, sent as it happens.
+    res.status(200);
+    res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+    res.setHeader("X-Accel-Buffering", "no");
+    const emit = (event: unknown) => {
+      res.write(`${JSON.stringify(event)}\n`);
+    };
+    try {
+      await withVercelOidcToken(req.headers["x-vercel-oidc-token"], () =>
+        response.stream!(emit),
+      );
+    } catch (error) {
+      const type = error instanceof Error ? error.name : typeof error;
+      console.error(`Website chat failed (${type})`);
+      emit({ type: "error", error: "Something went wrong. Please try again." });
+    }
+    res.end();
+    return;
+  }
   return res.status(response.status).json(response.body);
 }

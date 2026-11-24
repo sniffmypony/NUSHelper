@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { api, type Me } from "./api";
 import { NAV, Shell } from "./components/Shell";
 import { navigate, usePath } from "./navigation";
@@ -6,6 +6,11 @@ import { CalendarPage } from "./pages/Calendar";
 import { LoginPage } from "./pages/Login";
 import { SettingsPage } from "./pages/Settings";
 import { SoonPage } from "./pages/Soon";
+
+// Chat brings Markdown and maths rendering; it's loaded only when opened.
+const ChatPage = lazy(() =>
+  import("./pages/Chat").then((module) => ({ default: module.ChatPage })),
+);
 
 export function App() {
   const path = usePath();
@@ -55,6 +60,10 @@ export function App() {
     <Shell path={path}>
       {page?.path === "/calendar" ? (
         <CalendarPage />
+      ) : page?.path === "/chat" ? (
+        <Suspense fallback={<p className="text-sm text-slate-400">Loading…</p>}>
+          <ChatPage path={path} />
+        </Suspense>
       ) : page?.path === "/settings" || !page ? (
         <SettingsPage me={me} onSessionChange={refresh} />
       ) : (
