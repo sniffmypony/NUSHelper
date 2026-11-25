@@ -5,6 +5,7 @@ import {
   keyMatches,
   newApplePayKey,
   parseApplePayAmount,
+  readSuppliedKey,
 } from "../src/apple-pay/payments.js";
 import {
   MAX_PAYMENTS_PER_DAY,
@@ -84,14 +85,58 @@ describe("reading the amount the phone sends", () => {
 });
 
 describe("the shortcut's key", () => {
+  const key = newApplePayKey();
+  const hash = hashApplePayKey(key);
+  const read = (headers: Record<string, string | undefined>) =>
+    readSuppliedKey(headers);
+
   it("matches only the key whose hash is stored", () => {
-    const key = newApplePayKey();
-    const hash = hashApplePayKey(key);
     expect(key).toMatch(/^ap_[\w-]{32}$/);
-    expect(keyMatches(`Bearer ${key}`, hash)).toBe(true);
-    expect(keyMatches(`Bearer ${key}x`, hash)).toBe(false);
-    expect(keyMatches(key, hash)).toBe(false);
-    expect(keyMatches(`Bearer ${key}`, undefined)).toBe(false);
+    expect(keyMatches(read({ authorization: `Bearer ${key}` }).key, hash)).toBe(
+      true,
+    );
+    expect(
+      keyMatches(read({ authorization: `Bearer ${key}x` }).key, hash),
+    ).toBe(false);
+    expect(
+      keyMatches(read({ authorization: `Bearer ${key}` }).key, undefined),
+    ).toBe(false);
+    expect(keyMatches(null, hash)).toBe(false);
+  });
+
+  it("forgives how a phone mangles it", () => {
+    for (const headers of [
+      { authorisation: `Bearer ${key}` },
+      { authorization: key },
+      { authorization: `bearer ${key}` },
+      { authorization: `Bearer\u00a0${key}` },
+      { authorization: `"Bearer ${key}"` },
+      { authorization: `Bearer ${key}\u200b` },
+      { "x-nushelper-key": key },
+    ]) {
+      const supplied = read(headers);
+      expect(keyMatches(supplied.key, hash), JSON.stringify(headers)).toBe(
+        true,
+      );
+      expect(supplied.looksRight).toBe(true);
+    }
+  });
+
+  it("says what arrived, without the key itself", () => {
+    expect(read({})).toEqual({
+      key: null,
+      header: null,
+      hadBearer: false,
+      length: 0,
+      looksRight: false,
+    });
+    const cut = read({ authorization: `Bearer ${key.slice(0, 20)}` });
+    expect(cut).toMatchObject({
+      header: "authorization",
+      hadBearer: true,
+      length: 20,
+      looksRight: false,
+    });
   });
 });
 

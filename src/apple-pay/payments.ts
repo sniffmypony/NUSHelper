@@ -132,16 +132,63 @@ export function hashApplePayKey(key: string): string {
   return createHash("sha256").update(key, "utf8").digest("hex");
 }
 
-// "Bearer <key>" checked against the stored hash, in constant time.
+export const KEY_FORMAT = /^ap_[A-Za-z0-9_-]{32}$/;
+
+// The headers the shortcut may put the key in. "Authorisation" is how a
+// British-English iPhone autocorrects "Authorization".
+const KEY_HEADERS = ["authorization", "authorisation", "x-nushelper-key"];
+
+export interface SuppliedKey {
+  key: string | null;
+  // For the diagnostic log; never the key itself.
+  header: string | null;
+  hadBearer: boolean;
+  length: number;
+  looksRight: boolean;
+}
+
+// The key from the request, forgiving the ways a phone mangles it: either
+// spelling of the header, with or without "Bearer ", any letter case for
+// "Bearer", surrounding quotes, and invisible or non-breaking spaces.
+export function readSuppliedKey(
+  headers: Record<string, string | string[] | undefined>,
+): SuppliedKey {
+  for (const name of KEY_HEADERS) {
+    const raw = headers[name];
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof value !== "string" || !value.trim()) continue;
+    let key = value
+      .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "")
+      .replace(/[\u00A0\u2000-\u200A\u202F\u3000]/g, " ")
+      .trim()
+      .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
+      .trim();
+    const hadBearer = /^bearer\b/i.test(key);
+    key = key.replace(/^bearer\s*:?\s*/i, "").trim();
+    return {
+      key,
+      header: name,
+      hadBearer,
+      length: key.length,
+      looksRight: KEY_FORMAT.test(key),
+    };
+  }
+  return {
+    key: null,
+    header: null,
+    hadBearer: false,
+    length: 0,
+    looksRight: false,
+  };
+}
+
+// The supplied key checked against the stored hash, in constant time.
 export function keyMatches(
-  authorization: string | undefined,
+  key: string | null,
   storedHash: string | undefined,
 ): boolean {
-  if (!storedHash || !authorization?.startsWith("Bearer ")) return false;
-  const supplied = Buffer.from(
-    hashApplePayKey(authorization.slice("Bearer ".length).trim()),
-    "hex",
-  );
+  if (!storedHash || !key) return false;
+  const supplied = Buffer.from(hashApplePayKey(key), "hex");
   const wanted = Buffer.from(storedHash, "hex");
   return supplied.length === wanted.length && timingSafeEqual(supplied, wanted);
 }

@@ -197,14 +197,15 @@ export function ApplePayCard({ fresh }: { fresh: boolean }) {
             <Step n={1}>
               <p>
                 Open <b>Shortcuts</b> → <b>Automation</b> → <b>+</b> →{" "}
-                <b>Transaction</b>.
+                <b>Wallet</b> (“When I tap a Wallet Card or Pass”; called{" "}
+                <b>Transaction</b> on older iOS).
               </p>
             </Step>
             <Step n={2}>
               <p>
                 Choose the cards you pay with, then <b>Run Immediately</b>, and
                 turn off <b>Notify When Run</b>. Tap <b>Next</b> →{" "}
-                <b>New Blank Automation</b>.
+                <b>Create New Shortcut</b>.
               </p>
             </Step>
             <Step n={3}>
