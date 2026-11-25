@@ -133,6 +133,20 @@ The same Vercel project serves a private website at the project's address (for e
 
 The site is built from `web/` (React, Vite, Tailwind) into `web/dist` by `pnpm --filter nushelper-web build`; its API is one function, `api/web.ts`. For local work run `vercel dev` and, in `web/`, `pnpm dev`.
 
+## Apple Pay
+
+Apple Pay taps can be counted as spending the moment they happen, without the bot seeing any card or bank details:
+
+1. On the website, **Settings → Apple Pay → Create key** (needs a recent sign-in). The key is shown once; only its SHA-256 hash is stored.
+2. On the iPhone, a Shortcuts **Transaction** automation (iOS 17+) runs **Get Contents of URL**: `POST /api/applepay` with `Authorization: Bearer <key>` and a JSON body `{ "amount": …, "merchant": …, "card": … }` from the trigger. Settings shows the steps.
+
+Each payment is added to that Singapore day's total at once (as an expenditure adjustment, so reports and the website include it), and the Expenditure topic gets a message with **Undo**:
+
+- **Other currencies:** the bot never guesses a rate. It asks for the S$ amount, and a plain amount sent within 30 minutes (or after **Enter S$ amount**) is used; **Skip** leaves it out.
+- **Repeats and limits:** the same amount, merchant and card within 2 minutes counts once, and at most 100 payments a day are accepted.
+- **Nightly check-in:** the 11:30pm message then shows the day's Apple Pay total and asks only for anything else (cash, online), with **That's all**. A day with no reply keeps its Apple Pay total (status `auto`) instead of S$0.
+- **What isn't seen:** only taps at a terminal trigger the automation. In-app and online Apple Pay, physical cards and some transit taps don't.
+
 ## Requirements
 
 | You need                                                   | Free?      | Required?         |

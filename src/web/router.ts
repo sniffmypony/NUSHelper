@@ -1,3 +1,8 @@
+import {
+  APPLE_PAY_KEY_SETTING,
+  hashApplePayKey,
+  newApplePayKey,
+} from "../apple-pay/payments.js";
 import { encryptSecret, lastFour } from "../settings/crypto.js";
 import {
   SESSION_VERSION_KEY,
@@ -339,6 +344,27 @@ export async function handleWebRequest(
       deps.calendar,
     );
     if (calendar) return json(calendar.status, calendar.body);
+
+    // The Apple Pay shortcut's key: made here, shown once, stored as a hash.
+    // Like the other keys, it needs a recent sign-in.
+    if (
+      route === "applepay/key" &&
+      (method === "POST" || method === "DELETE")
+    ) {
+      const stale = needFresh();
+      if (stale) return stale;
+      if (method === "POST") {
+        const key = newApplePayKey();
+        await deps.store.setValue(APPLE_PAY_KEY_SETTING, hashApplePayKey(key));
+        await deps.store.addAudit("applepay", "made a new key");
+        await deps.settingsChanged();
+        return json(200, { key });
+      }
+      await deps.store.clearValue(APPLE_PAY_KEY_SETTING);
+      await deps.store.addAudit("applepay", "turned off");
+      await deps.settingsChanged();
+      return json(200, { ok: true });
+    }
 
     const planner = await plannerRoute(
       method,

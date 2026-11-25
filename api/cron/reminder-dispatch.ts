@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { refreshSettings } from "../../src/settings/runtime.js";
+import { applePayStore } from "../../src/apple-pay/store.js";
 import { dispatchDueReminders } from "../../src/reminder-dispatcher.js";
 import { reminderStore } from "../../src/reminder-store.js";
 import { snoozeKeyboard } from "../../src/reminder-snooze.js";
@@ -89,6 +90,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ownerId,
       ownerId,
       now,
+      // The 11:30pm message shows the day's Apple Pay payments.
+      (date) => applePayStore.daySummary(date),
     );
   } catch (error) {
     expenditureError = true;

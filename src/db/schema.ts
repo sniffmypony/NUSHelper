@@ -466,3 +466,32 @@ export const webChatMessages = pgTable(
     byChat: index("web_chat_messages_chat_idx").on(table.chatId, table.id),
   }),
 );
+
+// Apple Pay payments from the owner's iPhone Shortcuts automation
+// (src/apple-pay). A counted payment is also an expenditure adjustment.
+export const applePayPayments = pgTable(
+  "apple_pay_payments",
+  {
+    id: serial("id").primaryKey(),
+    receivedAt: timestamp("received_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    spendDate: date("spend_date").notNull(),
+    amountCents: integer("amount_cents"),
+    amountText: text("amount_text").notNull(),
+    currency: text("currency").notNull(),
+    merchant: text("merchant").notNull().default(""),
+    card: text("card").notNull().default(""),
+    status: text("status").notNull().default("counted"),
+    sgdRequestedUntil: timestamp("sgd_requested_until", {
+      withTimezone: true,
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    byReceived: index("apple_pay_payments_received_idx").on(table.receivedAt),
+    byDay: index("apple_pay_payments_day_idx").on(table.spendDate),
+  }),
+);

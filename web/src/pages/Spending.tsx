@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { ChevronLeft, ChevronRight, CreditCard, Download } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { ICON } from "../components/icons";
@@ -24,11 +24,115 @@ interface SpendingMonth {
   highest: { date: string; cents: number } | null;
   weeks: Array<{ start: string; end: string; cents: number }>;
   previousTotalCents: number;
+  applePay: ApplePayPayment[];
+}
+
+interface ApplePayPayment {
+  id: number;
+  date: string;
+  time: string;
+  merchant: string;
+  card: string;
+  amountText: string;
+  cents: number | null;
+  status: string; // counted, undone, awaiting_sgd, skipped
+}
+
+const PAYMENT_STATUS: Record<string, string> = {
+  undone: "Undone",
+  awaiting_sgd: "Waiting for the S$ amount",
+  skipped: "Skipped",
+};
+
+// The day's Apple Pay payments, each with Undo while it counts.
+function DayPayments({
+  payments,
+  onChanged,
+}: {
+  payments: ApplePayPayment[];
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  if (payments.length === 0) return null;
+  return (
+    <div className="mt-3">
+      <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-text">
+        <CreditCard {...ICON} size={14} />
+        Apple Pay
+      </p>
+      <ul className="divide-y divide-line rounded-lg bg-surface">
+        {payments.map((payment) => {
+          const counted = payment.status === "counted";
+          return (
+            <li
+              key={payment.id}
+              className="flex items-center gap-3 px-3 py-2 text-sm"
+            >
+              <span className="w-11 shrink-0 tabular-nums text-muted">
+                {payment.time}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span
+                  className={
+                    counted || payment.status === "awaiting_sgd"
+                      ? "font-medium"
+                      : "text-muted line-through"
+                  }
+                >
+                  {payment.merchant || "Apple Pay"}
+                </span>
+                {payment.card && (
+                  <span className="ml-1.5 text-xs text-muted">
+                    {payment.card}
+                  </span>
+                )}
+                {!counted && (
+                  <span className="ml-1.5 text-xs text-muted">
+                    · {PAYMENT_STATUS[payment.status] ?? payment.status}
+                  </span>
+                )}
+              </span>
+              <span className="tabular-nums">
+                {payment.cents !== null
+                  ? formatMoney(payment.cents)
+                  : payment.amountText}
+              </span>
+              {counted && (
+                <Button
+                  variant="ghost"
+                  disabled={busy !== null}
+                  onClick={async () => {
+                    setBusy(payment.id);
+                    setError(null);
+                    try {
+                      await api(`applepay/${payment.id}/undo`, {
+                        method: "POST",
+                      });
+                      onChanged();
+                    } catch (failure) {
+                      setError(errorText(failure));
+                    } finally {
+                      setBusy(null);
+                    }
+                  }}
+                >
+                  Undo
+                </Button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {error && <Notice tone="error">{error}</Notice>}
+    </div>
+  );
 }
 
 const STATUS: Record<string, string> = {
   logged: "Logged",
   auto_zero: "No reply (S$0)",
+  auto: "Apple Pay only",
   pending: "Waiting",
 };
 
@@ -162,7 +266,15 @@ function DailyChart({
   );
 }
 
-function EditDay({ date, onChanged }: { date: string; onChanged: () => void }) {
+function EditDay({
+  date,
+  payments,
+  onChanged,
+}: {
+  date: string;
+  payments: ApplePayPayment[];
+  onChanged: () => void;
+}) {
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<{
@@ -214,6 +326,7 @@ function EditDay({ date, onChanged }: { date: string; onChanged: () => void }) {
         </Button>
       </Shake>
       {status && <Notice tone={status.tone}>{status.text}</Notice>}
+      <DayPayments payments={payments} onChanged={onChanged} />
     </div>
   );
 }
@@ -329,7 +442,12 @@ export function SpendingPage() {
                 )}
                 {editing && (
                   <div className="mt-4">
-                    <EditDay key={editing} date={editing} onChanged={load} />
+                    <EditDay
+                      key={editing}
+                      date={editing}
+                      payments={data.applePay.filter((p) => p.date === editing)}
+                      onChanged={load}
+                    />
                   </div>
                 )}
               </div>
@@ -392,6 +510,19 @@ export function SpendingPage() {
                         </td>
                         <td className="px-5 py-2 text-right font-medium tabular-nums">
                           {day.cents === null ? "—" : formatMoney(day.cents)}
+                          {(() => {
+                            const viaApplePay = data.applePay
+                              .filter(
+                                (p) =>
+                                  p.date === day.date && p.status === "counted",
+                              )
+                              .reduce((sum, p) => sum + (p.cents ?? 0), 0);
+                            return viaApplePay > 0 ? (
+                              <span className="block text-xs font-normal text-muted">
+                                {formatMoney(viaApplePay)} Apple Pay
+                              </span>
+                            ) : null;
+                          })()}
                         </td>
                         <td className="px-5 py-2 text-muted">
                           {day.status
