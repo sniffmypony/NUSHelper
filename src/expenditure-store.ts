@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, gte, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "./db/client.js";
 import {
   expenditureAdjustments,
@@ -242,9 +242,11 @@ export class ExpenditureStore {
         .onConflictDoNothing({ target: expenditureDays.spendDate });
       const updated = await tx
         .update(expenditureDays)
+        // With no reply the day keeps what Apple Pay recorded ("auto");
+        // without any it is S$0 ("auto_zero"). A pending day's total is only
+        // ever Apple Pay: anything typed marks it logged.
         .set({
-          status: "auto_zero",
-          totalCents: 0,
+          status: sql`case when ${expenditureDays.totalCents} > 0 then 'auto' else 'auto_zero' end`,
           autoZeroedAt: now,
           updatedAt: now,
         })
@@ -275,7 +277,7 @@ export class ExpenditureStore {
       .where(
         and(
           eq(expenditureDays.spendDate, spendDate),
-          eq(expenditureDays.status, "auto_zero"),
+          inArray(expenditureDays.status, ["auto_zero", "auto"]),
           sql`${expenditureDays.missingNoticeSentAt} is null`,
         ),
       )
@@ -507,6 +509,40 @@ export class ExpenditureStore {
           eq(expenditureReports.claimedRevision, revision),
         ),
       );
+  }
+
+  // "That's all" on the 11:30pm message: the day's total (Apple Pay so far)
+  // is final, and the open question is closed.
+  async finishDay(
+    spendDate: string,
+    ownerId: string,
+    now: Date,
+  ): Promise<{ totalCents: number } | null> {
+    return db.transaction(async (tx) => {
+      await tx
+        .insert(expenditureDays)
+        .values({ spendDate })
+        .onConflictDoNothing({ target: expenditureDays.spendDate });
+      const [day] = await tx
+        .update(expenditureDays)
+        .set({
+          status: "logged",
+          loggedAt: sql`coalesce(${expenditureDays.loggedAt}, ${now})`,
+          updatedAt: now,
+        })
+        .where(eq(expenditureDays.spendDate, spendDate))
+        .returning({ totalCents: expenditureDays.totalCents });
+      await tx
+        .delete(expenditureInputSessions)
+        .where(
+          and(
+            eq(expenditureInputSessions.ownerId, ownerId),
+            eq(expenditureInputSessions.spendDate, spendDate),
+            eq(expenditureInputSessions.mode, "initial"),
+          ),
+        );
+      return day ?? null;
+    });
   }
 
   async daysInRange(start: string, end: string): Promise<ExpenditureDay[]> {

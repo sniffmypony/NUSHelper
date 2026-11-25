@@ -13,6 +13,7 @@ function fakeStore(overrides: Record<string, unknown> = {}): ExpenditureStore {
     claimPrompt: vi.fn().mockResolvedValue(false),
     releasePrompt: vi.fn().mockResolvedValue(undefined),
     claimReports: vi.fn().mockResolvedValue([]),
+    daysInRange: vi.fn().mockResolvedValue([]),
     ...overrides,
   } as unknown as ExpenditureStore;
 }
@@ -45,6 +46,69 @@ describe("expenditure schedule", () => {
       "123",
       expect.any(Date),
       new Date("2026-10-31T23:00:00.000Z"),
+    );
+  });
+
+  it("asks only for the rest when Apple Pay has payments that day", async () => {
+    const store = fakeStore({ claimPrompt: vi.fn().mockResolvedValue(true) });
+    const send = vi.fn(async () => {});
+    const applePay = vi.fn(async () => ({ count: 3, cents: 2340 }));
+    await runExpenditureSchedule(
+      store,
+      send,
+      "123",
+      "123",
+      new Date("2026-10-31T15:30:00Z"),
+      applePay,
+    );
+    expect(applePay).toHaveBeenCalledWith("2026-10-31");
+    expect(send).toHaveBeenCalledWith(
+      "expenditure: Apple Pay today S$23.40 (3 payments). Anything else, like cash or online? Reply with the amounts, or tap That's all.",
+      {
+        chatId: "123",
+        replyMarkup: {
+          inline_keyboard: [
+            [{ text: "That's all", callback_data: "exp:done:2026-10-31" }],
+          ],
+        },
+      },
+    );
+  });
+
+  it("keeps the plain prompt on days without Apple Pay", async () => {
+    const store = fakeStore({ claimPrompt: vi.fn().mockResolvedValue(true) });
+    const send = vi.fn(async () => {});
+    await runExpenditureSchedule(
+      store,
+      send,
+      "123",
+      "123",
+      new Date("2026-10-31T15:30:00Z"),
+      async () => ({ count: 0, cents: 0 }),
+    );
+    expect(send).toHaveBeenCalledWith("expenditure:", { chatId: "123" });
+  });
+
+  it("says a day with no reply kept its Apple Pay total", async () => {
+    const store = fakeStore({
+      claimMissingNotice: vi.fn().mockResolvedValue(true),
+      daysInRange: vi
+        .fn()
+        .mockResolvedValue([
+          { spendDate: "2026-10-30", totalCents: 1840, status: "auto" },
+        ]),
+    });
+    const send = vi.fn(async () => {});
+    await runExpenditureSchedule(
+      store,
+      send,
+      "123",
+      "123",
+      new Date("2026-10-31T15:30:00Z"),
+    );
+    expect(send).toHaveBeenCalledWith(
+      "No reply for 30 October 2026; recorded S$18.40 from Apple Pay.",
+      expect.objectContaining({ chatId: "123" }),
     );
   });
 

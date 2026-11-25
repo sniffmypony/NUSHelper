@@ -11,6 +11,7 @@ import type {
   ExpenditureStore,
 } from "./expenditure-store.js";
 import type { SendTelegramMessageOptions } from "./telegram.js";
+import { nightlyPrompt, thatsAllKeyboard } from "./apple-pay/service.js";
 
 export type ExpenditureSender = (
   text: string,
@@ -99,12 +100,35 @@ export async function processCompletedExpenditureDay(
   await dispatchExpenditureReports(store, send, now);
 }
 
+// The day's Apple Pay payments, when Apple Pay is set up (src/apple-pay).
+export type ApplePaySummary = (
+  spendDate: string,
+) => Promise<{ count: number; cents: number }>;
+
+// The 11:30pm message and the 1am reminder. With Apple Pay payments that
+// day, they ask only for the rest and offer That's all.
+async function promptFor(
+  spendDate: string,
+  applePay: ApplePaySummary | undefined,
+): Promise<{
+  text: string;
+  replyMarkup?: ReturnType<typeof thatsAllKeyboard>;
+}> {
+  const summary = applePay ? await applePay(spendDate) : null;
+  if (!summary || summary.count === 0) return { text: "expenditure:" };
+  return {
+    text: nightlyPrompt(summary),
+    replyMarkup: thatsAllKeyboard(spendDate),
+  };
+}
+
 export async function runExpenditureSchedule(
   store: ExpenditureStore,
   send: ExpenditureSender,
   ownerId: string,
   chatId: string,
   now = new Date(),
+  applePay?: ApplePaySummary,
 ): Promise<{
   prompt: boolean;
   reminder: boolean;
@@ -140,7 +164,11 @@ export async function runExpenditureSchedule(
     );
     if (reminder) {
       try {
-        await send("expenditure:", { chatId });
+        const message = await promptFor(yesterday, applePay);
+        await send(message.text, {
+          chatId,
+          ...(message.replyMarkup ? { replyMarkup: message.replyMarkup } : {}),
+        });
       } catch (error) {
         await store.releaseReminder(yesterday);
         throw error;
@@ -152,8 +180,11 @@ export async function runExpenditureSchedule(
     missingNotice = await store.claimMissingNotice(yesterday, now);
     if (missingNotice) {
       try {
+        const [day] = await store.daysInRange(yesterday, yesterday);
         await send(
-          `No expenditure was logged for ${formatLongDate(yesterday)}; recorded S$0.00.`,
+          day?.status === "auto"
+            ? `No reply for ${formatLongDate(yesterday)}; recorded ${formatCurrency(day.totalCents)} from Apple Pay.`
+            : `No expenditure was logged for ${formatLongDate(yesterday)}; recorded S$0.00.`,
           { chatId, replyMarkup: expenditureKeyboard(yesterday) },
         );
       } catch (error) {
@@ -169,7 +200,11 @@ export async function runExpenditureSchedule(
     prompt = await store.claimPrompt(today, ownerId, chatId, now, expiresAt);
     if (prompt) {
       try {
-        await send("expenditure:", { chatId });
+        const message = await promptFor(today, applePay);
+        await send(message.text, {
+          chatId,
+          ...(message.replyMarkup ? { replyMarkup: message.replyMarkup } : {}),
+        });
       } catch (error) {
         await store.releasePrompt(today, ownerId);
         throw error;

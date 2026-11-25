@@ -19,6 +19,7 @@ interface TodayView {
     todayCents: number | null;
     weekCents: number;
     monthCents: number;
+    applePayCents: number;
   };
 }
 
@@ -159,7 +160,11 @@ export function TodayPage() {
               : formatMoney(data.spending.todayCents)
           }
           hint={
-            data.spending.todayCents === null ? "Not logged yet" : undefined
+            data.spending.todayCents === null
+              ? "Not logged yet"
+              : data.spending.applePayCents > 0
+                ? `${formatMoney(data.spending.applePayCents)} via Apple Pay`
+                : undefined
           }
         />
         <StatTile

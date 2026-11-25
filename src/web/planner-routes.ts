@@ -133,6 +133,16 @@ export async function plannerRoute(
     return result(await actions.syncFinals());
   }
 
+  if (method === "GET" && route === "applepay") {
+    return ok(await actions.applePayStatus());
+  }
+  const applePay = /^applepay\/(\d{1,10})\/undo$/.exec(route);
+  if (applePay && method === "POST") {
+    const paymentId = id(applePay[1]);
+    if (paymentId === null) return bad("Unknown payment.");
+    return result(await actions.undoApplePay(paymentId));
+  }
+
   if (method === "GET" && route === "deadlines") {
     return ok(await actions.deadlines());
   }

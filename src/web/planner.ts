@@ -19,7 +19,13 @@ const zone = { zone: SINGAPORE_TIME_ZONE };
 export type Result = { ok: boolean; message: string };
 
 export type ExportKind =
-  "spending" | "tasks" | "todos" | "reminders" | "repeating" | "chats";
+  | "spending"
+  | "tasks"
+  | "todos"
+  | "reminders"
+  | "repeating"
+  | "chats"
+  | "applepay";
 
 export const EXPORT_KINDS: ExportKind[] = [
   "spending",
@@ -28,6 +34,7 @@ export const EXPORT_KINDS: ExportKind[] = [
   "reminders",
   "repeating",
   "chats",
+  "applepay",
 ];
 
 // ---- Spending ---------------------------------------------------------
