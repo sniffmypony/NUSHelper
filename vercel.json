@@ -8,6 +8,9 @@
     },
     "api/web.ts": {
       "maxDuration": 300
+    },
+    "api/applepay.ts": {
+      "maxDuration": 15
     }
   },
   "rewrites": [

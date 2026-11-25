@@ -8,6 +8,7 @@ import {
   type SettingRow,
   type SettingsResponse,
 } from "../api";
+import { ApplePayCard } from "../components/ApplePayCard";
 import { ICON } from "../components/icons";
 import { Accordion, SwapIcon } from "../components/motion";
 import { ThemeSwitch } from "../components/ThemeSwitch";
@@ -35,6 +36,7 @@ const SETTING_LABELS: Record<string, string> = {
   CANVAS_API_TOKEN: "Canvas access token",
   timetable: "NUSMods timetable",
   session: "Sign-in",
+  applepay: "Apple Pay key",
 };
 
 function errorText(error: unknown): string {
@@ -688,6 +690,8 @@ export function SettingsPage({
         />
       </Card>
 
+      <ApplePayCard fresh={me.fresh} />
+
       <Card
         title="Data"
         description="Download what the bot keeps, as CSV files for Excel or Sheets."
@@ -701,6 +705,7 @@ export function SettingsPage({
               ["reminders", "Reminders"],
               ["repeating", "Repeating"],
               ["chats", "Chats"],
+              ["applepay", "Apple Pay"],
             ].map(([kind, label]) => (
               <a
                 key={kind}

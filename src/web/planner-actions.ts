@@ -1,4 +1,13 @@
 import { asc, eq } from "drizzle-orm";
+import { DateTime } from "luxon";
+import {
+  APPLE_PAY_KEY_SETTING,
+  describePayment,
+} from "../apple-pay/payments.js";
+import { undoPayment } from "../apple-pay/service.js";
+import { applePayStore, type ApplePayPayment } from "../apple-pay/store.js";
+import { SINGAPORE_TIME_ZONE } from "../dates.js";
+import { websiteUrl } from "./login-links.js";
 import * as bot from "../bot-actions.js";
 import { CanvasClient } from "../canvas/client.js";
 import { deadlineStore } from "../canvas/deadline-store.js";
@@ -14,7 +23,12 @@ import {
   webChatMessages,
   webChats,
 } from "../db/schema.js";
-import { canvasConfig, isCanvasConfigured, telegramOwnerId } from "../env.js";
+import {
+  canvasConfig,
+  isCanvasConfigured,
+  optionalEnv,
+  telegramOwnerId,
+} from "../env.js";
 import { expenditureStore } from "../expenditure-store.js";
 import { syncExamEvents, type Exam } from "../nus/exams.js";
 import {
@@ -54,7 +68,27 @@ export interface TodayView {
     todayCents: number | null;
     weekCents: number;
     monthCents: number;
+    // Today's counted Apple Pay payments.
+    applePayCents: number;
   };
+}
+
+export interface ApplePayView {
+  id: number;
+  date: string;
+  time: string; // HH:mm, Singapore
+  merchant: string;
+  card: string;
+  amountText: string;
+  cents: number | null;
+  status: string; // counted, undone, awaiting_sgd, skipped
+}
+
+export interface ApplePayStatus {
+  enabled: boolean;
+  // Where the shortcut sends payments.
+  endpoint: string | null;
+  latest: { receivedAt: string; text: string; status: string } | null;
 }
 
 export interface TasksView {
@@ -103,7 +137,11 @@ export interface PlannerActions {
   finishTodo(id: number): Promise<Result>;
   addRepeating(when: string, description: string): Promise<Result>;
   deleteRepeating(id: number): Promise<Result>;
-  spending(month: string): Promise<SpendingMonth>;
+  spending(
+    month: string,
+  ): Promise<SpendingMonth & { applePay: ApplePayView[] }>;
+  applePayStatus(): Promise<ApplePayStatus>;
+  undoApplePay(id: number): Promise<Result>;
   timetable(): Promise<TimetableView>;
   finals(): Promise<{ label: string | null; finals: FinalView[] }>;
   syncFinals(): Promise<Result>;
@@ -117,6 +155,21 @@ export interface PlannerActions {
 // Submission checks ask Canvas once per deadline, so only the next two
 // weeks, and at most this many.
 const MAX_SUBMISSION_CHECKS = 15;
+
+function paymentView(row: ApplePayPayment): ApplePayView {
+  return {
+    id: row.id,
+    date: row.spendDate,
+    time: DateTime.fromJSDate(row.receivedAt)
+      .setZone(SINGAPORE_TIME_ZONE)
+      .toFormat("HH:mm"),
+    merchant: row.merchant,
+    card: row.card,
+    amountText: row.amountText,
+    cents: row.amountCents,
+    status: row.status,
+  };
+}
 
 const clock = (hhmm: string) => `${hhmm.slice(0, 2)}:${hhmm.slice(2, 4)}`;
 const sum = (rows: Array<{ totalCents: number }>) =>
@@ -180,6 +233,7 @@ export const plannerActions: PlannerActions = {
       date,
     );
     const todayRow = month.find((row) => row.spendDate === date);
+    const applePay = await applePayStore.daySummary(date);
     return {
       date,
       week: acadWeekLabel(date),
@@ -189,6 +243,7 @@ export const plannerActions: PlannerActions = {
         todayCents: todayRow ? todayRow.totalCents : null,
         weekCents: sum(week),
         monthCents: sum(month),
+        applePayCents: applePay.cents,
       },
     };
   },
@@ -273,7 +328,35 @@ export const plannerActions: PlannerActions = {
       before.start,
       before.end,
     );
-    return spendingMonth(month, rows, previous, todayInSingapore());
+    const payments = await applePayStore.inRange(start, end);
+    return {
+      ...spendingMonth(month, rows, previous, todayInSingapore()),
+      applePay: payments.map(paymentView),
+    };
+  },
+
+  async applePayStatus() {
+    const latest = await applePayStore.latest();
+    const base = websiteUrl();
+    return {
+      enabled: Boolean(optionalEnv(APPLE_PAY_KEY_SETTING)),
+      endpoint: base ? `${base}/api/applepay` : null,
+      latest: latest
+        ? {
+            receivedAt: latest.receivedAt.toISOString(),
+            text: describePayment(latest),
+            status: latest.status,
+          }
+        : null,
+    };
+  },
+
+  async undoApplePay(id) {
+    const message = await undoPayment(applePayStore, id, telegramOwnerId());
+    return {
+      ok: message.startsWith("Undone"),
+      message: message.split("\n")[0],
+    };
   },
 
   async timetable() {
@@ -440,6 +523,33 @@ export const plannerActions: PlannerActions = {
               rule ? describeRule(rule) : row.rule,
             ];
           }),
+        );
+      }
+      case "applepay": {
+        const rows = await applePayStore.inRange("2000-01-01", "2100-12-31");
+        return toCsv(
+          [
+            "id",
+            "date",
+            "received_at",
+            "amount_sgd",
+            "amount_as_sent",
+            "merchant",
+            "card",
+            "status",
+          ],
+          rows.map((row) => [
+            row.id,
+            row.spendDate,
+            row.receivedAt.toISOString(),
+            row.amountCents === null
+              ? null
+              : (row.amountCents / 100).toFixed(2),
+            row.amountText,
+            row.merchant,
+            row.card,
+            row.status,
+          ]),
         );
       }
       case "chats": {

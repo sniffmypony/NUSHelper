@@ -289,6 +289,9 @@ function breakdownLine(date: string, day: ExpenditureDay | undefined): string {
   if (day?.status === "auto_zero") {
     return `${label}: ${formatCurrency(day.totalCents)} (nothing logged)`;
   }
+  if (day?.status === "auto") {
+    return `${label}: ${formatCurrency(day.totalCents)} (Apple Pay only)`;
+  }
   return `${label}: no entry`;
 }
 

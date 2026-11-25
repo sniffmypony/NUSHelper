@@ -35,6 +35,7 @@ import {
   websiteUrl,
 } from "./web/login-links.js";
 import { registerReminderSnooze } from "./reminder-snooze.js";
+import { registerApplePayHandlers } from "./apple-pay/telegram.js";
 import { isPrivateOwner } from "./security.js";
 import { registerTaskPicker } from "./task-picker.js";
 import {
@@ -150,6 +151,10 @@ async function applyExpenditure(
   }
   return confirmation;
 }
+
+// A plain amount while a foreign Apple Pay payment waits for its S$ amount
+// is that amount; registered first so the expenditure handler doesn't take it.
+registerApplePayHandlers(bot, ownerIdValue);
 
 // An active expenditure session consumes numeric-style replies. Outside one, a
 // message of only amounts (e.g. "5 7 13.2") is added to today's total, the
@@ -430,6 +435,33 @@ bot.action(/^morning:done:(\d{4}-\d{2}-\d{2})$/, async (ctx) => {
       chatId: OWNER_ID,
       threadId: threadIdOf(ctx),
     });
+  }
+});
+
+// "That's all" on the 11:30pm message: Apple Pay's total for the day is
+// final, nothing else to add.
+bot.action(/^exp:done:(\d{4}-\d{2}-\d{2})$/, async (ctx) => {
+  const spendDate = ctx.match[1];
+  await ctx.answerCbQuery();
+  if (!isValidIsoDate(spendDate)) return;
+  const now = new Date();
+  const day = await expenditureStore.finishDay(spendDate, ownerIdValue, now);
+  try {
+    await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
+  } catch {
+    // A retried callback may arrive after the button was already removed.
+  }
+  if (!day) return;
+  await ctx.reply(expenditureConfirmation(spendDate, day.totalCents), {
+    reply_markup: expenditureKeyboard(spendDate),
+  });
+  if (shouldSendReportsNow(spendDate, now)) {
+    await processCompletedExpenditureDay(
+      spendDate,
+      sendTo("expenditure"),
+      expenditureStore,
+      now,
+    );
   }
 });
 

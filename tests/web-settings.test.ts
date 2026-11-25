@@ -1,5 +1,6 @@
 import { createHash, createHmac } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { hashApplePayKey } from "../src/apple-pay/payments.js";
 
 vi.mock("../src/db/client.js", () => ({ db: {} }));
 
@@ -365,6 +366,30 @@ describe("website API", () => {
     expect(saved.lastFour).toBe("4321");
     expect(saved.ciphertext).not.toContain("soclaas");
     expect(decryptSecret(saved.ciphertext, TOKEN)).toBe("new-soclaas-key-4321");
+  });
+
+  it("makes the Apple Pay key only after a fresh sign-in, and keeps only its hash", async () => {
+    const { call, cookieFor, store, deps } = setup();
+    const make = (cookie: string) =>
+      call({ method: "POST", route: "applepay/key", cookie });
+    expect((await make(cookieFor(NOW - 11 * 60, NOW - 11 * 60))).status).toBe(
+      401,
+    );
+    const made = await make(cookieFor());
+    expect(made.status).toBe(200);
+    const key = (made.body as { key: string }).key;
+    expect(key).toMatch(/^ap_/);
+    const stored = store.valueRows.get("APPLE_PAY_KEY_HASH")!.value;
+    expect(stored).toBe(hashApplePayKey(key));
+    expect(stored).not.toContain(key);
+    expect(deps.settingsChanged).toHaveBeenCalled();
+    const off = await call({
+      method: "DELETE",
+      route: "applepay/key",
+      cookie: cookieFor(),
+    });
+    expect(off.status).toBe(200);
+    expect(store.valueRows.has("APPLE_PAY_KEY_HASH")).toBe(false);
   });
 
   it("signs out every session", async () => {
