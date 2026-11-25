@@ -143,7 +143,7 @@ async function expandShortLink(
   }
 }
 
-async function fetchModuleTerm(
+export async function fetchModuleTerm(
   acadYear: string,
   moduleCode: string,
   semester: number,

@@ -18,14 +18,14 @@ import { SwapIcon } from "./motion";
 import { ThemeButton, ThemeSwitch } from "./ThemeSwitch";
 
 export const NAV = [
-  { path: "/today", label: "Today", icon: Sun, ready: false },
-  { path: "/calendar", label: "Calendar", icon: CalendarDays, ready: true },
-  { path: "/chat", label: "Chat", icon: MessageSquare, ready: true },
-  { path: "/tasks", label: "Tasks", icon: ListChecks, ready: false },
-  { path: "/spending", label: "Spending", icon: Wallet, ready: false },
-  { path: "/timetable", label: "Timetable", icon: GraduationCap, ready: false },
-  { path: "/deadlines", label: "Deadlines", icon: Flag, ready: false },
-  { path: "/settings", label: "Settings", icon: Settings, ready: true },
+  { path: "/today", label: "Today", icon: Sun },
+  { path: "/calendar", label: "Calendar", icon: CalendarDays },
+  { path: "/chat", label: "Chat", icon: MessageSquare },
+  { path: "/tasks", label: "Tasks", icon: ListChecks },
+  { path: "/spending", label: "Spending", icon: Wallet },
+  { path: "/timetable", label: "Timetable", icon: GraduationCap },
+  { path: "/deadlines", label: "Deadlines", icon: Flag },
+  { path: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 function NavItems({ path, onPick }: { path: string; onPick: () => void }) {
@@ -54,11 +54,6 @@ function NavItems({ path, onPick }: { path: string; onPick: () => void }) {
           >
             <Icon {...ICON} className={active ? "text-accent" : ""} />
             <span className="flex-1">{item.label}</span>
-            {!item.ready && (
-              <span className="rounded bg-nav-hover px-1.5 text-[10px] font-semibold uppercase tracking-wide text-nav-muted">
-                Soon
-              </span>
-            )}
           </a>
         );
       })}

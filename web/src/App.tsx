@@ -3,9 +3,13 @@ import { api, type Me } from "./api";
 import { NAV, Shell } from "./components/Shell";
 import { navigate, usePath } from "./navigation";
 import { CalendarPage } from "./pages/Calendar";
+import { DeadlinesPage } from "./pages/Deadlines";
 import { LoginPage } from "./pages/Login";
 import { SettingsPage } from "./pages/Settings";
-import { SoonPage } from "./pages/Soon";
+import { SpendingPage } from "./pages/Spending";
+import { TasksPage } from "./pages/Tasks";
+import { TimetablePage } from "./pages/Timetable";
+import { TodayPage } from "./pages/Today";
 
 // Chat brings Markdown and maths rendering; it's loaded only when opened.
 const ChatPage = lazy(() =>
@@ -38,7 +42,7 @@ export function App() {
     if (!token) return;
     api("auth/link", { method: "POST", body: { token } })
       .then(() => {
-        navigate("/calendar");
+        navigate("/today");
         refresh();
       })
       .catch((failure: Error) => setLinkError(failure.message));
@@ -46,7 +50,7 @@ export function App() {
 
   useEffect(() => {
     if (me?.authenticated && ["/", "", "/login"].includes(path)) {
-      navigate("/calendar");
+      navigate("/today");
     }
   }, [me, path]);
 
@@ -58,16 +62,26 @@ export function App() {
   const page = NAV.find((item) => path.startsWith(item.path));
   return (
     <Shell path={path}>
-      {page?.path === "/calendar" ? (
+      {page?.path === "/today" ? (
+        <TodayPage />
+      ) : page?.path === "/tasks" ? (
+        <TasksPage />
+      ) : page?.path === "/spending" ? (
+        <SpendingPage />
+      ) : page?.path === "/timetable" ? (
+        <TimetablePage />
+      ) : page?.path === "/deadlines" ? (
+        <DeadlinesPage />
+      ) : page?.path === "/calendar" ? (
         <CalendarPage />
       ) : page?.path === "/chat" ? (
         <Suspense fallback={<p className="text-sm text-faint">Loading…</p>}>
           <ChatPage path={path} />
         </Suspense>
-      ) : page?.path === "/settings" || !page ? (
+      ) : page?.path === "/settings" ? (
         <SettingsPage me={me} onSessionChange={refresh} />
       ) : (
-        <SoonPage label={page.label} />
+        <TodayPage />
       )}
     </Shell>
   );
