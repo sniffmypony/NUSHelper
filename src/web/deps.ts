@@ -17,6 +17,7 @@ import { performDelete } from "../assistant/buttons.js";
 import { assistantErrorMessage } from "../assistant/handlers.js";
 import { webAssist } from "./chat-assistant.js";
 import { chatStore } from "./chat-store.js";
+import { plannerActions } from "./planner-actions.js";
 
 let botUsername: Promise<string> | undefined;
 
@@ -85,6 +86,7 @@ export const webDependencies: WebDependencies = {
   importTimetable: (link) => importTimetable(link),
   consumeLoginToken: (token) => consumeLoginToken(loginLinkStore, token),
   calendar: calendarActions,
+  planner: plannerActions,
   chat: {
     store: chatStore,
     assist: webAssist,

@@ -1,4 +1,4 @@
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Download } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   api,
@@ -21,6 +21,8 @@ import {
   SourceBadge,
   formatDate,
 } from "../components/ui";
+import { useRefusals } from "../components/page";
+import { navigate } from "../navigation";
 import { SignIn } from "./Login";
 
 type Status = { tone: "ok" | "error" | "info"; text: string } | null;
@@ -37,18 +39,6 @@ const SETTING_LABELS: Record<string, string> = {
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong.";
-}
-
-// Counts refusals (each new error status), so the field shakes once per
-// refusal, like a head shake (web/DESIGN.md §1).
-function useRefusals(status: Status): number {
-  const [count, setCount] = useState(0);
-  const [seen, setSeen] = useState<Status>(null);
-  if (status !== seen) {
-    setSeen(status);
-    if (status?.tone === "error") setCount(count + 1);
-  }
-  return count;
 }
 
 function ModelRow({
@@ -503,83 +493,6 @@ function CalendarCard({
   );
 }
 
-function TimetableCard() {
-  const [current, setCurrent] = useState<string | null>(null);
-  const [link, setLink] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<Status>(null);
-  const refusals = useRefusals(result);
-
-  const load = useCallback(() => {
-    api<{ text: string }>("timetable")
-      .then((data) => setCurrent(data.text))
-      .catch((error) => setCurrent(errorText(error)));
-  }, []);
-  useEffect(load, [load]);
-
-  return (
-    <Card
-      title="NUSMods timetable"
-      description="Classes in the 8am message and /classes, and finals on Google Calendar."
-    >
-      <Row label="Update" help="NUSMods → Share/Sync → copy link.">
-        <form
-          className="flex flex-wrap gap-2"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            setBusy(true);
-            setResult(null);
-            try {
-              const data = await api<{ text: string }>("timetable", {
-                method: "POST",
-                body: { link },
-              });
-              const saved = data.text.startsWith("Saved");
-              setResult({ tone: saved ? "ok" : "error", text: data.text });
-              if (saved) {
-                setLink("");
-                load();
-              }
-            } catch (error) {
-              setResult({ tone: "error", text: errorText(error) });
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          <Input
-            value={link}
-            onChange={(event) => setLink(event.target.value)}
-            placeholder="https://nusmods.com/timetable/sem-2/share?…"
-            shake={refusals}
-            invalid={result?.tone === "error"}
-            className="w-full sm:w-auto sm:min-w-0 sm:flex-1"
-          />
-          <Button type="submit" disabled={busy || !link}>
-            {busy ? "Saving…" : "Save timetable"}
-          </Button>
-        </form>
-        {result && (
-          <pre
-            className={`mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg p-3 text-xs ${
-              result.tone === "ok"
-                ? "bg-ok-soft text-ok"
-                : "bg-danger-soft text-danger"
-            }`}
-          >
-            {result.text}
-          </pre>
-        )}
-      </Row>
-      <Row label="Saved now">
-        <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-lg bg-sunken p-3 text-xs text-muted">
-          {current ?? "Loading…"}
-        </pre>
-      </Row>
-    </Card>
-  );
-}
-
 function SecurityCard({ onSessionChange }: { onSessionChange: () => void }) {
   const [entries, setEntries] = useState<AuditEntry[] | null>(null);
   useEffect(() => {
@@ -756,7 +669,16 @@ export function SettingsPage({
         setting={setting("GOOGLE_CALENDAR_ID")}
         onSaved={load}
       />
-      <TimetableCard />
+      <Card title="NUSMods timetable">
+        <Row
+          label="Timetable"
+          help="Your classes and finals, and the NUSMods link."
+        >
+          <Button variant="secondary" onClick={() => navigate("/timetable")}>
+            Open Timetable
+          </Button>
+        </Row>
+      </Card>
 
       <Card title="Profile">
         <TextSettingRow
@@ -764,6 +686,33 @@ export function SettingsPage({
           onSaved={load}
           placeholder="2025"
         />
+      </Card>
+
+      <Card
+        title="Data"
+        description="Download what the bot keeps, as CSV files for Excel or Sheets."
+      >
+        <Row label="Download" help="Each file is made when you click it.">
+          <div className="flex flex-wrap gap-2">
+            {[
+              ["spending", "Spending"],
+              ["tasks", "Tasks"],
+              ["todos", "To-dos"],
+              ["reminders", "Reminders"],
+              ["repeating", "Repeating"],
+              ["chats", "Chats"],
+            ].map(([kind, label]) => (
+              <a
+                key={kind}
+                href={`/api/web/export/${kind}.csv`}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-brand-text transition-[transform,background-color] duration-150 ease-out hover:bg-brand-soft active:scale-[0.97] motion-reduce:active:scale-100"
+              >
+                <Download {...ICON} />
+                {label}
+              </a>
+            ))}
+          </div>
+        </Row>
       </Card>
 
       <SecurityCard onSessionChange={onSessionChange} />
