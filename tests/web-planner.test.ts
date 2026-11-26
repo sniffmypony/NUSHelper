@@ -144,6 +144,9 @@ describe("planner routes", () => {
       deadlines: vi.fn(),
       submissions: vi.fn(async () => []),
       exportCsv: vi.fn(async () => "a,b\r\n"),
+      bankEmailStatus: vi.fn(async () => ({ enabled: false })),
+      countPayment: vi.fn(async () => done),
+      skipPayment: vi.fn(async () => done),
     } as unknown as PlannerActions & Record<string, ReturnType<typeof vi.fn>>;
   }
 
@@ -184,6 +187,26 @@ describe("planner routes", () => {
     expect(a.deleteTask).toHaveBeenCalledWith(7);
     expect(a.finishTodo).toHaveBeenCalledWith(3);
     expect(a.deleteRepeating).toHaveBeenCalledWith(2);
+  });
+
+  it("counts or skips a waiting bank payment by id", async () => {
+    const a = actions();
+    expect(
+      (await plannerRoute("POST", "payments/4/count", undefined, a))?.status,
+    ).toBe(200);
+    await plannerRoute("POST", "payments/5/skip", undefined, a);
+    expect(a.countPayment).toHaveBeenCalledWith(4);
+    expect(a.skipPayment).toHaveBeenCalledWith(5);
+    expect(
+      (await plannerRoute("POST", "payments/0/count", undefined, a))?.status,
+    ).toBe(400);
+    expect(
+      await plannerRoute("POST", "payments/4/steal", undefined, a),
+    ).toBeNull();
+    expect(await plannerRoute("GET", "bankemail", undefined, a)).toEqual({
+      status: 200,
+      body: { enabled: false },
+    });
   });
 
   it("only reads real months of spending", async () => {

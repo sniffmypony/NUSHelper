@@ -486,6 +486,13 @@ export const applePayPayments = pgTable(
     sgdRequestedUntil: timestamp("sgd_requested_until", {
       withTimezone: true,
     }),
+    // "applepay" or "email" (DBS alert emails, src/bank-email).
+    source: text("source").notNull().default("applepay"),
+    // e.g. "PayLah! Scan & Pay", "PayNow" (bank emails).
+    kind: text("kind").notNull().default(""),
+    // The bank's reference (or Gmail message id): one row per transaction.
+    externalRef: text("external_ref"),
+    readByAi: boolean("read_by_ai").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

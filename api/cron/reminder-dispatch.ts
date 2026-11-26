@@ -91,7 +91,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ownerId,
       now,
       // The 11:30pm message shows the day's Apple Pay payments.
-      (date) => applePayStore.daySummary(date),
+      async (date) => {
+        // One query after the other (single database connection).
+        const day = await applePayStore.daySummary(date);
+        const waiting = await applePayStore.waitingCount();
+        return { ...day, waiting };
+      },
     );
   } catch (error) {
     expenditureError = true;

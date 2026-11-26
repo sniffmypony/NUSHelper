@@ -136,6 +136,19 @@ export async function plannerRoute(
   if (method === "GET" && route === "applepay") {
     return ok(await actions.applePayStatus());
   }
+  if (method === "GET" && route === "bankemail") {
+    return ok(await actions.bankEmailStatus());
+  }
+  const payment = /^payments\/(\d{1,10})\/(count|skip)$/.exec(route);
+  if (payment && method === "POST") {
+    const paymentId = id(payment[1]);
+    if (paymentId === null) return bad("Unknown payment.");
+    return result(
+      payment[2] === "count"
+        ? await actions.countPayment(paymentId)
+        : await actions.skipPayment(paymentId),
+    );
+  }
   const applePay = /^applepay\/(\d{1,10})\/undo$/.exec(route);
   if (applePay && method === "POST") {
     const paymentId = id(applePay[1]);

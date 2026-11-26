@@ -5,6 +5,7 @@ import { acknowledge, callbackId, setButtons } from "../telegram-buttons.js";
 import {
   applySgdReply,
   askForSgd,
+  countPayment,
   skipPayment,
   undoPayment,
 } from "./service.js";
@@ -30,13 +31,19 @@ export function registerApplePayHandlers(bot: Telegraf, ownerId: string): void {
     await ctx.reply(reply);
   });
 
-  bot.action(/^ap:(undo|skip|sgd):(\d{1,10})$/, async (ctx) => {
+  bot.action(/^ap:(undo|skip|sgd|ok):(\d{1,10})$/, async (ctx) => {
     await acknowledge(ctx);
     const [, verb, rawId] = ctx.match;
     const id = callbackId(rawId);
     if (id === null) return;
     if (verb === "undo") {
       const text = await undoPayment(applePayStore, id, ownerId);
+      await setButtons(ctx, []);
+      await ctx.reply(text);
+      return;
+    }
+    if (verb === "ok") {
+      const text = await countPayment(applePayStore, id, ownerId);
       await setButtons(ctx, []);
       await ctx.reply(text);
       return;

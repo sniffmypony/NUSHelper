@@ -147,6 +147,21 @@ Each payment is added to that Singapore day's total at once (as an expenditure a
 - **Nightly check-in:** the 11:30pm message then shows the day's Apple Pay total and asks only for anything else (cash, online), with **That's all**. A day with no reply keeps its Apple Pay total (status `auto`) instead of S$0.
 - **What isn't seen:** only taps at a terminal trigger the automation. In-app and online Apple Pay, physical cards and some transit taps don't.
 
+## Bank emails (DBS PayLah! and digibank)
+
+DBS alert emails about money leaving your account become questions on Telegram, so PayLah! and PayNow spending isn't missed. The bot never gets Gmail access: a Google Apps Script in your own account sends it only these emails.
+
+1. On the website, **Settings → Bank emails → Create key** (needs a recent sign-in). Only the key's SHA-256 hash is stored.
+2. Settings shows a script to paste into a new project at script.google.com, with the key as the script property `NUSHELPER_KEY`. Running `setup` once notes the emails already there and starts a check every minute.
+3. The script searches `from:(paylah.alert@dbs.com OR ibanking.alert@dbs.com) newer_than:2d` and POSTs each new email to `/api/bank-email` with `Authorization: Bearer <key>`: the id, sender, subject, date, plain text and Gmail's `Authentication-Results` header.
+
+What the bot does with each email:
+
+- **Checks DBS sent it:** Gmail's DKIM or DMARC result must pass for `dbs.com` or `dbs.com.sg`. Otherwise it's ignored and you're warned on Telegram.
+- **Reads it:** PayLah! Scan & Pay, PayLah! PayNow and digibank PayNow alerts are read by a parser. Money received is ignored. Anything else goes to the AI, which treats the email as data and returns only checked JSON; such messages say "Read by AI". An email it can't read gets a Telegram note.
+- **Asks first:** the Expenditure topic gets the payment with **Count it**, **Skip** and **Edit amount**. Nothing is counted until you answer. Foreign currency asks for the S$ amount. The Spending page lists waiting payments with the same choices, and the 11:30pm check-in mentions any still waiting.
+- **Once only:** each Gmail message, and each DBS transaction reference, is handled once.
+
 ## Requirements
 
 | You need                                                   | Free?      | Required?         |
@@ -250,6 +265,7 @@ Vercel cron runs in UTC; Singapore is UTC+8.
 - **Your AI provider sees what you send the assistant**, including photos. Canvas file names and deadlines it looks up are sent to it too.
 - **NUSMods sees the module codes** in a timetable link when you save it; the lookup uses its public API and sends nothing else.
 - **Secrets** live only in Vercel environment variables and are never logged.
+- **Bank emails:** only DBS alert emails leave Gmail, sent by your own Apps Script. Your AI provider sees an email only when its format isn't recognised.
 
 ## Development
 
