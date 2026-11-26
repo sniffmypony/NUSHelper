@@ -35,63 +35,108 @@ interface ApplePayPayment {
   card: string;
   amountText: string;
   cents: number | null;
-  status: string; // counted, undone, awaiting_sgd, skipped
+  // counted, undone, awaiting_sgd, awaiting_ok, skipped
+  status: string;
+  source: "applepay" | "email";
+  // For bank emails: "PayLah! Scan & Pay", "PayNow", ...
+  kind: string;
+  readByAi: boolean;
 }
 
 const PAYMENT_STATUS: Record<string, string> = {
   undone: "Undone",
   awaiting_sgd: "Waiting for the S$ amount",
+  awaiting_ok: "Waiting for your answer",
   skipped: "Skipped",
 };
 
-// The day's Apple Pay payments, each with Undo while it counts.
-function DayPayments({
+const isWaiting = (payment: ApplePayPayment) =>
+  payment.status === "awaiting_ok" || payment.status === "awaiting_sgd";
+
+// Payments recorded automatically (Apple Pay, bank emails): Undo while one
+// counts; Count it or Skip while a bank payment waits for an answer.
+function PaymentList({
+  title,
   payments,
   onChanged,
+  showDate = false,
 }: {
+  title?: string;
   payments: ApplePayPayment[];
   onChanged: () => void;
+  // The waiting list across the month: the date goes under the name.
+  showDate?: boolean;
 }) {
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   if (payments.length === 0) return null;
+
+  const act = async (payment: ApplePayPayment, path: string) => {
+    setBusy(payment.id);
+    setError(null);
+    try {
+      await api(path, { method: "POST" });
+      onChanged();
+    } catch (failure) {
+      setError(errorText(failure));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
-    <div className="mt-3">
-      <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-text">
-        <CreditCard {...ICON} size={14} />
-        Apple Pay
-      </p>
+    <div>
+      {title && (
+        <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-text">
+          <CreditCard {...ICON} size={14} />
+          {title}
+        </p>
+      )}
       <ul className="divide-y divide-line rounded-lg bg-surface">
         {payments.map((payment) => {
           const counted = payment.status === "counted";
+          const waiting = isWaiting(payment);
+          const via =
+            payment.source === "email"
+              ? payment.kind || "Bank email"
+              : "Apple Pay";
           return (
             <li
               key={payment.id}
-              className="flex items-center gap-3 px-3 py-2 text-sm"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 text-sm"
             >
-              <span className="w-11 shrink-0 tabular-nums text-muted">
-                {payment.time}
-              </span>
-              <span className="min-w-0 flex-1">
+              {!showDate && (
+                <span className="shrink-0 tabular-nums text-muted">
+                  {payment.time}
+                </span>
+              )}
+              <span className="min-w-0 flex-1 basis-48 break-words">
                 <span
                   className={
-                    counted || payment.status === "awaiting_sgd"
+                    counted || waiting
                       ? "font-medium"
                       : "text-muted line-through"
                   }
                 >
-                  {payment.merchant || "Apple Pay"}
+                  {payment.merchant || via}
                 </span>
-                {payment.card && (
-                  <span className="ml-1.5 text-xs text-muted">
-                    {payment.card}
-                  </span>
-                )}
-                {!counted && (
-                  <span className="ml-1.5 text-xs text-muted">
-                    · {PAYMENT_STATUS[payment.status] ?? payment.status}
-                  </span>
-                )}
+                <span
+                  className={`text-xs text-muted ${showDate ? "block" : "ml-1.5"}`}
+                >
+                  {[
+                    showDate &&
+                      `${formatDay(payment.date, { day: "numeric", month: "short" })}, ${payment.time}`,
+                    payment.merchant && via,
+                    payment.card,
+                    payment.readByAi && "read by AI",
+                    // The waiting list's title already says it's waiting.
+                    !counted &&
+                      !showDate &&
+                      (PAYMENT_STATUS[payment.status] ?? payment.status),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
               </span>
               <span className="tabular-nums">
                 {payment.cents !== null
@@ -102,23 +147,35 @@ function DayPayments({
                 <Button
                   variant="ghost"
                   disabled={busy !== null}
-                  onClick={async () => {
-                    setBusy(payment.id);
-                    setError(null);
-                    try {
-                      await api(`applepay/${payment.id}/undo`, {
-                        method: "POST",
-                      });
-                      onChanged();
-                    } catch (failure) {
-                      setError(errorText(failure));
-                    } finally {
-                      setBusy(null);
-                    }
-                  }}
+                  onClick={() =>
+                    void act(payment, `applepay/${payment.id}/undo`)
+                  }
                 >
                   Undo
                 </Button>
+              )}
+              {waiting && (
+                <span className="ml-auto flex gap-1.5">
+                  {payment.status === "awaiting_ok" && (
+                    <Button
+                      disabled={busy !== null}
+                      onClick={() =>
+                        void act(payment, `payments/${payment.id}/count`)
+                      }
+                    >
+                      Count it
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    disabled={busy !== null}
+                    onClick={() =>
+                      void act(payment, `payments/${payment.id}/skip`)
+                    }
+                  >
+                    Skip
+                  </Button>
+                </span>
               )}
             </li>
           );
@@ -132,7 +189,7 @@ function DayPayments({
 const STATUS: Record<string, string> = {
   logged: "Logged",
   auto_zero: "No reply (S$0)",
-  auto: "Apple Pay only",
+  auto: "Recorded automatically",
   pending: "Waiting",
 };
 
@@ -326,7 +383,13 @@ function EditDay({
         </Button>
       </Shake>
       {status && <Notice tone={status.tone}>{status.text}</Notice>}
-      <DayPayments payments={payments} onChanged={onChanged} />
+      <div className="mt-3">
+        <PaymentList
+          title="Recorded automatically"
+          payments={payments}
+          onChanged={onChanged}
+        />
+      </div>
     </div>
   );
 }
@@ -432,6 +495,21 @@ export function SpendingPage() {
             />
           </div>
 
+          {data.applePay.some(isWaiting) && (
+            <Card
+              title="Waiting for your answer"
+              description="Bank payments aren't counted until you say so. Send the S$ amount of a foreign payment on Telegram."
+            >
+              <div className="px-5 py-4">
+                <PaymentList
+                  payments={data.applePay.filter(isWaiting)}
+                  onChanged={load}
+                  showDate
+                />
+              </div>
+            </Card>
+          )}
+
           <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
             <Card title="Daily spending" description="Tap a day to change it.">
               <div className="px-5 pb-4 pt-14">
@@ -511,15 +589,15 @@ export function SpendingPage() {
                         <td className="px-5 py-2 text-right font-medium tabular-nums">
                           {day.cents === null ? "—" : formatMoney(day.cents)}
                           {(() => {
-                            const viaApplePay = data.applePay
+                            const automatic = data.applePay
                               .filter(
                                 (p) =>
                                   p.date === day.date && p.status === "counted",
                               )
                               .reduce((sum, p) => sum + (p.cents ?? 0), 0);
-                            return viaApplePay > 0 ? (
+                            return automatic > 0 ? (
                               <span className="block text-xs font-normal text-muted">
-                                {formatMoney(viaApplePay)} Apple Pay
+                                {formatMoney(automatic)} automatic
                               </span>
                             ) : null;
                           })()}

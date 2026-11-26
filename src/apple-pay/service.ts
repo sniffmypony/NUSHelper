@@ -1,5 +1,5 @@
 import { DateTime } from "luxon";
-import { SINGAPORE_TIME_ZONE } from "../dates.js";
+import { SINGAPORE_TIME_ZONE, todayInSingapore } from "../dates.js";
 import { formatCurrency } from "../expenditure.js";
 import type { SendTelegramMessageOptions } from "../telegram.js";
 import {
@@ -143,10 +143,11 @@ export async function undoPayment(
   store: ApplePayStore,
   id: number,
   ownerId: string,
+  now = new Date(),
 ): Promise<string> {
   const result = await store.undo(id, ownerId);
   if (!result) return "That payment was already undone.";
-  return `Undone: ${describePayment(result.payment)}\nToday: ${formatCurrency(result.dayTotalCents)}`;
+  return `Undone: ${describePayment(result.payment)}\n${dayLine(result.payment.spendDate, result.dayTotalCents, todayInSingapore(now))}`;
 }
 
 export async function skipPayment(
@@ -186,16 +187,57 @@ export async function applySgdReply(
   if (!waiting) return null;
   const result = await store.convert(waiting.id, cents, ownerId);
   if (!result) return null;
-  return `Counted ${waiting.amountText}${waiting.merchant ? ` at ${waiting.merchant}` : ""} as ${formatCurrency(cents)}.\nToday: ${formatCurrency(result.dayTotalCents)}`;
+  const where = waiting.merchant
+    ? ` ${waiting.source === "email" ? "to" : "at"} ${waiting.merchant}`
+    : "";
+  return `Counted ${waiting.amountText}${where} as ${formatCurrency(cents)}.\n${dayLine(result.payment.spendDate, result.dayTotalCents, todayInSingapore(now))}`;
 }
 
-// The 11:30pm message (and the 1am reminder) when Apple Pay already has
-// payments that day: only the rest needs answering.
+// "Count it" on a bank payment that was waiting for an answer.
+export async function countPayment(
+  store: ApplePayStore,
+  id: number,
+  ownerId: string,
+  now = new Date(),
+): Promise<string> {
+  const result = await store.confirm(id, ownerId);
+  if (!result) return "That payment was already handled.";
+  return `Counted: ${describePayment(result.payment)}\n${dayLine(result.payment.spendDate, result.dayTotalCents, todayInSingapore(now))}`;
+}
+
+// "Today: S$23.40", or "Total for 15 Nov: S$927.40" for an earlier day.
+export function dayLine(
+  spendDate: string,
+  cents: number,
+  today = todayInSingapore(),
+): string {
+  const label =
+    spendDate === today
+      ? "Today"
+      : `Total for ${DateTime.fromISO(spendDate, { zone: SINGAPORE_TIME_ZONE }).toFormat("d LLL")}`;
+  return `${label}: ${formatCurrency(cents)}`;
+}
+
+// The 11:30pm message (and the 1am reminder) when payments were recorded
+// automatically that day (Apple Pay, or bank emails you counted): only the
+// rest needs answering. Bank payments still waiting for an answer are
+// mentioned too.
 export function nightlyPrompt(summary: {
   count: number;
   cents: number;
+  waiting?: number;
 }): string {
-  return `expenditure: Apple Pay today ${formatCurrency(summary.cents)} (${summary.count} payment${summary.count === 1 ? "" : "s"}). Anything else, like cash or online? Reply with the amounts, or tap That's all.`;
+  const lines = [
+    summary.count > 0
+      ? `expenditure: Recorded automatically today ${formatCurrency(summary.cents)} (${summary.count} payment${summary.count === 1 ? "" : "s"}). Anything else, like cash or online? Reply with the amounts, or tap That's all.`
+      : "expenditure:",
+  ];
+  if (summary.waiting) {
+    lines.push(
+      `(${summary.waiting} bank payment${summary.waiting === 1 ? " is" : "s are"} still waiting for Count it or Skip above.)`,
+    );
+  }
+  return lines.join("\n");
 }
 
 export function thatsAllKeyboard(date: string) {

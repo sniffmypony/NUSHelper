@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
 import {
   applePayPayments,
@@ -24,6 +24,14 @@ export interface NewPayment {
   card: string;
   // Foreign payments wait for their S$ amount until then.
   sgdRequestedUntil: Date | null;
+  // Bank emails: where it came from, what it was, the bank's reference,
+  // and whether the AI (not the parser) read it.
+  source?: "applepay" | "email";
+  kind?: string;
+  externalRef?: string | null;
+  readByAi?: boolean;
+  // Wait for Count it / Skip / Edit amount instead of counting at once.
+  askFirst?: boolean;
 }
 
 export interface ApplePayStore {
@@ -47,13 +55,21 @@ export interface ApplePayStore {
     id: number,
     ownerId: string,
   ): Promise<{ payment: ApplePayPayment; dayTotalCents: number } | null>;
+  // A payment waiting for Count it: added to its day now.
+  confirm(
+    id: number,
+    ownerId: string,
+  ): Promise<{ payment: ApplePayPayment; dayTotalCents: number } | null>;
   skip(id: number): Promise<ApplePayPayment | null>;
+  findByRef(externalRef: string): Promise<ApplePayPayment | null>;
+  // Payments still waiting for an answer (any day).
+  waitingCount(): Promise<number>;
   requestSgd(id: number, until: Date): Promise<ApplePayPayment | null>;
   // The foreign payment a bare amount on Telegram is for, if one is waiting.
   awaitingSgd(now: Date): Promise<ApplePayPayment | null>;
   daySummary(spendDate: string): Promise<{ count: number; cents: number }>;
   inRange(start: string, end: string): Promise<ApplePayPayment[]>;
-  latest(): Promise<ApplePayPayment | null>;
+  latest(source?: "applepay" | "email"): Promise<ApplePayPayment | null>;
 }
 
 export const APPLE_PAY_CHAT = "applepay";
@@ -150,12 +166,17 @@ export const applePayStore: ApplePayStore = {
 
   async record(value, ownerId) {
     return db.transaction(async (tx) => {
-      const counted = value.amountCents !== null;
+      const { askFirst, ...fields } = value;
+      const counted = value.amountCents !== null && !askFirst;
       const [payment] = await tx
         .insert(applePayPayments)
         .values({
-          ...value,
-          status: counted ? "counted" : "awaiting_sgd",
+          ...fields,
+          status: counted
+            ? "counted"
+            : value.amountCents === null
+              ? "awaiting_sgd"
+              : "awaiting_ok",
         })
         .returning();
       const dayTotalCents = counted
@@ -234,6 +255,30 @@ export const applePayStore: ApplePayStore = {
     });
   },
 
+  async confirm(id, ownerId) {
+    return db.transaction(async (tx) => {
+      const [payment] = await tx
+        .update(applePayPayments)
+        .set({ status: "counted" })
+        .where(
+          and(
+            eq(applePayPayments.id, id),
+            eq(applePayPayments.status, "awaiting_ok"),
+          ),
+        )
+        .returning();
+      if (!payment || payment.amountCents === null) return null;
+      const dayTotalCents = await addToDay(
+        tx,
+        payment,
+        payment.amountCents,
+        ownerId,
+        new Date(),
+      );
+      return { payment, dayTotalCents };
+    });
+  },
+
   async skip(id) {
     const [payment] = await db
       .update(applePayPayments)
@@ -241,25 +286,44 @@ export const applePayStore: ApplePayStore = {
       .where(
         and(
           eq(applePayPayments.id, id),
-          eq(applePayPayments.status, "awaiting_sgd"),
+          inArray(applePayPayments.status, ["awaiting_sgd", "awaiting_ok"]),
         ),
       )
       .returning();
     return payment ?? null;
   },
 
+  // "Edit amount" on a waiting payment, or the S$ amount of a foreign one:
+  // the next plain amount sent on Telegram (until `until`) is its amount.
   async requestSgd(id, until) {
     const [payment] = await db
       .update(applePayPayments)
-      .set({ sgdRequestedUntil: until })
+      .set({ status: "awaiting_sgd", sgdRequestedUntil: until })
       .where(
         and(
           eq(applePayPayments.id, id),
-          eq(applePayPayments.status, "awaiting_sgd"),
+          inArray(applePayPayments.status, ["awaiting_sgd", "awaiting_ok"]),
         ),
       )
       .returning();
     return payment ?? null;
+  },
+
+  async findByRef(externalRef) {
+    const [payment] = await db
+      .select()
+      .from(applePayPayments)
+      .where(eq(applePayPayments.externalRef, externalRef))
+      .limit(1);
+    return payment ?? null;
+  },
+
+  async waitingCount() {
+    const [row] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(applePayPayments)
+      .where(inArray(applePayPayments.status, ["awaiting_sgd", "awaiting_ok"]));
+    return row?.count ?? 0;
   },
 
   async awaitingSgd(now) {
@@ -306,10 +370,11 @@ export const applePayStore: ApplePayStore = {
       .orderBy(asc(applePayPayments.receivedAt));
   },
 
-  async latest() {
+  async latest(source) {
     const [payment] = await db
       .select()
       .from(applePayPayments)
+      .where(source ? eq(applePayPayments.source, source) : undefined)
       .orderBy(desc(applePayPayments.receivedAt))
       .limit(1);
     return payment ?? null;

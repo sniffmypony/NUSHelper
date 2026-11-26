@@ -103,7 +103,7 @@ export async function processCompletedExpenditureDay(
 // The day's Apple Pay payments, when Apple Pay is set up (src/apple-pay).
 export type ApplePaySummary = (
   spendDate: string,
-) => Promise<{ count: number; cents: number }>;
+) => Promise<{ count: number; cents: number; waiting?: number }>;
 
 // The 11:30pm message and the 1am reminder. With Apple Pay payments that
 // day, they ask only for the rest and offer That's all.
@@ -115,7 +115,10 @@ async function promptFor(
   replyMarkup?: ReturnType<typeof thatsAllKeyboard>;
 }> {
   const summary = applePay ? await applePay(spendDate) : null;
-  if (!summary || summary.count === 0) return { text: "expenditure:" };
+  if (!summary || (summary.count === 0 && !summary.waiting)) {
+    return { text: "expenditure:" };
+  }
+  if (summary.count === 0) return { text: nightlyPrompt(summary) };
   return {
     text: nightlyPrompt(summary),
     replyMarkup: thatsAllKeyboard(spendDate),

@@ -9,6 +9,7 @@ import {
   type SettingsResponse,
 } from "../api";
 import { ApplePayCard } from "../components/ApplePayCard";
+import { BankEmailCard } from "../components/BankEmailCard";
 import { ICON } from "../components/icons";
 import { Accordion, SwapIcon } from "../components/motion";
 import { ThemeSwitch } from "../components/ThemeSwitch";
@@ -37,6 +38,7 @@ const SETTING_LABELS: Record<string, string> = {
   timetable: "NUSMods timetable",
   session: "Sign-in",
   applepay: "Apple Pay key",
+  bankemail: "Bank emails key",
 };
 
 function errorText(error: unknown): string {
@@ -692,6 +694,8 @@ export function SettingsPage({
 
       <ApplePayCard fresh={me.fresh} />
 
+      <BankEmailCard fresh={me.fresh} />
+
       <Card
         title="Data"
         description="Download what the bot keeps, as CSV files for Excel or Sheets."
@@ -705,7 +709,7 @@ export function SettingsPage({
               ["reminders", "Reminders"],
               ["repeating", "Repeating"],
               ["chats", "Chats"],
-              ["applepay", "Apple Pay"],
+              ["applepay", "Automatic payments"],
             ].map(([kind, label]) => (
               <a
                 key={kind}
