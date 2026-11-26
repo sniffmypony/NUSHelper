@@ -163,7 +163,7 @@ export function TodayPage() {
             data.spending.todayCents === null
               ? "Not logged yet"
               : data.spending.applePayCents > 0
-                ? `${formatMoney(data.spending.applePayCents)} via Apple Pay`
+                ? `${formatMoney(data.spending.applePayCents)} recorded automatically`
                 : undefined
           }
         />

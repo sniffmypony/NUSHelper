@@ -15,11 +15,7 @@ import {
   skipPayment,
   undoPayment,
 } from "../src/apple-pay/service.js";
-import type {
-  ApplePayPayment,
-  ApplePayStore,
-  NewPayment,
-} from "../src/apple-pay/store.js";
+import { MemoryPayments } from "./helpers/memory-payments.js";
 
 describe("reading the amount the phone sends", () => {
   it("counts Singapore dollars in the usual forms", () => {
@@ -140,95 +136,10 @@ describe("the shortcut's key", () => {
   });
 });
 
-class MemoryApplePay implements ApplePayStore {
-  rows: ApplePayPayment[] = [];
-  dayTotal = 0;
-  async recentDuplicate(
-    p: Pick<NewPayment, "amountText" | "merchant" | "card">,
-    since: Date,
-  ) {
-    return (
-      this.rows.find(
-        (r) =>
-          r.amountText === p.amountText &&
-          r.merchant === p.merchant &&
-          r.card === p.card &&
-          r.receivedAt >= since,
-      ) ?? null
-    );
-  }
-  async countOn(spendDate: string) {
-    return this.rows.filter((r) => r.spendDate === spendDate).length;
-  }
-  async record(value: NewPayment) {
-    const payment: ApplePayPayment = {
-      ...value,
-      id: this.rows.length + 1,
-      status: value.amountCents === null ? "awaiting_sgd" : "counted",
-      createdAt: value.receivedAt,
-    };
-    this.rows.push(payment);
-    if (value.amountCents === null) return { payment, dayTotalCents: null };
-    this.dayTotal += value.amountCents;
-    return { payment, dayTotalCents: this.dayTotal };
-  }
-  async convert(id: number, cents: number) {
-    const payment = this.rows.find(
-      (r) => r.id === id && r.status === "awaiting_sgd",
-    );
-    if (!payment) return null;
-    Object.assign(payment, { status: "counted", amountCents: cents });
-    this.dayTotal += cents;
-    return { payment, dayTotalCents: this.dayTotal };
-  }
-  async undo(id: number) {
-    const payment = this.rows.find(
-      (r) => r.id === id && r.status === "counted",
-    );
-    if (!payment) return null;
-    payment.status = "undone";
-    this.dayTotal -= payment.amountCents ?? 0;
-    return { payment, dayTotalCents: this.dayTotal };
-  }
-  async skip(id: number) {
-    const payment = this.rows.find(
-      (r) => r.id === id && r.status === "awaiting_sgd",
-    );
-    if (payment) payment.status = "skipped";
-    return payment ?? null;
-  }
-  async requestSgd(id: number, until: Date) {
-    const payment = this.rows.find(
-      (r) => r.id === id && r.status === "awaiting_sgd",
-    );
-    if (payment) payment.sgdRequestedUntil = until;
-    return payment ?? null;
-  }
-  async awaitingSgd(now: Date) {
-    return (
-      this.rows.find(
-        (r) =>
-          r.status === "awaiting_sgd" &&
-          r.sgdRequestedUntil !== null &&
-          r.sgdRequestedUntil > now,
-      ) ?? null
-    );
-  }
-  async daySummary() {
-    return { count: 0, cents: 0 };
-  }
-  async inRange() {
-    return this.rows;
-  }
-  async latest() {
-    return this.rows.at(-1) ?? null;
-  }
-}
-
 const NOW = new Date("2026-11-25T04:31:00Z"); // 12:31 in Singapore
 
 function setup() {
-  const store = new MemoryApplePay();
+  const store = new MemoryPayments();
   const send = vi.fn(async () => {});
   const receive = (body: unknown, now = NOW) =>
     receivePayment(body, { store, send, ownerId: "123", now });
@@ -355,10 +266,10 @@ describe("Undo and Skip", () => {
     const { store, receive } = setup();
     await receive({ amount: "S$5.40", merchant: "Starbucks" });
     await receive({ amount: "S$3.00", merchant: "Kopi" });
-    expect(await undoPayment(store, 1, "123")).toBe(
+    expect(await undoPayment(store, 1, "123", NOW)).toBe(
       "Undone: S$5.40 at Starbucks\nToday: S$3.00",
     );
-    expect(await undoPayment(store, 1, "123")).toBe(
+    expect(await undoPayment(store, 1, "123", NOW)).toBe(
       "That payment was already undone.",
     );
   });
@@ -376,7 +287,7 @@ describe("Undo and Skip", () => {
 describe("the 11:30pm message", () => {
   it("shows Apple Pay's total and asks only for the rest", () => {
     expect(nightlyPrompt({ count: 1, cents: 540 })).toBe(
-      "expenditure: Apple Pay today S$5.40 (1 payment). Anything else, like cash or online? Reply with the amounts, or tap That's all.",
+      "expenditure: Recorded automatically today S$5.40 (1 payment). Anything else, like cash or online? Reply with the amounts, or tap That's all.",
     );
   });
 });

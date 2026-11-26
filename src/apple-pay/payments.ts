@@ -108,12 +108,15 @@ export function describePayment(payment: {
   amountCents: number | null;
   merchant: string;
   card: string;
+  source?: string;
 }): string {
   const amount =
     payment.amountCents !== null
       ? formatCurrency(payment.amountCents)
       : payment.amountText;
-  const at = payment.merchant ? ` at ${payment.merchant}` : "";
+  const at = payment.merchant
+    ? ` ${payment.source === "email" ? "to" : "at"} ${payment.merchant}`
+    : "";
   const card = payment.card ? ` (${payment.card})` : "";
   return `${amount}${at}${card}`;
 }
@@ -122,6 +125,8 @@ export function describePayment(payment: {
 
 // Where the key's hash is kept (bot_settings, like the website's settings).
 export const APPLE_PAY_KEY_SETTING = "APPLE_PAY_KEY_HASH";
+// The bank-email script has its own key, so each can be turned off alone.
+export const BANK_EMAIL_KEY_SETTING = "BANK_EMAIL_KEY_HASH";
 
 // A new random key, shown to the owner once. Only its hash is stored.
 export function newApplePayKey(): string {

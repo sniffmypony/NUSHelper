@@ -11,6 +11,9 @@
     },
     "api/applepay.ts": {
       "maxDuration": 15
+    },
+    "api/bank-email.ts": {
+      "maxDuration": 60
     }
   },
   "rewrites": [

@@ -368,29 +368,35 @@ describe("website API", () => {
     expect(decryptSecret(saved.ciphertext, TOKEN)).toBe("new-soclaas-key-4321");
   });
 
-  it("makes the Apple Pay key only after a fresh sign-in, and keeps only its hash", async () => {
-    const { call, cookieFor, store, deps } = setup();
-    const make = (cookie: string) =>
-      call({ method: "POST", route: "applepay/key", cookie });
-    expect((await make(cookieFor(NOW - 11 * 60, NOW - 11 * 60))).status).toBe(
-      401,
-    );
-    const made = await make(cookieFor());
-    expect(made.status).toBe(200);
-    const key = (made.body as { key: string }).key;
-    expect(key).toMatch(/^ap_/);
-    const stored = store.valueRows.get("APPLE_PAY_KEY_HASH")!.value;
-    expect(stored).toBe(hashApplePayKey(key));
-    expect(stored).not.toContain(key);
-    expect(deps.settingsChanged).toHaveBeenCalled();
-    const off = await call({
-      method: "DELETE",
-      route: "applepay/key",
-      cookie: cookieFor(),
-    });
-    expect(off.status).toBe(200);
-    expect(store.valueRows.has("APPLE_PAY_KEY_HASH")).toBe(false);
-  });
+  it.each([
+    ["applepay", "APPLE_PAY_KEY_HASH"],
+    ["bankemail", "BANK_EMAIL_KEY_HASH"],
+  ])(
+    "makes the %s key only after a fresh sign-in, and keeps only its hash",
+    async (name, setting) => {
+      const { call, cookieFor, store, deps } = setup();
+      const make = (cookie: string) =>
+        call({ method: "POST", route: `${name}/key`, cookie });
+      expect((await make(cookieFor(NOW - 11 * 60, NOW - 11 * 60))).status).toBe(
+        401,
+      );
+      const made = await make(cookieFor());
+      expect(made.status).toBe(200);
+      const key = (made.body as { key: string }).key;
+      expect(key).toMatch(/^ap_/);
+      const stored = store.valueRows.get(setting)!.value;
+      expect(stored).toBe(hashApplePayKey(key));
+      expect(stored).not.toContain(key);
+      expect(deps.settingsChanged).toHaveBeenCalled();
+      const off = await call({
+        method: "DELETE",
+        route: `${name}/key`,
+        cookie: cookieFor(),
+      });
+      expect(off.status).toBe(200);
+      expect(store.valueRows.has(setting)).toBe(false);
+    },
+  );
 
   it("signs out every session", async () => {
     const { call, cookieFor } = setup();

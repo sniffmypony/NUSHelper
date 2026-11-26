@@ -2,9 +2,14 @@ import { asc, eq } from "drizzle-orm";
 import { DateTime } from "luxon";
 import {
   APPLE_PAY_KEY_SETTING,
+  BANK_EMAIL_KEY_SETTING,
   describePayment,
 } from "../apple-pay/payments.js";
-import { undoPayment } from "../apple-pay/service.js";
+import {
+  countPayment,
+  skipPayment,
+  undoPayment,
+} from "../apple-pay/service.js";
 import { applePayStore, type ApplePayPayment } from "../apple-pay/store.js";
 import { SINGAPORE_TIME_ZONE } from "../dates.js";
 import { websiteUrl } from "./login-links.js";
@@ -81,7 +86,10 @@ export interface ApplePayView {
   card: string;
   amountText: string;
   cents: number | null;
-  status: string; // counted, undone, awaiting_sgd, skipped
+  status: string; // counted, undone, awaiting_sgd, skipped, awaiting_ok
+  source: string; // applepay, email
+  kind: string; // e.g. "PayLah! Scan & Pay" for bank emails
+  readByAi: boolean;
 }
 
 export interface ApplePayStatus {
@@ -89,6 +97,8 @@ export interface ApplePayStatus {
   // Where the shortcut sends payments.
   endpoint: string | null;
   latest: { receivedAt: string; text: string; status: string } | null;
+  // Bank payments still waiting for Count it or Skip.
+  waiting?: number;
 }
 
 export interface TasksView {
@@ -141,7 +151,11 @@ export interface PlannerActions {
     month: string,
   ): Promise<SpendingMonth & { applePay: ApplePayView[] }>;
   applePayStatus(): Promise<ApplePayStatus>;
+  bankEmailStatus(): Promise<ApplePayStatus>;
   undoApplePay(id: number): Promise<Result>;
+  // A bank payment waiting for an answer: Count it, or Skip.
+  countPayment(id: number): Promise<Result>;
+  skipPayment(id: number): Promise<Result>;
   timetable(): Promise<TimetableView>;
   finals(): Promise<{ label: string | null; finals: FinalView[] }>;
   syncFinals(): Promise<Result>;
@@ -168,6 +182,9 @@ function paymentView(row: ApplePayPayment): ApplePayView {
     amountText: row.amountText,
     cents: row.amountCents,
     status: row.status,
+    source: row.source,
+    kind: row.kind,
+    readByAi: row.readByAi,
   };
 }
 
@@ -335,8 +352,39 @@ export const plannerActions: PlannerActions = {
     };
   },
 
+  async bankEmailStatus() {
+    const latest = await applePayStore.latest("email");
+    const waiting = await applePayStore.waitingCount();
+    const base = websiteUrl();
+    return {
+      enabled: Boolean(optionalEnv(BANK_EMAIL_KEY_SETTING)),
+      waiting,
+      endpoint: base ? `${base}/api/bank-email` : null,
+      latest: latest
+        ? {
+            receivedAt: latest.receivedAt.toISOString(),
+            text: `${latest.kind ? `${latest.kind}: ` : ""}${describePayment(latest)}`,
+            status: latest.status,
+          }
+        : null,
+    };
+  },
+
+  async countPayment(id) {
+    const message = await countPayment(applePayStore, id, telegramOwnerId());
+    return {
+      ok: message.startsWith("Counted"),
+      message: message.split("\n")[0],
+    };
+  },
+
+  async skipPayment(id) {
+    const message = await skipPayment(applePayStore, id);
+    return { ok: message.startsWith("Skipped"), message };
+  },
+
   async applePayStatus() {
-    const latest = await applePayStore.latest();
+    const latest = await applePayStore.latest("applepay");
     const base = websiteUrl();
     return {
       enabled: Boolean(optionalEnv(APPLE_PAY_KEY_SETTING)),
@@ -537,6 +585,9 @@ export const plannerActions: PlannerActions = {
             "merchant",
             "card",
             "status",
+            "source",
+            "kind",
+            "read_by_ai",
           ],
           rows.map((row) => [
             row.id,
@@ -549,6 +600,9 @@ export const plannerActions: PlannerActions = {
             row.merchant,
             row.card,
             row.status,
+            row.source,
+            row.kind,
+            row.readByAi ? "yes" : "no",
           ]),
         );
       }

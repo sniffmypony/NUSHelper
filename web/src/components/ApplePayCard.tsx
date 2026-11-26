@@ -1,64 +1,16 @@
-import { Check, Copy, KeyRound } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { KeyRound } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { ICON } from "./icons";
-import { Accordion, SwapIcon } from "./motion";
+import { Accordion } from "./motion";
 import { errorText } from "./page";
+import { ago, CopyText, OnOff, Step } from "./setup";
 import { Button, Card, Notice, Row } from "./ui";
 
 interface ApplePayStatus {
   enabled: boolean;
   endpoint: string | null;
   latest: { receivedAt: string; text: string; status: string } | null;
-}
-
-function ago(iso: string): string {
-  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 48) return `${hours} h ago`;
-  return `${Math.round(hours / 24)} days ago`;
-}
-
-function CopyText({ value, label }: { value: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className="flex items-center gap-2">
-      <code className="min-w-0 flex-1 break-all rounded-lg bg-sunken px-2.5 py-1.5 text-xs">
-        {value}
-      </code>
-      <Button
-        variant="ghost"
-        aria-label={`Copy ${label}`}
-        onClick={() => {
-          void navigator.clipboard.writeText(value).then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-          });
-        }}
-      >
-        <SwapIcon
-          show={copied ? "copied" : "copy"}
-          icons={{
-            copy: <Copy {...ICON} />,
-            copied: <Check {...ICON} className="text-ok" />,
-          }}
-        />
-      </Button>
-    </div>
-  );
-}
-
-function Step({ n, children }: { n: number; children: ReactNode }) {
-  return (
-    <li className="flex gap-3">
-      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-soft text-xs font-semibold text-brand-text">
-        {n}
-      </span>
-      <div className="min-w-0 flex-1 space-y-1.5 pt-0.5">{children}</div>
-    </li>
-  );
 }
 
 // Settings → Apple Pay: the key the iPhone shortcut sends, how to set the
@@ -132,13 +84,7 @@ export function ApplePayCard({ fresh }: { fresh: boolean }) {
         ) : (
           <div className="space-y-1 text-sm">
             <p>
-              <span
-                className={`mr-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-line ring-inset ${
-                  status.enabled ? "bg-ok-soft text-ok" : "bg-sunken text-muted"
-                }`}
-              >
-                {status.enabled ? "On" : "Off"}
-              </span>
+              <OnOff on={status.enabled} />
               {status.latest
                 ? `Last payment ${ago(status.latest.receivedAt)}: ${status.latest.text}`
                 : "No payments received yet."}

@@ -63,7 +63,7 @@ describe("expenditure schedule", () => {
     );
     expect(applePay).toHaveBeenCalledWith("2026-10-31");
     expect(send).toHaveBeenCalledWith(
-      "expenditure: Apple Pay today S$23.40 (3 payments). Anything else, like cash or online? Reply with the amounts, or tap That's all.",
+      "expenditure: Recorded automatically today S$23.40 (3 payments). Anything else, like cash or online? Reply with the amounts, or tap That's all.",
       {
         chatId: "123",
         replyMarkup: {

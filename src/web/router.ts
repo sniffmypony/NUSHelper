@@ -1,5 +1,6 @@
 import {
   APPLE_PAY_KEY_SETTING,
+  BANK_EMAIL_KEY_SETTING,
   hashApplePayKey,
   newApplePayKey,
 } from "../apple-pay/payments.js";
@@ -348,20 +349,26 @@ export async function handleWebRequest(
     // The Apple Pay shortcut's key: made here, shown once, stored as a hash.
     // Like the other keys, it needs a recent sign-in.
     if (
-      route === "applepay/key" &&
+      (route === "applepay/key" || route === "bankemail/key") &&
       (method === "POST" || method === "DELETE")
     ) {
       const stale = needFresh();
       if (stale) return stale;
+      // Apple Pay (iPhone shortcut) and bank emails (Apps Script) each have
+      // their own key.
+      const [setting, audit] =
+        route === "applepay/key"
+          ? [APPLE_PAY_KEY_SETTING, "applepay"]
+          : [BANK_EMAIL_KEY_SETTING, "bankemail"];
       if (method === "POST") {
         const key = newApplePayKey();
-        await deps.store.setValue(APPLE_PAY_KEY_SETTING, hashApplePayKey(key));
-        await deps.store.addAudit("applepay", "made a new key");
+        await deps.store.setValue(setting, hashApplePayKey(key));
+        await deps.store.addAudit(audit, "made a new key");
         await deps.settingsChanged();
         return json(200, { key });
       }
-      await deps.store.clearValue(APPLE_PAY_KEY_SETTING);
-      await deps.store.addAudit("applepay", "turned off");
+      await deps.store.clearValue(setting);
+      await deps.store.addAudit(audit, "turned off");
       await deps.settingsChanged();
       return json(200, { ok: true });
     }
