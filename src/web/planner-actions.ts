@@ -18,7 +18,18 @@ import { CanvasClient } from "../canvas/client.js";
 import { deadlineStore } from "../canvas/deadline-store.js";
 import { submissionState } from "../canvas/deadline-sync.js";
 import { isCalendarConfigured } from "../calendar/config.js";
-import { getCalendarGateway } from "../calendar/google.js";
+import {
+  calendarErrorMessage,
+  getCalendarGateway,
+} from "../calendar/google.js";
+import {
+  addBirthdays,
+  birthdayView,
+  listBirthdays,
+  readBirthdayLines,
+  type AddedBirthdays,
+  type BirthdayView,
+} from "../birthdays.js";
 import { addDays, todayInSingapore } from "../dates.js";
 import { db } from "../db/client.js";
 import {
@@ -132,6 +143,11 @@ export interface FinalView {
   durationMinutes: number;
 }
 
+export interface BirthdayCheck {
+  birthdays: Array<{ name: string; date: string; year: number | null }>;
+  rejected: Array<{ line: number; text: string; reason: string }>;
+}
+
 export interface PlannerActions {
   today(): Promise<TodayView>;
   tasks(): Promise<TasksView>;
@@ -164,6 +180,11 @@ export interface PlannerActions {
     Array<{ assignmentId: number; state: "submitted" | "missing" | "unknown" }>
   >;
   exportCsv(kind: ExportKind): Promise<string>;
+  // Birthdays, kept as yearly events in Google Calendar.
+  birthdays(): Promise<{ configured: boolean; birthdays: BirthdayView[] }>;
+  checkBirthdays(text: string): Promise<BirthdayCheck>;
+  addBirthdays(text: string): Promise<AddedBirthdays>;
+  deleteBirthday(id: string): Promise<Result>;
 }
 
 // Submission checks ask Canvas once per deadline, so only the next two
@@ -499,6 +520,51 @@ export const plannerActions: PlannerActions = {
       }
     }
     return states;
+  },
+
+  async birthdays() {
+    if (!isCalendarConfigured()) return { configured: false, birthdays: [] };
+    return {
+      configured: true,
+      birthdays: await listBirthdays(await getCalendarGateway()),
+    };
+  },
+
+  async checkBirthdays(text) {
+    const { birthdays, rejected } = readBirthdayLines(text);
+    return {
+      birthdays: birthdays.map((birthday) => {
+        const view = birthdayView({ ...birthday, id: "" });
+        return { name: view.name, date: view.date, year: view.year };
+      }),
+      rejected,
+    };
+  },
+
+  async addBirthdays(text) {
+    if (!isCalendarConfigured()) {
+      return {
+        ok: false,
+        message: "Google Calendar isn't set up.",
+        added: 0,
+        existing: 0,
+        rejected: [],
+      };
+    }
+    return addBirthdays(
+      await getCalendarGateway(),
+      text,
+      undefined,
+      calendarErrorMessage,
+    );
+  },
+
+  async deleteBirthday(id) {
+    if (!isCalendarConfigured()) {
+      return { ok: false, message: "Google Calendar isn't set up." };
+    }
+    await (await getCalendarGateway()).delete(id);
+    return { ok: true, message: "Removed from Google Calendar." };
   },
 
   async exportCsv(kind) {

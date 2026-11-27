@@ -147,6 +147,15 @@ Each payment is added to that Singapore day's total at once (as an expenditure a
 - **Nightly check-in:** the 11:30pm message then shows the day's Apple Pay total and asks only for anything else (cash, online), with **That's all**. A day with no reply keeps its Apple Pay total (status `auto`) instead of S$0.
 - **What isn't seen:** only taps at a terminal trigger the automation. In-app and online Apple Pay, physical cards and some transit taps don't.
 
+## Birthdays
+
+**Tasks → Birthdays** on the website adds birthdays to Google Calendar, several at a time. Paste one per line, a name and a date, day first: `Alice Tan 14/03`, `Bob 2 Dec 2004`, `2005-01-09 Ethan`. **Check** shows what was read and which lines can't be used, then **Add** creates them.
+
+- Each is a yearly all-day event ("🎂 Alice Tan's birthday"), marked free so it doesn't block your time. 29 Feb falls on 28 Feb in other years.
+- **Reminder:** the bot sends "🎂 Tomorrow (Mon 7 Dec) is Alice Tan's birthday, turning 22." to the Planner topic at **23:55 the night before**, with the usual snooze buttons. The every-minute job looks up tomorrow's birthdays (every 15 minutes, and each minute from 23:45) and makes one ordinary reminder per birthday. Google's own popup is off, so you aren't reminded twice.
+- The same name and date always give the same event id, so pasting a list again doesn't make duplicates. Removing one on the website deletes the event; adding it again restores it.
+- Birthdays are kept only in Google Calendar, tagged in a private extended property. With a year, the list shows the age they turn next.
+
 ## Bank emails (DBS PayLah! and digibank)
 
 DBS alert emails about money leaving your account become questions on Telegram, so PayLah! and PayNow spending isn't missed. The bot never gets Gmail access: a Google Apps Script in your own account sends it only these emails.
@@ -249,13 +258,13 @@ When the AI service fails for the main model (HTTP 5xx or 429, or no connection)
 
 Vercel cron runs in UTC; Singapore is UTC+8.
 
-| Job                 | UTC schedule            | Singapore time | Purpose                                                                                                  |
-| ------------------- | ----------------------- | -------------- | -------------------------------------------------------------------------------------------------------- |
-| `weekly-digest`     | `0 0 * * 1`             | Monday 8am     | Calendar events, tasks and Canvas deadlines for the week.                                                |
-| `canvas-deadlines`  | `30 23 * * *`           | Daily 7:30am   | Copies upcoming Canvas deadlines, puts them on Google Calendar, reports new/moved/removed ones.          |
-| `daily-morning`     | `0 0 * * *`             | Daily 8am      | Repeating to-dos, task rollover, classes, Canvas deadlines due in 48 hours, 3-day calendar view.         |
-| `checkin-and-clear` | `0 15 * * *`            | Daily 11pm     | Clear the to-do list and send it with Move to tomorrow buttons.                                          |
-| `reminder-dispatch` | every minute (Supabase) | —              | Reminders, the 11:30pm / 1am / 7am expenditure steps, and the check an hour before each Canvas deadline. |
+| Job                 | UTC schedule            | Singapore time | Purpose                                                                                                                               |
+| ------------------- | ----------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `weekly-digest`     | `0 0 * * 1`             | Monday 8am     | Calendar events, tasks and Canvas deadlines for the week.                                                                             |
+| `canvas-deadlines`  | `30 23 * * *`           | Daily 7:30am   | Copies upcoming Canvas deadlines, puts them on Google Calendar, reports new/moved/removed ones.                                       |
+| `daily-morning`     | `0 0 * * *`             | Daily 8am      | Repeating to-dos, task rollover, classes, Canvas deadlines due in 48 hours, 3-day calendar view.                                      |
+| `checkin-and-clear` | `0 15 * * *`            | Daily 11pm     | Clear the to-do list and send it with Move to tomorrow buttons.                                                                       |
+| `reminder-dispatch` | every minute (Supabase) | —              | Reminders, birthday reminders at 23:55, the 11:30pm / 1am / 7am expenditure steps, and the check an hour before each Canvas deadline. |
 
 ## Security and privacy
 

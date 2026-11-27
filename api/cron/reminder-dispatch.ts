@@ -18,6 +18,10 @@ import { getCalendarGateway } from "../../src/calendar/google.js";
 import { withVercelOidcToken } from "../../src/calendar/request-context.js";
 import { linkedReminderStore } from "../../src/linked-reminder-store.js";
 import { syncLinkedReminders } from "../../src/linked-reminders.js";
+import {
+  scheduleBirthdayReminders,
+  timeToLookForBirthdays,
+} from "../../src/birthday-reminders.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -64,6 +68,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const type = error instanceof Error ? error.name : typeof error;
       console.error(`Linked reminder sync failed (${type})`);
       linkedResult = { error: "sync failed" };
+    }
+  }
+
+  // Tomorrow's birthdays become reminders at 23:55 tonight, before the
+  // dispatcher below runs so one due now goes out in the same run.
+  let birthdayResult: unknown = { skipped: "not now" };
+  if (isCalendarConfigured() && timeToLookForBirthdays(now)) {
+    try {
+      birthdayResult = await withVercelOidcToken(
+        req.headers["x-vercel-oidc-token"],
+        async () => {
+          const gateway = await getCalendarGateway();
+          return scheduleBirthdayReminders(
+            (timeMin, timeMax) => gateway.birthdaysBetween(timeMin, timeMax),
+            reminderStore,
+            telegramOwnerId(),
+            now,
+          );
+        },
+      );
+    } catch (error) {
+      const type = error instanceof Error ? error.name : typeof error;
+      console.error(`Birthday reminders failed (${type})`);
+      birthdayResult = { error: "lookup failed" };
     }
   }
 
@@ -126,6 +154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .json({
       reminders: reminderResult ?? { error: "dispatcher failed" },
       linked: linkedResult,
+      birthdays: birthdayResult,
       expenditure: expenditureResult ?? { error: "dispatcher failed" },
       deadlines: deadlineError
         ? { error: "dispatcher failed" }
