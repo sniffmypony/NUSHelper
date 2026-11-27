@@ -3,11 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "db:push": "drizzle-kit push",
-    "format": "prettier --ignore-unknown --write src api tests web/src web/index.html web/vite.config.ts web/package.json web/tsconfig.json supabase/migrations supabase/reminder-cron.sql.example README.md .env.example package.json tsconfig.json vercel.json",
-    "format:check": "prettier --ignore-unknown --check src api tests web/src web/index.html web/vite.config.ts web/package.json web/tsconfig.json supabase/migrations supabase/reminder-cron.sql.example README.md .env.example package.json tsconfig.json vercel.json",
+    "format": "prettier --ignore-unknown --write src api scripts tests web/src web/index.html web/vite.config.ts web/package.json web/tsconfig.json supabase/migrations supabase/reminder-cron.sql.example README.md .env.example package.json tsconfig.json vercel.json",
+    "format:check": "prettier --ignore-unknown --check src api scripts tests web/src web/index.html web/vite.config.ts web/package.json web/tsconfig.json supabase/migrations supabase/reminder-cron.sql.example README.md .env.example package.json tsconfig.json vercel.json",
     "lint": "eslint src api tests web/src web/vite.config.ts",
+    "setup:db": "node scripts/setup-db.ts",
     "setup:webhook": "node scripts/set-webhook.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p web"

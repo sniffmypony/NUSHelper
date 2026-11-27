@@ -18,6 +18,13 @@ import { assistantErrorMessage } from "../assistant/handlers.js";
 import { webAssist } from "./chat-assistant.js";
 import { chatStore } from "./chat-store.js";
 import { plannerActions } from "./planner-actions.js";
+import { websiteUrl } from "./login-links.js";
+import {
+  registerWebhook,
+  webhookStatus,
+  webhookUrlFor,
+} from "../telegram-webhook.js";
+import { webhookSecretFor } from "../webhook-secret.js";
 
 let botUsername: Promise<string> | undefined;
 
@@ -33,6 +40,17 @@ export const webDependencies: WebDependencies = {
   store: settingsStore,
   env: (name) => process.env[name]?.trim() || undefined,
 
+  async telegramStatus() {
+    const site = websiteUrl();
+    return webhookStatus(telegramBotToken(), site ? webhookUrlFor(site) : null);
+  },
+  async connectTelegram() {
+    const site = websiteUrl();
+    if (!site) throw new Error("This site's address isn't known; set WEB_URL.");
+    const token = telegramBotToken();
+    await registerWebhook(token, webhookUrlFor(site), webhookSecretFor(token));
+    return webhookStatus(token, webhookUrlFor(site));
+  },
   botUsername() {
     botUsername ??= fetch(
       `https://api.telegram.org/bot${telegramBotToken()}/getMe`,

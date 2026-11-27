@@ -28,6 +28,7 @@ import type { ChatEvent } from "./chat.js";
 import { chatRoute, type ChatDependencies } from "./chat-routes.js";
 import type { PlannerActions } from "./planner-actions.js";
 import { plannerRoute } from "./planner-routes.js";
+import type { WebhookStatus } from "../telegram-webhook.js";
 
 // The website's API (/api/web/...). Everything except the sign-in needs the
 // owner's session cookie; changes also need the X-NUSHelper header, which a
@@ -59,6 +60,9 @@ export interface WebDependencies {
   store: SettingsStore;
   env(name: string): string | undefined; // Vercel's value, ignoring the website
   botUsername(): Promise<string>;
+  // Where Telegram sends the bot's updates, and pointing it at this site.
+  telegramStatus(): Promise<WebhookStatus>;
+  connectTelegram(): Promise<WebhookStatus>;
   listModels(): Promise<string[]>;
   testModel(model: string): Promise<{ ms: number }>;
   calendarInfo(): { calendarId: string; serviceAccountEmail: string | null };
@@ -312,6 +316,27 @@ export async function handleWebRequest(
         return json(200, { ok: true, ...(await deps.testModel(model!)) });
       } catch (error) {
         return json(200, { ok: false, error: reason(error) });
+      }
+    }
+
+    if (route === "telegram" || route === "telegram/connect") {
+      const connect = method === "POST" && route === "telegram/connect";
+      if (connect || (method === "GET" && route === "telegram")) {
+        try {
+          const status = connect
+            ? await deps.connectTelegram()
+            : await deps.telegramStatus();
+          if (connect) await deps.store.addAudit("telegram", "connected");
+          return json(200, { ok: true, ...status });
+        } catch (error) {
+          // Telegram's own description is safe to show (it never has the
+          // token); anything else is summarised.
+          const message =
+            error instanceof Error && error.message.length < 200
+              ? error.message
+              : reason(error);
+          return json(200, { ok: false, error: message });
+        }
       }
     }
 

@@ -10,6 +10,7 @@ import {
 } from "../api";
 import { ApplePayCard } from "../components/ApplePayCard";
 import { BankEmailCard } from "../components/BankEmailCard";
+import { TelegramCard } from "../components/TelegramCard";
 import { ICON } from "../components/icons";
 import { Accordion, SwapIcon } from "../components/motion";
 import { ThemeSwitch } from "../components/ThemeSwitch";
@@ -39,6 +40,7 @@ const SETTING_LABELS: Record<string, string> = {
   session: "Sign-in",
   applepay: "Apple Pay key",
   bankemail: "Bank emails key",
+  telegram: "Telegram connection",
 };
 
 function errorText(error: unknown): string {
@@ -613,6 +615,8 @@ export function SettingsPage({
           Everything the bot uses. A value set here wins over the one in Vercel.
         </p>
       </div>
+
+      <TelegramCard />
 
       <Card title="Appearance">
         <Row
