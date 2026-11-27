@@ -15,7 +15,7 @@ import { navigate } from "../navigation";
 import { ICON } from "./icons";
 import { Logo } from "./Logo";
 import { SwapIcon } from "./motion";
-import { ThemeButton, ThemeSwitch } from "./ThemeSwitch";
+import { ThemeButton } from "./ThemeSwitch";
 
 export const NAV = [
   { path: "/today", label: "Today", icon: Sun },
@@ -44,11 +44,11 @@ function NavItems({ path, onPick }: { path: string; onPick: () => void }) {
               onPick();
             }}
             aria-current={active ? "page" : undefined}
-            // On the blue navigation: the active page gets a lighter fill and
-            // an orange marker (the accent), the rest stay quiet.
-            className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-[transform,background-color,color] duration-150 ease-out active:scale-[0.97] motion-reduce:active:scale-100 ${
+            // The active page: a slightly lighter fill, white text, an orange
+            // icon and a 2 px orange marker; the rest stay quiet.
+            className={`relative flex items-center gap-3 rounded-[10px] px-3 py-[7px] text-sm font-medium transition-[transform,background-color,color] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-accent active:scale-[0.97] motion-reduce:active:scale-100 ${
               active
-                ? "bg-nav-active text-nav-ink before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-accent"
+                ? "bg-nav-active text-nav-ink before:absolute before:inset-y-2 before:left-0 before:w-[2px] before:rounded-full before:bg-accent"
                 : "text-nav-muted hover:bg-nav-hover hover:text-nav-ink"
             }`}
           >
@@ -85,11 +85,11 @@ export function Shell({
   const [open, setOpen] = useState(false);
   return (
     <div className="flex min-h-full">
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col gap-6 bg-nav px-3 py-5 md:flex">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col gap-5 border-r border-line bg-nav px-3 py-4 md:flex">
         <Brand />
         <NavItems path={path} onPick={() => {}} />
-        <div className="mt-auto px-3">
-          <ThemeSwitch onNav />
+        <div className="mt-auto">
+          <ThemeButton labelled />
         </div>
       </aside>
 

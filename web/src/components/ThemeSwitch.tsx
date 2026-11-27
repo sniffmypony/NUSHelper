@@ -10,27 +10,14 @@ const CHOICES: Array<{ value: ThemeChoice; label: string; icon: typeof Sun }> =
     { value: "system", label: "System", icon: Monitor },
   ];
 
-// Light / Dark / System as a segmented control (Settings and the sidebar;
-// `onNav` styles it for the blue navigation).
-export function ThemeSwitch({
-  labels = false,
-  onNav = false,
-}: {
-  labels?: boolean;
-  onNav?: boolean;
-}) {
+// Light / Dark / System as a segmented control (Settings).
+export function ThemeSwitch({ labels = false }: { labels?: boolean }) {
   const theme = useTheme();
-  const styles = onNav
-    ? {
-        box: "bg-nav-hover",
-        on: "bg-nav-active text-nav-ink",
-        off: "text-nav-muted hover:text-nav-ink",
-      }
-    : {
-        box: "border border-line bg-sunken",
-        on: "bg-surface text-ink shadow-card",
-        off: "text-muted hover:text-ink",
-      };
+  const styles = {
+    box: "border border-line bg-sunken",
+    on: "bg-surface text-ink shadow-card",
+    off: "text-muted hover:text-ink",
+  };
   return (
     <div
       role="radiogroup"
@@ -73,16 +60,22 @@ const NEXT: Record<ThemeChoice, ThemeChoice> = {
   system: "light",
 };
 
-// One button that steps Light → Dark → System (the phone's top bar).
-export function ThemeButton() {
+// One button that steps Light → Dark → System: an icon in the phone's top
+// bar, or a labelled row ("Dark theme") at the foot of the sidebar.
+export function ThemeButton({ labelled = false }: { labelled?: boolean }) {
   const theme = useTheme();
   const label = CHOICES.find((choice) => choice.value === theme)!.label;
-  return (
+  const next = CHOICES.find((choice) => choice.value === NEXT[theme])!.label;
+  const button = (
     <button
       type="button"
       onClick={() => setTheme(NEXT[theme])}
-      aria-label={`Theme: ${label}. Change theme`}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-nav-muted transition-[transform,background-color,color] duration-150 ease-out hover:bg-nav-hover hover:text-nav-ink active:scale-[0.97] motion-reduce:active:scale-100"
+      aria-label={`Theme: ${label}. Switch to ${next}`}
+      className={`inline-flex items-center gap-3 rounded-[10px] text-nav-muted transition-[transform,background-color,color] duration-150 ease-out hover:bg-nav-hover hover:text-nav-ink focus-visible:outline-2 focus-visible:outline-accent active:scale-[0.97] motion-reduce:active:scale-100 ${
+        labelled
+          ? "w-full px-3 py-2 text-sm font-medium"
+          : "h-9 w-9 justify-center"
+      }`}
     >
       <SwapIcon
         show={theme}
@@ -92,6 +85,12 @@ export function ThemeButton() {
           system: <Monitor {...ICON} size={18} />,
         }}
       />
+      {labelled && <span>{label} theme</span>}
     </button>
+  );
+  return labelled ? (
+    <Tooltip label={`Switch to ${next}`}>{button}</Tooltip>
+  ) : (
+    button
   );
 }

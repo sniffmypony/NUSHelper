@@ -47,6 +47,37 @@ export function StatTile({
   );
 }
 
+// A summary figure (Spending): a small muted label, the value, one line of
+// context, and an optional icon or sparkline on the right.
+export function Metric({
+  label,
+  value,
+  detail,
+  aside,
+}: {
+  label: string;
+  value: ReactNode;
+  detail?: ReactNode;
+  aside?: ReactNode;
+}) {
+  return (
+    <div className="animate-settle rounded-2xl border border-line bg-surface px-4 py-3.5 shadow-card transition-transform duration-150 ease-out hover:-translate-y-px hover:border-line-strong motion-reduce:hover:translate-y-0">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+          {label}
+        </p>
+        {aside}
+      </div>
+      <p className="mt-1 text-2xl font-semibold leading-tight tracking-tight tabular-nums text-ink lg:text-[28px]">
+        {value}
+      </p>
+      {detail && (
+        <div className="mt-1 text-[13px] leading-snug text-muted">{detail}</div>
+      )}
+    </div>
+  );
+}
+
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="text-sm text-faint">{children}</p>;
 }
