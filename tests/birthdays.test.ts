@@ -8,8 +8,14 @@ import {
   listBirthdays,
   readBirthdayEvent,
   readBirthdayLines,
-  REMINDER_MINUTES,
 } from "../src/birthdays.js";
+import type { Birthday } from "../src/birthdays.js";
+import type { NewReminder } from "../src/reminder-store.js";
+import {
+  birthdayReminderText,
+  scheduleBirthdayReminders,
+  timeToLookForBirthdays,
+} from "../src/birthday-reminders.js";
 import type { BirthdayCalendar } from "../src/calendar/google.js";
 import type { PlannerActions } from "../src/web/planner-actions.js";
 import { plannerRoute } from "../src/web/planner-routes.js";
@@ -78,7 +84,7 @@ describe("pasting birthdays", () => {
 describe("the Google Calendar event", () => {
   const alice = { name: "Alice Tan", month: 3, day: 14, year: 2004 };
 
-  it("is a yearly all-day event, reminded at 9am the day before", () => {
+  it("is a yearly all-day event, with no Google popup of its own", () => {
     expect(birthdayEvent(alice, TODAY)).toMatchObject({
       summary: "🎂 Alice Tan's birthday",
       description: "Born 2004. Added by NUSHelper.",
@@ -86,12 +92,8 @@ describe("the Google Calendar event", () => {
       end: { date: "2026-03-15" },
       recurrence: ["RRULE:FREQ=YEARLY"],
       transparency: "transparent",
-      reminders: {
-        useDefault: false,
-        overrides: [{ method: "popup", minutes: 900 }],
-      },
+      reminders: { useDefault: false, overrides: [] },
     });
-    expect(REMINDER_MINUTES).toBe(15 * 60);
   });
 
   it("puts 29 Feb on the last day of February", () => {
@@ -257,5 +259,88 @@ describe("birthday routes", () => {
       (await plannerRoute("DELETE", "birthdays/lecture123", undefined, a))
         ?.status,
     ).toBe(400);
+  });
+});
+
+describe("the Telegram reminder at 23:55 the night before", () => {
+  const at = (iso: string) => new Date(iso);
+  // 6 Dec, 23:50 in Singapore.
+  const NIGHT = at("2026-12-06T15:50:00Z");
+  const alice: Birthday = { name: "Alice Tan", month: 12, day: 7, year: 2004 };
+  const occurrence = (birthday: Birthday, seriesId: string) => ({
+    ...birthdayEvent(birthday, TODAY),
+    id: `${seriesId}_20261207`,
+    recurringEventId: seriesId,
+  });
+
+  it("looks every 15 minutes, and each minute from 23:45", () => {
+    expect(timeToLookForBirthdays(at("2026-12-06T02:15:00Z"))).toBe(true);
+    expect(timeToLookForBirthdays(at("2026-12-06T02:16:00Z"))).toBe(false);
+    expect(timeToLookForBirthdays(at("2026-12-06T15:47:00Z"))).toBe(true);
+    expect(timeToLookForBirthdays(at("2026-12-06T15:59:00Z"))).toBe(true);
+  });
+
+  it("makes one reminder per birthday tomorrow, at 23:55 tonight", async () => {
+    const created: unknown[] = [];
+    const store = {
+      create: vi.fn(async (value: unknown) => {
+        created.push(value);
+        return value as never;
+      }),
+    };
+    const between = vi.fn(async () => [
+      occurrence(alice, "bdayaaa"),
+      occurrence({ name: "Mum", month: 12, day: 7, year: null }, "bdaybbb"),
+      { id: "lecture", summary: "CS2102" },
+    ]);
+    const result = await scheduleBirthdayReminders(
+      between,
+      store,
+      "424242",
+      NIGHT,
+    );
+    expect(result).toEqual({ scheduled: 2 });
+    expect(between).toHaveBeenCalledWith(
+      "2026-12-07T00:00:00.000+08:00",
+      "2026-12-08T00:00:00.000+08:00",
+    );
+    expect(created[0]).toMatchObject({
+      ownerId: "424242",
+      chatId: "424242",
+      sourceMessageId: -20261207,
+      description:
+        "🎂 Tomorrow (Mon 7 Dec) is Alice Tan's birthday, turning 22.",
+      scheduledAt: at("2026-12-06T15:55:00Z"),
+      expiresAt: at("2026-12-07T15:59:59.999Z"),
+    });
+    expect(created[1]).toMatchObject({
+      description: "🎂 Tomorrow (Mon 7 Dec) is Mum's birthday.",
+    });
+  });
+
+  it("keys each reminder on the birthday, so looking again adds none", async () => {
+    const keys = new Set<string>();
+    const store = {
+      create: vi.fn(async (value: NewReminder) => {
+        keys.add(`${value.sourceMessageId}:${value.sourceLine}`);
+        return value as never;
+      }),
+    };
+    const between = async () => [occurrence(alice, "bdayaaa")];
+    await scheduleBirthdayReminders(between, store, "1", NIGHT);
+    await scheduleBirthdayReminders(
+      between,
+      store,
+      "1",
+      at("2026-12-06T15:58:00Z"),
+    );
+    expect(keys.size).toBe(1);
+  });
+
+  it("words it with and without the year", () => {
+    const date = DateTime.fromISO("2027-03-14", { zone: "Asia/Singapore" });
+    expect(birthdayReminderText("Bob", 2005, date)).toBe(
+      "🎂 Tomorrow (Sun 14 Mar) is Bob's birthday, turning 22.",
+    );
   });
 });

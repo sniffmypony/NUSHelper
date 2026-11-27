@@ -122,7 +122,7 @@ export function Birthdays() {
   return (
     <Card
       title="Birthdays"
-      description="Each one repeats yearly in Google Calendar, with a reminder at 9am the day before."
+      description="Each one is a yearly all-day event in Google Calendar. The bot reminds you on Telegram at 23:55 the night before."
     >
       <div className="space-y-4 px-5 py-4">
         {loadError ? (

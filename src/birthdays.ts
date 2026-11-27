@@ -22,8 +22,6 @@ export interface BirthdayLines {
 
 export const MAX_BIRTHDAY_LINES = 100;
 const MAX_NAME = 80;
-// Google reminds at 9am the day before (minutes before the day starts).
-export const REMINDER_MINUTES = 15 * 60;
 
 const MONTHS = [
   "jan",
@@ -216,10 +214,9 @@ export function birthdayEvent(
         : "RRULE:FREQ=YEARLY",
     ],
     transparency: "transparent",
-    reminders: {
-      useDefault: false,
-      overrides: [{ method: "popup", minutes: REMINDER_MINUTES }],
-    },
+    // The reminder comes from the bot on Telegram (23:55 the night
+    // before), so Google doesn't notify as well.
+    reminders: { useDefault: false, overrides: [] },
     extendedProperties: {
       private: {
         nushelperBirthday: "1",

@@ -306,6 +306,23 @@ export class GoogleCalendarGateway
     return events;
   }
 
+  // Each birthday falling in a range, one entry per occurrence.
+  async birthdaysBetween(
+    timeMin: string,
+    timeMax: string,
+  ): Promise<calendar_v3.Schema$Event[]> {
+    const response = await this.client.events.list({
+      calendarId: calendarId(),
+      privateExtendedProperty: ["nushelperBirthday=1"],
+      singleEvents: true,
+      showDeleted: false,
+      timeMin,
+      timeMax,
+      maxResults: 250,
+    });
+    return response.data.items ?? [];
+  }
+
   async addBirthdayEvent(
     eventId: string,
     event: calendar_v3.Schema$Event,
