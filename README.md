@@ -147,6 +147,14 @@ Each payment is added to that Singapore day's total at once (as an expenditure a
 - **Nightly check-in:** the 11:30pm message then shows the day's Apple Pay total and asks only for anything else (cash, online), with **That's all**. A day with no reply keeps its Apple Pay total (status `auto`) instead of S$0.
 - **What isn't seen:** only taps at a terminal trigger the automation. In-app and online Apple Pay, physical cards and some transit taps don't.
 
+## Birthdays
+
+**Tasks → Birthdays** on the website adds birthdays to Google Calendar, several at a time. Paste one per line, a name and a date, day first: `Alice Tan 14/03`, `Bob 2 Dec 2004`, `2005-01-09 Ethan`. **Check** shows what was read and which lines can't be used, then **Add** creates them.
+
+- Each is a yearly all-day event ("🎂 Alice Tan's birthday") with a reminder at 9am the day before. It is marked free, so it doesn't block your time. 29 Feb falls on 28 Feb in other years.
+- The same name and date always give the same event id, so pasting a list again doesn't make duplicates. Removing one on the website deletes the event; adding it again restores it.
+- Birthdays are kept only in Google Calendar, tagged in a private extended property. With a year, the list shows the age they turn next.
+
 ## Bank emails (DBS PayLah! and digibank)
 
 DBS alert emails about money leaving your account become questions on Telegram, so PayLah! and PayNow spending isn't missed. The bot never gets Gmail access: a Google Apps Script in your own account sends it only these emails.

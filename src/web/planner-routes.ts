@@ -1,3 +1,4 @@
+import { BIRTHDAY_ID, MAX_BIRTHDAY_LINES } from "../birthdays.js";
 import { isValidIsoDate } from "../dates.js";
 import type { PlannerActions } from "./planner-actions.js";
 import {
@@ -161,6 +162,35 @@ export async function plannerRoute(
   }
   if (method === "POST" && route === "deadlines/submissions") {
     return ok({ states: await actions.submissions() });
+  }
+
+  if (route === "birthdays" || route === "birthdays/check") {
+    if (method === "GET" && route === "birthdays") {
+      return ok(await actions.birthdays());
+    }
+    if (method === "POST") {
+      const lines = text(body, "text");
+      const count = lines.split(/\r?\n/).filter((line) => line.trim()).length;
+      if (!lines || lines.length > 20_000) {
+        return bad("Paste one birthday per line.");
+      }
+      if (count > MAX_BIRTHDAY_LINES) {
+        return bad(`Up to ${MAX_BIRTHDAY_LINES} birthdays at a time.`);
+      }
+      if (route === "birthdays/check") {
+        return ok(await actions.checkBirthdays(lines));
+      }
+      const added = await actions.addBirthdays(lines);
+      return {
+        status: added.ok ? 200 : 422,
+        body: added.ok ? added : { ...added, error: added.message },
+      };
+    }
+  }
+  const birthday = /^birthdays\/([a-z0-9]{1,64})$/.exec(route);
+  if (birthday && method === "DELETE") {
+    if (!BIRTHDAY_ID.test(birthday[1])) return bad("Unknown birthday.");
+    return result(await actions.deleteBirthday(birthday[1]));
   }
 
   const exported = /^export\/([a-z]+)\.csv$/.exec(route);
