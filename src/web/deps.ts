@@ -28,6 +28,21 @@ import { webhookSecretFor } from "../webhook-secret.js";
 
 let botUsername: Promise<string> | undefined;
 
+// The account to share the calendar with: from the service-account key if
+// there is one, else the keyless (Workload Identity) setup's.
+function serviceAccountEmail(): string | null {
+  const key = optionalEnv("GOOGLE_SERVICE_ACCOUNT_JSON_BASE64");
+  if (key) {
+    try {
+      const parsed = JSON.parse(Buffer.from(key, "base64").toString("utf8"));
+      if (typeof parsed?.client_email === "string") return parsed.client_email;
+    } catch {
+      // Fall through to the keyless setup's account.
+    }
+  }
+  return optionalEnv("GCP_SERVICE_ACCOUNT_EMAIL") ?? null;
+}
+
 function aiClient(): OpenAI {
   const { apiKey, baseURL } = llmConfig();
   return new OpenAI({ apiKey, baseURL, timeout: 30_000, maxRetries: 0 });
@@ -89,7 +104,7 @@ export const webDependencies: WebDependencies = {
   calendarInfo() {
     return {
       calendarId: calendarId(),
-      serviceAccountEmail: optionalEnv("GCP_SERVICE_ACCOUNT_EMAIL") ?? null,
+      serviceAccountEmail: serviceAccountEmail(),
     };
   },
 

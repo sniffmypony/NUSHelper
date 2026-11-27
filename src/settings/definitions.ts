@@ -19,6 +19,35 @@ function modelId(value: string): string | null {
   return MODEL_ID.test(value) ? null : "Enter a model id like qwen3.6:35b.";
 }
 
+function httpsUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && value.length <= 300 && !url.username
+      ? null
+      : "Enter an https:// address.";
+  } catch {
+    return "Enter an https:// address.";
+  }
+}
+
+// A Google service-account key, base64 of the JSON file Google gives you
+// (the website encodes the uploaded file).
+export function serviceAccountKey(value: string): string | null {
+  if (value.length > 20_000 || !/^[A-Za-z0-9+/=]+$/.test(value)) {
+    return "Upload the JSON key file Google gave you.";
+  }
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64").toString("utf8"));
+    return parsed?.type === "service_account" &&
+      typeof parsed.client_email === "string" &&
+      typeof parsed.private_key === "string"
+      ? null
+      : "That isn't a service-account key (it needs client_email and private_key).";
+  } catch {
+    return "Upload the JSON key file Google gave you.";
+  }
+}
+
 function token(value: string): string | null {
   if (value.length < 8 || value.length > 4096) {
     return "That doesn't look like a key.";
@@ -30,7 +59,7 @@ export const SETTINGS: SettingDefinition[] = [
   {
     key: "LLM_MODEL",
     label: "Main AI model",
-    help: "The model the assistant uses on SoCLaaS.",
+    help: "The model the assistant uses, from your AI provider.",
     secret: false,
     env: ["LLM_MODEL", "SOCLAAS_MODEL"],
     validate: modelId,
@@ -42,6 +71,22 @@ export const SETTINGS: SettingDefinition[] = [
     secret: false,
     env: ["LLM_FALLBACK_MODEL", "SOCLAAS_FALLBACK_MODEL"],
     validate: modelId,
+  },
+  {
+    key: "LLM_BASE_URL",
+    label: "AI provider address",
+    help: "Any OpenAI-compatible API whose models support tool calling, e.g. https://api.openai.com/v1, or SoCLaaS for NUS students.",
+    secret: false,
+    env: ["LLM_BASE_URL", "SOCLAAS_BASE_URL"],
+    validate: httpsUrl,
+  },
+  {
+    key: "CANVAS_BASE_URL",
+    label: "Canvas address",
+    help: "Your school's Canvas, e.g. https://canvas.nus.edu.sg.",
+    secret: false,
+    env: ["CANVAS_BASE_URL"],
+    validate: httpsUrl,
   },
   {
     key: "NUS_MATRICULATION_YEAR",
@@ -67,7 +112,7 @@ export const SETTINGS: SettingDefinition[] = [
   },
   {
     key: "LLM_API_KEY",
-    label: "SoCLaaS API key",
+    label: "AI provider API key",
     help: "Used for every AI request.",
     secret: true,
     env: ["LLM_API_KEY", "SOCLAAS_API_KEY"],
@@ -80,6 +125,14 @@ export const SETTINGS: SettingDefinition[] = [
     secret: true,
     env: ["CANVAS_API_TOKEN"],
     validate: token,
+  },
+  {
+    key: "GOOGLE_SERVICE_ACCOUNT_JSON_BASE64",
+    label: "Service-account key",
+    help: "The JSON key of a Google Cloud service account with the Calendar API enabled.",
+    secret: true,
+    env: ["GOOGLE_SERVICE_ACCOUNT_JSON_BASE64"],
+    validate: serviceAccountKey,
   },
 ];
 

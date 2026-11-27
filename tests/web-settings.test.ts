@@ -7,6 +7,10 @@ vi.mock("../src/db/client.js", () => ({ db: {} }));
 import { optionalEnv } from "../src/env.js";
 import { replaceSettingOverrides } from "../src/setting-overrides.js";
 import { decryptSecret, encryptSecret } from "../src/settings/crypto.js";
+import {
+  serviceAccountKey,
+  settingDefinition,
+} from "../src/settings/definitions.js";
 import { refreshSettings } from "../src/settings/runtime.js";
 import type {
   AuditEntry,
@@ -308,6 +312,11 @@ describe("website API", () => {
         source: "website",
         lastFour: "7777",
       }),
+      expect.objectContaining({
+        key: "GOOGLE_SERVICE_ACCOUNT_JSON_BASE64",
+        source: "unset",
+        lastFour: null,
+      }),
     ]);
     expect(JSON.stringify(response.body)).not.toContain("canvas-secret");
     expect(JSON.stringify(response.body)).not.toContain("vercel-key");
@@ -538,5 +547,37 @@ describe("one query at a time on the single database connection", () => {
       (await call({ route: "settings", cookie: cookieFor() })).status,
     ).toBe(200);
     expect(most()).toBe(1);
+  });
+});
+
+describe("settings for a new copy", () => {
+  const key = (fields: Record<string, unknown>) =>
+    Buffer.from(JSON.stringify(fields)).toString("base64");
+
+  it("accepts only an https address for the AI provider and Canvas", () => {
+    for (const name of ["LLM_BASE_URL", "CANVAS_BASE_URL"]) {
+      const check = settingDefinition(name)!.validate;
+      expect(check("https://api.openai.com/v1")).toBeNull();
+      expect(check("http://api.example.com")).not.toBeNull();
+      expect(check("https://user:pass@api.example.com")).not.toBeNull();
+      expect(check("not a url")).not.toBeNull();
+    }
+  });
+
+  it("accepts only a real service-account key", () => {
+    expect(
+      serviceAccountKey(
+        key({
+          type: "service_account",
+          client_email: "bot@project.iam.gserviceaccount.com",
+          private_key:
+            "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n",
+        }),
+      ),
+    ).toBeNull();
+    expect(serviceAccountKey(key({ type: "authorized_user" }))).toMatch(
+      /isn't a service-account key/,
+    );
+    expect(serviceAccountKey("{ not base64 }")).toMatch(/Upload the JSON/);
   });
 });

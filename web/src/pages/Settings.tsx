@@ -30,11 +30,17 @@ import { SignIn } from "./Login";
 
 type Status = { tone: "ok" | "error" | "info"; text: string } | null;
 
+// Shown in the Google Calendar card rather than with the other keys.
+const SERVICE_KEY = "GOOGLE_SERVICE_ACCOUNT_JSON_BASE64";
+
 const SETTING_LABELS: Record<string, string> = {
   LLM_MODEL: "Main AI model",
   LLM_FALLBACK_MODEL: "Backup AI model",
   NUS_MATRICULATION_YEAR: "Matriculation year",
-  LLM_API_KEY: "SoCLaaS API key",
+  LLM_API_KEY: "AI provider API key",
+  LLM_BASE_URL: "AI provider address",
+  CANVAS_BASE_URL: "Canvas address",
+  GOOGLE_SERVICE_ACCOUNT_JSON_BASE64: "Google service-account key",
   CANVAS_API_TOKEN: "Canvas access token",
   timetable: "NUSMods timetable",
   session: "Sign-in",
@@ -176,14 +182,26 @@ function ModelRow({
   );
 }
 
+// Base64 of a file's text, as the server stores a service-account key.
+function base64Text(text: string): string {
+  let binary = "";
+  for (const byte of new TextEncoder().encode(text)) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
+
 function KeyRow({
   secret,
   fresh,
   onSaved,
+  file,
 }: {
   secret: SecretRow;
   fresh: boolean;
   onSaved: () => void;
+  // A key that comes as a file (the Google service-account JSON).
+  file?: { accept: string; label: string };
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
@@ -196,15 +214,17 @@ function KeyRow({
       ? `Saved here · ending ${secret.lastFour} · ${formatDate(secret.updatedAt)}`
       : secret.source === "vercel"
         ? "Using the key set in Vercel."
-        : "No key set.";
+        : file
+          ? "No key uploaded."
+          : "No key set.";
 
-  const save = async (method: "PUT" | "DELETE") => {
+  const save = async (method: "PUT" | "DELETE", given = value) => {
     setBusy(true);
     setStatus(null);
     try {
       await api(`secrets/${secret.key}`, {
         method,
-        body: method === "PUT" ? { value } : undefined,
+        body: method === "PUT" ? { value: given } : undefined,
       });
       setEditing(false);
       setValue("");
@@ -264,13 +284,39 @@ function KeyRow({
         </form>
       ) : (
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button
-            variant="secondary"
-            disabled={!fresh}
-            onClick={() => setEditing(true)}
-          >
-            Replace key
-          </Button>
+          {file ? (
+            <label
+              className={`inline-flex select-none items-center justify-center gap-1.5 rounded-[10px] border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-brand-text transition-[transform,background-color] duration-150 ease-out focus-within:outline-2 focus-within:outline-accent hover:bg-brand-soft active:scale-[0.97] motion-reduce:active:scale-100 ${
+                !fresh || busy
+                  ? "pointer-events-none opacity-50"
+                  : "cursor-pointer"
+              }`}
+            >
+              <input
+                type="file"
+                accept={file.accept}
+                className="sr-only"
+                disabled={!fresh || busy}
+                onChange={(event) => {
+                  const chosen = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!chosen) return;
+                  void chosen
+                    .text()
+                    .then((text) => save("PUT", base64Text(text.trim())));
+                }}
+              />
+              {secret.source === "unset" ? file.label : "Replace key file"}
+            </label>
+          ) : (
+            <Button
+              variant="secondary"
+              disabled={!fresh}
+              onClick={() => setEditing(true)}
+            >
+              {secret.source === "unset" ? "Add key" : "Replace key"}
+            </Button>
+          )}
           {secret.source === "website" && (
             <Button
               variant="ghost"
@@ -291,10 +337,13 @@ function TextSettingRow({
   setting,
   onSaved,
   placeholder,
+  url = false,
 }: {
   setting: SettingRow;
   onSaved: () => void;
   placeholder: string;
+  // An address: a full-width field instead of a short number box.
+  url?: boolean;
 }) {
   const [value, setValue] = useState(setting.value ?? "");
   const [status, setStatus] = useState<Status>(null);
@@ -306,7 +355,7 @@ function TextSettingRow({
     try {
       await api(`settings/${setting.key}`, {
         method,
-        body: method === "PUT" ? { value } : undefined,
+        body: method === "PUT" ? { value: value.trim() } : undefined,
       });
       setStatus({
         tone: "ok",
@@ -329,13 +378,15 @@ function TextSettingRow({
           value={value}
           onChange={(event) => setValue(event.target.value)}
           placeholder={placeholder}
-          className="w-32"
-          inputMode="numeric"
+          className={url ? "min-w-0 flex-1 basis-64" : "w-32"}
+          inputMode={url ? "url" : "numeric"}
+          spellCheck={url ? false : undefined}
+          autoCapitalize={url ? "off" : undefined}
           shake={refusals}
           invalid={status?.tone === "error"}
         />
         <Button
-          disabled={!value || value === setting.value}
+          disabled={!value.trim() || value.trim() === setting.value}
           onClick={() => void send("PUT")}
         >
           Save
@@ -354,10 +405,14 @@ function TextSettingRow({
 function CalendarCard({
   calendar,
   setting,
+  serviceKey,
+  fresh,
   onSaved,
 }: {
   calendar: SettingsResponse["calendar"];
   setting: SettingRow;
+  serviceKey: SecretRow | undefined;
+  fresh: boolean;
   onSaved: () => void;
 }) {
   const [status, setStatus] = useState<Status>(null);
@@ -395,6 +450,46 @@ function CalendarCard({
       title="Google Calendar"
       description="The calendar the bot reads and adds events to."
     >
+      {serviceKey && (
+        <KeyRow
+          secret={serviceKey}
+          fresh={fresh}
+          onSaved={onSaved}
+          file={{ accept: ".json,application/json", label: "Upload JSON key" }}
+        />
+      )}
+      {calendar.serviceAccountEmail && (
+        <Row
+          label="Bot's Google account"
+          help="Share a calendar with this address (Make changes to events) for the bot to use it."
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <code className="break-all rounded bg-sunken px-2 py-1 text-xs">
+              {calendar.serviceAccountEmail}
+            </code>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                void navigator.clipboard
+                  .writeText(calendar.serviceAccountEmail!)
+                  .then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  });
+              }}
+            >
+              <SwapIcon
+                show={copied ? "copied" : "copy"}
+                icons={{
+                  copy: <Copy {...ICON} />,
+                  copied: <Check {...ICON} className="text-ok" />,
+                }}
+              />
+              {copied ? "Copied" : "Copy"}
+            </Button>
+          </div>
+        </Row>
+      )}
       <Row
         label="Calendar"
         help="A calendar id, e.g. you@gmail.com. Find it in Google Calendar under the calendar's Settings > Integrate calendar."
@@ -457,44 +552,14 @@ function CalendarCard({
           </Button>
         </div>
         {status && <Notice tone={status.tone}>{status.text}</Notice>}
-        <Notice tone="info">
-          Events already added stay on the old calendar. Upcoming Canvas
-          deadlines are added to the new one at the next daily sync; send your
-          NUSMods link again to add finals.
-        </Notice>
+        {calendar.calendarId && (
+          <Notice tone="info">
+            Events already added stay on the old calendar. Upcoming Canvas
+            deadlines are added to the new one at the next daily sync; send your
+            NUSMods link again to add finals.
+          </Notice>
+        )}
       </Row>
-      {calendar.serviceAccountEmail && (
-        <Row
-          label="Bot's Google account"
-          help="Share a calendar with this address (Make changes to events) for the bot to use it."
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <code className="break-all rounded bg-sunken px-2 py-1 text-xs">
-              {calendar.serviceAccountEmail}
-            </code>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                void navigator.clipboard
-                  .writeText(calendar.serviceAccountEmail!)
-                  .then(() => {
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  });
-              }}
-            >
-              <SwapIcon
-                show={copied ? "copied" : "copy"}
-                icons={{
-                  copy: <Copy {...ICON} />,
-                  copied: <Check {...ICON} className="text-ok" />,
-                }}
-              />
-              {copied ? "Copied" : "Copy"}
-            </Button>
-          </div>
-        </Row>
-      )}
     </Card>
   );
 }
@@ -629,8 +694,14 @@ export function SettingsPage({
 
       <Card
         title="AI assistant"
-        description="Models on SoCLaaS, used for Telegram replies."
+        description="Your AI provider and its models, for replies on Telegram and in Chat."
       >
+        <TextSettingRow
+          setting={setting("LLM_BASE_URL")}
+          onSaved={load}
+          placeholder="https://api.openai.com/v1"
+          url
+        />
         {["LLM_MODEL", "LLM_FALLBACK_MODEL"].map((key) => (
           <ModelRow
             key={key}
@@ -642,8 +713,8 @@ export function SettingsPage({
         {modelsError && (
           <div className="px-5 py-3">
             <Notice tone="info">
-              Couldn't list SoCLaaS models ({modelsError}); type a model id
-              instead.
+              Couldn't list your provider's models ({modelsError}). Check its
+              address and API key, or type a model id instead.
             </Notice>
           </div>
         )}
@@ -662,19 +733,23 @@ export function SettingsPage({
             />
           </div>
         )}
-        {data.secrets.map((secret) => (
-          <KeyRow
-            key={secret.key}
-            secret={secret}
-            fresh={me.fresh}
-            onSaved={load}
-          />
-        ))}
+        {data.secrets
+          .filter((secret) => secret.key !== SERVICE_KEY)
+          .map((secret) => (
+            <KeyRow
+              key={secret.key}
+              secret={secret}
+              fresh={me.fresh}
+              onSaved={load}
+            />
+          ))}
       </Card>
 
       <CalendarCard
         calendar={data.calendar}
         setting={setting("GOOGLE_CALENDAR_ID")}
+        serviceKey={data.secrets.find((secret) => secret.key === SERVICE_KEY)}
+        fresh={me.fresh}
         onSaved={load}
       />
       <Card title="NUSMods timetable">
@@ -688,11 +763,17 @@ export function SettingsPage({
         </Row>
       </Card>
 
-      <Card title="Profile">
+      <Card title="School" description="NUS week labels and your Canvas.">
         <TextSettingRow
           setting={setting("NUS_MATRICULATION_YEAR")}
           onSaved={load}
           placeholder="2025"
+        />
+        <TextSettingRow
+          setting={setting("CANVAS_BASE_URL")}
+          onSaved={load}
+          placeholder="https://canvas.nus.edu.sg"
+          url
         />
       </Card>
 
