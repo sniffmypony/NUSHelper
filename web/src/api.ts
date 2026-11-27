@@ -42,6 +42,8 @@ export interface Me {
   authenticated: boolean;
   fresh: boolean;
   expiresAt: number | null;
+  // Which optional features are set up (signed in only).
+  features?: import("./features").Features;
 }
 
 export type Source = "website" | "vercel" | "unset";

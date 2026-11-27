@@ -11,6 +11,8 @@ import { Pill } from "../components/category";
 import { ICON } from "../components/icons";
 import { Accordion } from "../components/motion";
 import { Empty, PageHeader, errorText } from "../components/page";
+import { FeatureOff } from "../components/FeatureOff";
+import { useFeatures } from "../features";
 import { Button, Card, Notice } from "../components/ui";
 
 interface Deadline {
@@ -113,6 +115,7 @@ function Row({
 }
 
 export function DeadlinesPage() {
+  const { canvas } = useFeatures();
   const [data, setData] = useState<{
     upcoming: Deadline[];
     recent: Deadline[];
@@ -161,16 +164,24 @@ export function DeadlinesPage() {
         title="Deadlines"
         description="Canvas assignments, synced every morning. The bot checks each one an hour before it's due."
         actions={
-          <Button
-            variant="secondary"
-            disabled={checking || data.upcoming.length === 0}
-            onClick={() => void check()}
-          >
-            <RefreshCw {...ICON} className={checking ? "animate-spin" : ""} />
-            {checking ? "Asking Canvas…" : "Check submissions"}
-          </Button>
+          canvas && (
+            <Button
+              variant="secondary"
+              disabled={checking || data.upcoming.length === 0}
+              onClick={() => void check()}
+            >
+              <RefreshCw {...ICON} className={checking ? "animate-spin" : ""} />
+              {checking ? "Asking Canvas…" : "Check submissions"}
+            </Button>
+          )
         }
       />
+      {!canvas && (
+        <FeatureOff>
+          Canvas isn't connected, so there are no deadlines to show. Add your
+          Canvas address and access token in Settings.
+        </FeatureOff>
+      )}
       {checkError && <Notice tone="error">{checkError}</Notice>}
       {Object.keys(states).length > 0 && (
         <Notice tone="info">
@@ -178,7 +189,7 @@ export function DeadlinesPage() {
         </Notice>
       )}
 
-      {groups.length === 0 ? (
+      {!canvas && groups.length === 0 ? null : groups.length === 0 ? (
         <Card title="Upcoming">
           <div className="px-5 py-4">
             <Empty>Nothing due. Enjoy it.</Empty>

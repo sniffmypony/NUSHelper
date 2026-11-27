@@ -7,7 +7,14 @@ import {
   telegramBotToken,
   telegramOwnerId,
 } from "../env.js";
-import { describeTimetable, importTimetable } from "../nus/timetable.js";
+import {
+  describeTimetable,
+  importTimetable,
+  timetableStore,
+} from "../nus/timetable.js";
+import { sql } from "drizzle-orm";
+import { db } from "../db/client.js";
+import { features } from "./setup.js";
 import { forgetLoadedSettings, refreshSettings } from "../settings/runtime.js";
 import { consumeLoginToken, loginLinkStore } from "./login-links.js";
 import { calendarActions } from "./calendar-actions.js";
@@ -55,6 +62,29 @@ export const webDependencies: WebDependencies = {
   store: settingsStore,
   env: (name) => process.env[name]?.trim() || undefined,
 
+  features,
+  async dispatchLastRun() {
+    // pg_cron's own record of the job set up by pnpm setup:db. Without
+    // pg_cron (not Supabase) the query fails and the answer is unknown.
+    try {
+      const rows = await db.execute(sql`
+        select max(d.end_time) as last
+        from cron.job_run_details d
+        join cron.job j on j.jobid = d.jobid
+        where j.jobname = 'dispatch-telegram-reminders'
+          and d.status = 'succeeded'
+          and d.end_time > now() - interval '1 day'
+      `);
+      const last = (Array.from(rows)[0] as { last: Date | string | null })
+        ?.last;
+      return last ? new Date(last) : null;
+    } catch {
+      return undefined;
+    }
+  },
+  async hasTimetable() {
+    return (await timetableStore.all()).length > 0;
+  },
   async telegramStatus() {
     const site = websiteUrl();
     return webhookStatus(telegramBotToken(), site ? webhookUrlFor(site) : null);

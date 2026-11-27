@@ -4,6 +4,7 @@ import { api } from "../api";
 import { Dot, Pill, isExam, type Category } from "../components/category";
 import { ICON } from "../components/icons";
 import { Empty, PageHeader, StatTile, errorText } from "../components/page";
+import { SetupChecklist } from "../components/SetupChecklist";
 import { Todos } from "../components/Todos";
 import { Button, Card, Notice } from "../components/ui";
 import { formatDay, formatMoney } from "../dates";
@@ -130,6 +131,7 @@ export function TodayPage() {
 
   return (
     <div className="space-y-6">
+      <SetupChecklist />
       <PageHeader
         title={greeting()}
         description={
