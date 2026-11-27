@@ -194,7 +194,7 @@ The assistant works with any OpenAI-compatible chat-completions endpoint whose m
 ### 2. Supabase
 
 1. Create a project. In **Project Settings → Database → Connection string**, copy the **Transaction pooler** URI; this is `DATABASE_URL`.
-2. In the **SQL Editor**, run every file in `supabase/migrations` in filename order.
+2. In the **SQL Editor**, run every file in `supabase/migrations` in filename order. Every table gets Row Level Security with no policies, so Supabase's public API keys can't reach your data; the bot connects as the database owner. CI runs the same files on an empty database (`scripts/check-migrations.sh`) on every change.
 
 ### 3. Vercel
 
