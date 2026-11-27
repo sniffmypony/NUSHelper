@@ -15,3 +15,9 @@ export function threadIdOf(ctx: Context): number | undefined {
 export function conversationKey(chatId: number, threadId?: number): string {
   return threadId ? `${chatId}:${threadId}` : String(chatId);
 }
+
+// The assistant conversation a message belongs to: the key its history and
+// "did it just ask a question?" are stored under.
+export function conversationOf(ctx: Context): string {
+  return conversationKey(ctx.chat?.id ?? 0, threadIdOf(ctx));
+}

@@ -9,7 +9,11 @@ import {
   type SendTelegramMessageOptions,
 } from "./telegram.js";
 
-export { conversationKey, threadIdOf } from "./topic-context.js";
+export {
+  conversationKey,
+  conversationOf,
+  threadIdOf,
+} from "./topic-context.js";
 
 // With Threaded mode on, the private chat with the bot has topics. Replies
 // always go to the topic the user wrote in (Telegraf does that). Messages the

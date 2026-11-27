@@ -63,3 +63,16 @@ describe("a bare number right after the assistant asks something", () => {
     expect(await store.awaitsAnswer("1", NOW)).toBe(false);
   });
 });
+
+describe("which conversation a number belongs to", () => {
+  it("uses the topic, as the assistant stores its questions", async () => {
+    const { conversationOf } = await import("../src/topic-context.js");
+    const inTopic = {
+      chat: { id: 2111659835 },
+      msg: { is_topic_message: true, message_thread_id: 270579 },
+    };
+    const inChat = { chat: { id: 2111659835 }, msg: {} };
+    expect(conversationOf(inTopic as never)).toBe("2111659835:270579");
+    expect(conversationOf(inChat as never)).toBe("2111659835");
+  });
+});
