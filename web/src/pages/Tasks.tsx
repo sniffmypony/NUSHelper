@@ -1,6 +1,7 @@
 import { Check, Repeat, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
+import { Birthdays } from "../components/Birthdays";
 import { Pill } from "../components/category";
 import { ICON } from "../components/icons";
 import { Shake, Tooltip } from "../components/motion";
@@ -386,6 +387,7 @@ export function TasksPage() {
         <div className="space-y-6">
           <TaskList data={data} onChanged={load} />
           <RepeatingList data={data} onChanged={load} />
+          <Birthdays />
         </div>
         <div className="lg:sticky lg:top-6 lg:self-start">
           <Todos todos={data.todos} onChanged={load} />

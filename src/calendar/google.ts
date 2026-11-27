@@ -76,7 +76,9 @@ export function eventTiming(
   };
 }
 
-export class GoogleCalendarGateway implements CalendarGateway {
+export class GoogleCalendarGateway
+  implements CalendarGateway, BirthdayCalendar
+{
   constructor(private readonly client: calendar_v3.Calendar) {}
 
   // `id` lets the website test a calendar before switching to it.
@@ -285,6 +287,81 @@ export class GoogleCalendarGateway implements CalendarGateway {
       throw error;
     }
   }
+
+  async listBirthdayEvents(): Promise<calendar_v3.Schema$Event[]> {
+    const events: calendar_v3.Schema$Event[] = [];
+    let pageToken: string | undefined;
+    do {
+      const response = await this.client.events.list({
+        calendarId: calendarId(),
+        privateExtendedProperty: ["nushelperBirthday=1"],
+        singleEvents: false,
+        showDeleted: false,
+        maxResults: 2500,
+        ...(pageToken ? { pageToken } : {}),
+      });
+      events.push(...(response.data.items ?? []));
+      pageToken = response.data.nextPageToken ?? undefined;
+    } while (pageToken);
+    return events;
+  }
+
+  // Each birthday falling in a range, one entry per occurrence.
+  async birthdaysBetween(
+    timeMin: string,
+    timeMax: string,
+  ): Promise<calendar_v3.Schema$Event[]> {
+    const response = await this.client.events.list({
+      calendarId: calendarId(),
+      privateExtendedProperty: ["nushelperBirthday=1"],
+      singleEvents: true,
+      showDeleted: false,
+      timeMin,
+      timeMax,
+      maxResults: 250,
+    });
+    return response.data.items ?? [];
+  }
+
+  async addBirthdayEvent(
+    eventId: string,
+    event: calendar_v3.Schema$Event,
+  ): Promise<"created" | "exists"> {
+    try {
+      await this.client.events.insert({
+        calendarId: calendarId(),
+        sendUpdates: "none",
+        requestBody: { ...event, id: eventId },
+      });
+      return "created";
+    } catch (error) {
+      if (errorStatus(error) !== 409) throw error;
+    }
+    // Google keeps a deleted event's id: bring a removed birthday back.
+    const existing = await this.client.events.get({
+      calendarId: calendarId(),
+      eventId,
+    });
+    if (existing.data.status !== "cancelled") return "exists";
+    await this.client.events.patch({
+      calendarId: calendarId(),
+      eventId,
+      sendUpdates: "none",
+      requestBody: { ...event, status: "confirmed" },
+    });
+    return "created";
+  }
+}
+
+// Birthdays (see src/birthdays.ts): yearly events tagged in private
+// extended properties, added under ids the bot chooses.
+export interface BirthdayCalendar {
+  listBirthdayEvents(): Promise<calendar_v3.Schema$Event[]>;
+  addBirthdayEvent(
+    eventId: string,
+    event: calendar_v3.Schema$Event,
+  ): Promise<"created" | "exists">;
+  delete(eventId: string): Promise<"deleted" | "already-deleted">;
 }
 
 let gatewayPromise: Promise<GoogleCalendarGateway> | undefined;
