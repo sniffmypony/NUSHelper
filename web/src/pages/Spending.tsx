@@ -588,19 +588,6 @@ export function SpendingPage() {
                         </td>
                         <td className="px-5 py-2 text-right font-medium tabular-nums">
                           {day.cents === null ? "—" : formatMoney(day.cents)}
-                          {(() => {
-                            const automatic = data.applePay
-                              .filter(
-                                (p) =>
-                                  p.date === day.date && p.status === "counted",
-                              )
-                              .reduce((sum, p) => sum + (p.cents ?? 0), 0);
-                            return automatic > 0 ? (
-                              <span className="block text-xs font-normal text-muted">
-                                {formatMoney(automatic)} automatic
-                              </span>
-                            ) : null;
-                          })()}
                         </td>
                         <td className="px-5 py-2 text-muted">
                           {day.status
