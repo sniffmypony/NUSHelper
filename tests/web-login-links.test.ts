@@ -54,15 +54,15 @@ describe("one-time sign-in links", () => {
   });
 
   it("put the token after # so previews and scanners can't use it", () => {
-    expect(loginLink("https://hr-bot-tele.vercel.app", "abc")).toBe(
-      "https://hr-bot-tele.vercel.app/login#token=abc",
+    expect(loginLink("https://nushelper-example.vercel.app", "abc")).toBe(
+      "https://nushelper-example.vercel.app/login#token=abc",
     );
   });
 
   it("use WEB_URL, else the Vercel production domain", () => {
     vi.stubEnv("WEB_URL", "");
-    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "hr-bot-tele.vercel.app");
-    expect(websiteUrl()).toBe("https://hr-bot-tele.vercel.app");
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "nushelper-example.vercel.app");
+    expect(websiteUrl()).toBe("https://nushelper-example.vercel.app");
     vi.stubEnv("WEB_URL", "https://planner.example.com/");
     expect(websiteUrl()).toBe("https://planner.example.com");
     vi.stubEnv("WEB_URL", "");

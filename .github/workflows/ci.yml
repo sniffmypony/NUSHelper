@@ -26,3 +26,26 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm test
       - run: pnpm --filter nushelper-web build
+
+  # A new Supabase project runs every migration in order on an empty
+  # database; this does the same, and fails if any table lacks Row Level
+  # Security.
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - run: scripts/check-migrations.sh
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
