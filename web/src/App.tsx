@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { api, type Me } from "./api";
 import { NAV, Shell } from "./components/Shell";
+import { ALL_ON, FeaturesContext } from "./features";
 import { navigate, usePath } from "./navigation";
 import { CalendarPage } from "./pages/Calendar";
 import { DeadlinesPage } from "./pages/Deadlines";
@@ -29,7 +30,8 @@ export function App() {
       );
   }, []);
 
-  useEffect(refresh, [refresh]);
+  // Again on each page change, so a feature set up in Settings shows as on.
+  useEffect(refresh, [refresh, path]);
 
   // A sign-in link from the bot's /web command: /login#token=...
   // The token is removed from the address bar before it is used.
@@ -61,28 +63,30 @@ export function App() {
 
   const page = NAV.find((item) => path.startsWith(item.path));
   return (
-    <Shell path={path}>
-      {page?.path === "/today" ? (
-        <TodayPage />
-      ) : page?.path === "/tasks" ? (
-        <TasksPage />
-      ) : page?.path === "/spending" ? (
-        <SpendingPage />
-      ) : page?.path === "/timetable" ? (
-        <TimetablePage />
-      ) : page?.path === "/deadlines" ? (
-        <DeadlinesPage />
-      ) : page?.path === "/calendar" ? (
-        <CalendarPage />
-      ) : page?.path === "/chat" ? (
-        <Suspense fallback={<p className="text-sm text-faint">Loading…</p>}>
-          <ChatPage path={path} />
-        </Suspense>
-      ) : page?.path === "/settings" ? (
-        <SettingsPage me={me} onSessionChange={refresh} />
-      ) : (
-        <TodayPage />
-      )}
-    </Shell>
+    <FeaturesContext.Provider value={me.features ?? ALL_ON}>
+      <Shell path={path}>
+        {page?.path === "/today" ? (
+          <TodayPage />
+        ) : page?.path === "/tasks" ? (
+          <TasksPage />
+        ) : page?.path === "/spending" ? (
+          <SpendingPage />
+        ) : page?.path === "/timetable" ? (
+          <TimetablePage />
+        ) : page?.path === "/deadlines" ? (
+          <DeadlinesPage />
+        ) : page?.path === "/calendar" ? (
+          <CalendarPage />
+        ) : page?.path === "/chat" ? (
+          <Suspense fallback={<p className="text-sm text-faint">Loading…</p>}>
+            <ChatPage path={path} />
+          </Suspense>
+        ) : page?.path === "/settings" ? (
+          <SettingsPage me={me} onSessionChange={refresh} />
+        ) : (
+          <TodayPage />
+        )}
+      </Shell>
+    </FeaturesContext.Provider>
   );
 }

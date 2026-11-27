@@ -7,6 +7,8 @@ import {
 } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "../api";
+import { FeatureOff } from "../components/FeatureOff";
+import { useFeatures } from "../features";
 import { isExam } from "../components/category";
 import { ICON } from "../components/icons";
 import { Accordion, Shake } from "../components/motion";
@@ -232,6 +234,7 @@ function DayPanel({
   day: CalendarDay | undefined;
   onChanged: () => void;
 }) {
+  const { calendar: calendarOn } = useFeatures();
   const [status, setStatus] = useState<Status>(null);
   const [busy, setBusy] = useState(false);
   const [amount, setAmount] = useState("");
@@ -496,71 +499,82 @@ function DayPanel({
         ) : (
           <Empty>No events</Empty>
         )}
-        <form
-          className="mt-3 space-y-2 rounded-lg bg-sunken p-3"
-          onSubmit={(submit) => {
-            submit.preventDefault();
-            void run(() =>
-              api<{ message: string }>("events", {
-                method: "POST",
-                body: { date, ...event },
-              }),
-            ).then(
-              (ok) => ok && setEvent((current) => ({ ...current, title: "" })),
-            );
-          }}
-        >
-          <Input
-            value={event.title}
-            onChange={(e) => setEvent({ ...event, title: e.target.value })}
-            placeholder="New event title"
-          />
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <label className="flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={event.allDay}
-                onChange={(e) =>
-                  setEvent({ ...event, allDay: e.target.checked })
-                }
-              />
-              All day
-            </label>
-            {!event.allDay && (
-              <>
-                <Input
-                  type="time"
-                  value={event.start}
+        {calendarOn ? (
+          <form
+            className="mt-3 space-y-2 rounded-lg bg-sunken p-3"
+            onSubmit={(submit) => {
+              submit.preventDefault();
+              void run(() =>
+                api<{ message: string }>("events", {
+                  method: "POST",
+                  body: { date, ...event },
+                }),
+              ).then(
+                (ok) =>
+                  ok && setEvent((current) => ({ ...current, title: "" })),
+              );
+            }}
+          >
+            <Input
+              value={event.title}
+              onChange={(e) => setEvent({ ...event, title: e.target.value })}
+              placeholder="New event title"
+            />
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={event.allDay}
                   onChange={(e) =>
-                    setEvent({ ...event, start: e.target.value })
+                    setEvent({ ...event, allDay: e.target.checked })
                   }
-                  className="w-36"
                 />
-                <span>to</span>
-                <Input
-                  type="time"
-                  value={event.end}
-                  onChange={(e) => setEvent({ ...event, end: e.target.value })}
-                  className="w-36"
-                />
-              </>
-            )}
-            <select
-              value={event.repeat}
-              onChange={(e) => setEvent({ ...event, repeat: e.target.value })}
-              className="rounded-lg border border-line-strong bg-surface px-2 py-2 text-sm"
-            >
-              {REPEATS.map((repeat) => (
-                <option key={repeat} value={repeat}>
-                  {repeat ? `Repeats ${repeat}` : "Doesn't repeat"}
-                </option>
-              ))}
-            </select>
+                All day
+              </label>
+              {!event.allDay && (
+                <>
+                  <Input
+                    type="time"
+                    value={event.start}
+                    onChange={(e) =>
+                      setEvent({ ...event, start: e.target.value })
+                    }
+                    className="w-36"
+                  />
+                  <span>to</span>
+                  <Input
+                    type="time"
+                    value={event.end}
+                    onChange={(e) =>
+                      setEvent({ ...event, end: e.target.value })
+                    }
+                    className="w-36"
+                  />
+                </>
+              )}
+              <select
+                value={event.repeat}
+                onChange={(e) => setEvent({ ...event, repeat: e.target.value })}
+                className="rounded-lg border border-line-strong bg-surface px-2 py-2 text-sm"
+              >
+                {REPEATS.map((repeat) => (
+                  <option key={repeat} value={repeat}>
+                    {repeat ? `Repeats ${repeat}` : "Doesn't repeat"}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button type="submit" disabled={busy || !event.title}>
+              Add to Google Calendar
+            </Button>
+          </form>
+        ) : (
+          <div className="mt-3">
+            <FeatureOff>
+              Connect Google Calendar in Settings to add events here.
+            </FeatureOff>
           </div>
-          <Button type="submit" disabled={busy || !event.title}>
-            Add to Google Calendar
-          </Button>
-        </form>
+        )}
       </Section>
 
       <Section title="Reminders" dot="bg-cat-reminder">

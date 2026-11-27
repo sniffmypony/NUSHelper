@@ -29,7 +29,9 @@ import {
   type Upload,
 } from "../chat/api";
 import { Markdown } from "../chat/Markdown";
+import { FeatureOff } from "../components/FeatureOff";
 import { ICON } from "../components/icons";
+import { useFeatures } from "../features";
 import { Shake, SwapIcon, Tooltip } from "../components/motion";
 import { Button, Input, Notice } from "../components/ui";
 import { navigate } from "../navigation";
@@ -257,6 +259,7 @@ function Composer({
   busy: boolean;
   onSend: (text: string, upload: Upload | null) => Promise<boolean>;
 }) {
+  const { ai } = useFeatures();
   const [text, setText] = useState("");
   const [upload, setUpload] = useState<{ name: string; data: Upload } | null>(
     null,
@@ -290,6 +293,15 @@ function Composer({
       void submit();
     }
   };
+
+  if (!ai) {
+    return (
+      <FeatureOff>
+        The assistant needs an AI provider: its address, API key and a model.
+        Add them in Settings.
+      </FeatureOff>
+    );
+  }
 
   return (
     <Shake trigger={refused}>

@@ -29,6 +29,7 @@ import { chatRoute, type ChatDependencies } from "./chat-routes.js";
 import type { PlannerActions } from "./planner-actions.js";
 import { plannerRoute } from "./planner-routes.js";
 import type { WebhookStatus } from "../telegram-webhook.js";
+import { setupChecklist, type Features } from "./setup.js";
 
 // The website's API (/api/web/...). Everything except the sign-in needs the
 // owner's session cookie; changes also need the X-NUSHelper header, which a
@@ -63,6 +64,10 @@ export interface WebDependencies {
   // Where Telegram sends the bot's updates, and pointing it at this site.
   telegramStatus(): Promise<WebhookStatus>;
   connectTelegram(): Promise<WebhookStatus>;
+  // Which optional features are set up, and the setup checklist's checks.
+  features(): Features;
+  dispatchLastRun(): Promise<Date | null | undefined>;
+  hasTimetable(): Promise<boolean>;
   listModels(): Promise<string[]>;
   testModel(model: string): Promise<{ ms: number }>;
   calendarInfo(): { calendarId: string; serviceAccountEmail: string | null };
@@ -125,7 +130,10 @@ export async function handleWebRequest(
       return json(200, { botUsername: await deps.botUsername() });
     } catch (error) {
       console.error(`Website config failed (${errorType(error)})`);
-      return fail(502, "Couldn't reach Telegram.");
+      return fail(
+        502,
+        "Couldn't load your bot from Telegram. Check TELEGRAM_BOT_TOKEN in Vercel.",
+      );
     }
   }
 
@@ -194,10 +202,13 @@ export async function handleWebRequest(
     await sessionVersion(deps.store),
   );
   if (method === "GET" && route === "me") {
+    const authenticated = Boolean(session && session.uid === deps.ownerId());
     return json(200, {
-      authenticated: Boolean(session && session.uid === deps.ownerId()),
+      authenticated,
       fresh: Boolean(session && isFresh(session, now)),
       expiresAt: session ? (session.iat + SESSION_SECONDS) * 1000 : null,
+      // Only for the owner: which features are set up.
+      ...(authenticated ? { features: deps.features() } : {}),
     });
   }
   if (!session || session.uid !== deps.ownerId()) {
@@ -317,6 +328,12 @@ export async function handleWebRequest(
       } catch (error) {
         return json(200, { ok: false, error: reason(error) });
       }
+    }
+
+    if (method === "GET" && route === "setup") {
+      return json(200, {
+        items: await setupChecklist(deps, new Date(now * 1000)),
+      });
     }
 
     if (route === "telegram" || route === "telegram/connect") {

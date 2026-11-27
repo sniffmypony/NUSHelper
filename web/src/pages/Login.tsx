@@ -90,6 +90,10 @@ export function LoginPage({
         <p className="mt-6 text-xs text-faint">
           Private to the bot's owner. You stay signed in for 60 days.
         </p>
+        <p className="mt-2 text-xs text-faint">
+          First time? The button needs your bot to know this site: in @BotFather
+          send /setdomain and then {window.location.host}.
+        </p>
       </div>
     </div>
   );

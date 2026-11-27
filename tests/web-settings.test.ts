@@ -94,6 +94,9 @@ function setup(now = NOW) {
       lastError: null,
       lastErrorAt: null,
     })),
+    features: () => ({ ai: true, calendar: false, canvas: false }),
+    dispatchLastRun: async () => new Date(now * 1000 - 60_000),
+    hasTimetable: async () => false,
     connectTelegram: vi.fn(async () => ({
       expectedUrl: "https://site.example/api/webhook",
       url: "https://site.example/api/webhook",
@@ -456,6 +459,33 @@ describe("website API", () => {
       ok: false,
       error: "Bad Request: bad webhook: HTTPS url must be provided",
     });
+  });
+
+  it("tells only the owner which features are set up", async () => {
+    const { call, cookieFor } = setup();
+    expect((await call({ route: "me" })).body).not.toHaveProperty("features");
+    expect(
+      (await call({ route: "me", cookie: cookieFor() })).body,
+    ).toMatchObject({
+      authenticated: true,
+      features: { ai: true, calendar: false, canvas: false },
+    });
+    expect((await call({ route: "setup" })).status).toBe(401);
+    const checklist = await call({ route: "setup", cookie: cookieFor() });
+    expect(
+      (
+        checklist.body as {
+          items: Array<{ key: string; done: boolean | null }>;
+        }
+      ).items.map((item) => [item.key, item.done]),
+    ).toEqual([
+      ["telegram", false],
+      ["ai", true],
+      ["dispatch", true],
+      ["calendar", false],
+      ["canvas", false],
+      ["timetable", false],
+    ]);
   });
 
   it("signs out every session", async () => {
