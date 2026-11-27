@@ -82,6 +82,22 @@ function setup(now = NOW) {
     env: (name) =>
       ({ SOCLAAS_MODEL: "x-test-4", SOCLAAS_API_KEY: "vercel-key-1234" })[name],
     botUsername: async () => "hr_helper_bot",
+    telegramStatus: vi.fn(async () => ({
+      expectedUrl: "https://site.example/api/webhook",
+      url: "",
+      connected: false,
+      pendingUpdates: 0,
+      lastError: null,
+      lastErrorAt: null,
+    })),
+    connectTelegram: vi.fn(async () => ({
+      expectedUrl: "https://site.example/api/webhook",
+      url: "https://site.example/api/webhook",
+      connected: true,
+      pendingUpdates: 0,
+      lastError: null,
+      lastErrorAt: null,
+    })),
     listModels: async () => ["qwen3.6:35b", "x-test-4"],
     testModel: vi.fn(async () => ({ ms: 420 })),
     calendarInfo: () => ({
@@ -397,6 +413,41 @@ describe("website API", () => {
       expect(store.valueRows.has(setting)).toBe(false);
     },
   );
+
+  it("shows and connects the Telegram webhook, signed in only", async () => {
+    const { call, cookieFor, deps, store } = setup();
+    expect(
+      (await call({ method: "POST", route: "telegram/connect" })).status,
+    ).toBe(401);
+    const status = await call({ route: "telegram", cookie: cookieFor() });
+    expect(status.body).toMatchObject({ ok: true, connected: false });
+    const connected = await call({
+      method: "POST",
+      route: "telegram/connect",
+      cookie: cookieFor(),
+    });
+    expect(connected.body).toMatchObject({ ok: true, connected: true });
+    expect(deps.connectTelegram).toHaveBeenCalledTimes(1);
+    expect(store.log[0]).toMatchObject({
+      key: "telegram",
+      action: "connected",
+    });
+    vi.mocked(deps.connectTelegram).mockRejectedValueOnce(
+      new Error("Bad Request: bad webhook: HTTPS url must be provided"),
+    );
+    expect(
+      (
+        await call({
+          method: "POST",
+          route: "telegram/connect",
+          cookie: cookieFor(),
+        })
+      ).body,
+    ).toEqual({
+      ok: false,
+      error: "Bad Request: bad webhook: HTTPS url must be provided",
+    });
+  });
 
   it("signs out every session", async () => {
     const { call, cookieFor } = setup();

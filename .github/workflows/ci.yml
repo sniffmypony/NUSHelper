@@ -27,9 +27,9 @@ jobs:
       - run: pnpm test
       - run: pnpm --filter nushelper-web build
 
-  # A new Supabase project runs every migration in order on an empty
-  # database; this does the same, and fails if any table lacks Row Level
-  # Security.
+  # A new Supabase project starts empty: pnpm setup:db must build the whole
+  # database (every table with Row Level Security), and running it again
+  # must be harmless, since that is how later migrations are applied.
   migrations:
     runs-on: ubuntu-latest
     services:
@@ -44,8 +44,18 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v7
-      - run: scripts/check-migrations.sh
-        env:
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm setup:db
+      - name: Run it again
+        run: pnpm setup:db

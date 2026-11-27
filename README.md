@@ -124,7 +124,7 @@ The same Vercel project serves a private website at the project's address (for e
 - **Data:** Settings → Data downloads spending, tasks, to-dos, reminders, repeating items or saved chats as CSV (cells that a spreadsheet would run as formulas are made safe).
 - **Calendar:** a month grid with each day's spending total, Google Calendar events, reminders, tasks due, Canvas deadlines and classes (only in the weeks they run), and the NUS week. Tap a day to add or remove spending (as the Add/Remove buttons do, so reports stay right), add a timed or all-day event (optionally repeating) to Google Calendar or delete one, add a reminder, move a pending reminder to another time or cancel it (the bot texts at the new time), and see the day's classes, deadlines and tasks.
 - **Chat:** the same assistant as on Telegram (same models, backup model, effort levels and tools), with saved chats you can search, rename, pin and delete. Replies appear as they're written, with Markdown and LaTeX maths. Deletions and new Google Calendar events wait for a **Confirm** card, and things it adds get an **Undo** card, like the Telegram buttons. A photo (shrunk to 1600 px) or a file up to 3 MB can be attached; neither is stored, only a note that one was sent. Canvas files it sends go to your Telegram chat. Chats are kept in `web_chats` and `web_chat_messages`; the last 20 messages of a chat are sent with each new one.
-- **Settings:** the main and backup AI models (picked from your SoCLaaS model list, with a Test button), the SoCLaaS API key and Canvas token, the matriculation year, and the NUSMods timetable link. A value saved here wins over the Vercel environment variable of the same name; **Use Vercel's** removes it again. The bot reads them at the start of every request, at most every 30 seconds, so a change applies within about half a minute.
+- **Settings:** the Telegram connection (whether Telegram reaches this site, its last delivery error, and **Connect**), the main and backup AI models (picked from your SoCLaaS model list, with a Test button), the SoCLaaS API key and Canvas token, the matriculation year, and the NUSMods timetable link. A value saved here wins over the Vercel environment variable of the same name; **Use Vercel's** removes it again. The bot reads them at the start of every request, at most every 30 seconds, so a change applies within about half a minute.
 - **Keys** are stored AES-256-GCM encrypted in `bot_secrets`, with a key derived from the bot token, and are never shown again (only their last four characters). Changing the bot token makes them unreadable; the bot then uses Vercel's values and the website asks for them again.
 - **Google Calendar:** shows the calendar in use, the service account to share it with, and checks access.
 - **Activity:** `settings_audit` records what changed and when, never the values.
@@ -193,29 +193,38 @@ The assistant works with any OpenAI-compatible chat-completions endpoint whose m
 
 ### 2. Supabase
 
-1. Create a project. In **Project Settings → Database → Connection string**, copy the **Transaction pooler** URI; this is `DATABASE_URL`.
-2. In the **SQL Editor**, run every file in `supabase/migrations` in filename order. Every table gets Row Level Security with no policies, so Supabase's public API keys can't reach your data; the bot connects as the database owner. CI runs the same files on an empty database (`scripts/check-migrations.sh`) on every change.
+Create a project. In **Project Settings → Database → Connection string**, copy the **Transaction pooler** URI; this is `DATABASE_URL`.
 
 ### 3. Vercel
 
-1. Fork this repository and import it into Vercel.
-2. Add the environment variables below (**Settings → Environment Variables**, Production), then deploy.
-3. `vercel.json` sets the region to `sin1` (Singapore) and a 300-second limit for the webhook, which needs Fluid compute (the default for new projects).
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fsniffmypony%2FNUSHelper&project-name=nushelper&repository-name=nushelper&env=TELEGRAM_BOT_TOKEN,TELEGRAM_OWNER_ID,DATABASE_URL,CRON_SECRET,REMINDER_DISPATCH_SECRET&envDescription=The%20bot%20token%20and%20your%20Telegram%20ID%2C%20the%20Supabase%20connection%20string%2C%20and%20two%20random%20secrets.&envLink=https%3A%2F%2Fgithub.com%2Fsniffmypony%2FNUSHelper%23environment-variables)
 
-### 4. Reminders and nightly expenditure prompt
+The button copies this repository to your GitHub and asks for the five required values: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_ID`, `DATABASE_URL`, and two different random strings for `CRON_SECRET` and `REMINDER_DISPATCH_SECRET` (for example from `openssl rand -hex 32`). Or fork the repository, import it in Vercel and add the same variables under **Settings → Environment Variables** (Production).
 
-Supabase calls the bot every minute to deliver reminders and run the expenditure prompt. Open `supabase/reminder-cron.sql.example`, replace both placeholders (your deployment URL and a new random secret), and run it once in the SQL Editor. Set the same secret as `REMINDER_DISPATCH_SECRET` in Vercel.
+`vercel.json` sets the region to `sin1` (Singapore) and a 300-second limit for the webhook, which needs Fluid compute (the default for new projects).
 
-### 5. Register the webhook
+### 4. Database and the every-minute job
 
-The webhook only accepts requests carrying a secret derived from your bot token. Put `TELEGRAM_BOT_TOKEN=...` in a local `.env` (never committed), then run:
+On your computer, with Node 24 (see `.nvmrc`) and pnpm:
 
 ```sh
+git clone https://github.com/<you>/nushelper && cd nushelper
 pnpm install
-pnpm run setup:webhook https://<your-project>.vercel.app/api/webhook
+# .env (never committed): DATABASE_URL=… and REMINDER_DISPATCH_SECRET=… (the same values as in Vercel)
+pnpm setup:db https://<your-project>.vercel.app
 ```
 
-Send `/help` to your bot to check it works. Re-run this command if you ever rotate the bot token.
+`pnpm setup:db` creates every table (all with Row Level Security, so Supabase's public API keys can't reach your data) and sets up the job that calls the bot every minute for reminders, the nightly expenditure check-in and deadline checks: `pg_cron` and `pg_net`, with the address and secret kept in Supabase Vault. It is safe to run again; do so after pulling updates to apply new migrations. CI runs it twice on an empty database for every change.
+
+Without a computer, the same can be done by hand in the Supabase **SQL Editor**: run every file in `supabase/migrations` in filename order, then `supabase/reminder-cron.sql.example` with its two placeholders filled in.
+
+### 5. Sign in and connect Telegram
+
+1. In @BotFather send `/setdomain`, pick your bot, and send the website's domain without `https://` (for example `your-project.vercel.app`).
+2. Open the website and sign in with Telegram.
+3. In **Settings → Telegram**, press **Connect**. Telegram then sends your messages to the bot, with a secret only the bot knows. Send `/help` to your bot to check.
+
+Press **Reconnect** if the site's address or the bot token ever changes. (`pnpm setup:webhook https://<your-project>.vercel.app/api/webhook` does the same from your computer.)
 
 ### 6. Optional: Google Calendar
 
@@ -290,7 +299,7 @@ Unit tests don't contact Telegram, Google, Canvas, Supabase or Vercel. See [CONT
 
 ## Troubleshooting
 
-- **Bot doesn't reply:** re-run `pnpm run setup:webhook` with the right URL, and check Vercel's logs for `Webhook request rejected`.
+- **Bot doesn't reply:** open **Settings → Telegram** on the website: it shows whether Telegram reaches this site and its last delivery error, and **Reconnect** fixes a wrong address. Also check Vercel's logs for `Webhook request rejected`.
 - **Calendar `403` / `404`:** the calendar isn't shared with the service account, or `GOOGLE_CALENDAR_ID` is wrong.
 - **"The AI service returned an error":** check `LLM_*` values and that the model supports tool calling.
 - **"The AI took too long to answer":** even low effort ran out of time; ask one part at a time. Vercel's logs show `Assistant timing` lines with the effort used for each answer.
