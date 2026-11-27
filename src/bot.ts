@@ -44,7 +44,12 @@ import {
   splitMessageLines,
   type ParsedReminderCommand,
 } from "./message-lines.js";
-import { registerTopicCommands, sendTo, threadIdOf } from "./topics.js";
+import {
+  conversationOf,
+  registerTopicCommands,
+  sendTo,
+  threadIdOf,
+} from "./topics.js";
 import { sendTelegramMessage } from "./telegram.js";
 import { splitTelegramMessage } from "./assistant/format.js";
 import { assistantStore } from "./assistant/store.js";
@@ -179,7 +184,10 @@ bot.use(async (ctx, next) => {
   const amountCents = parseExpenditureAmounts(message.text);
   if (!session) {
     if (amountCents === null) return next();
-    if (await assistantStore.awaitsAnswer(chatId, now)) return next();
+    // Keyed by topic, as the assistant stores its conversations.
+    if (await assistantStore.awaitsAnswer(conversationOf(ctx), now)) {
+      return next();
+    }
     await expenditureStore.openEditSession(
       ownerIdValue,
       chatId,
