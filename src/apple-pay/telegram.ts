@@ -10,6 +10,7 @@ import {
   undoPayment,
 } from "./service.js";
 import { applePayStore } from "./store.js";
+import { conversationOf } from "../topic-context.js";
 
 // Telegram's side of Apple Pay: the buttons on each payment message, and a
 // plain amount sent while a foreign payment waits for its S$ amount.
@@ -23,7 +24,7 @@ export function registerApplePayHandlers(bot: Telegraf, ownerId: string): void {
     if (cents === null) return next();
     const now = new Date();
     // An answer to the assistant's own question goes to the assistant.
-    if (await assistantStore.awaitsAnswer(String(ctx.chat?.id ?? ""), now)) {
+    if (await assistantStore.awaitsAnswer(conversationOf(ctx), now)) {
       return next();
     }
     const reply = await applySgdReply(applePayStore, cents, ownerId, now);
