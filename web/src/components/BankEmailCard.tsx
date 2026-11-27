@@ -214,7 +214,7 @@ export function BankEmailCard({ fresh }: { fresh: boolean }) {
         help="Once, about 3 minutes, on a computer. Use the Google account that gets the DBS emails."
       >
         <Accordion
-          open={!status?.latest}
+          open={Boolean(status?.enabled && !status.latest)}
           summaryClassName="text-sm font-medium text-accent-text"
           title="Show the steps"
         >

@@ -135,7 +135,7 @@ export function ApplePayCard({ fresh }: { fresh: boolean }) {
         help="Once, about 2 minutes. Needs iOS 17 or later."
       >
         <Accordion
-          open={!status?.latest}
+          open={Boolean(status?.enabled && !status.latest)}
           summaryClassName="text-sm font-medium text-accent-text"
           title="Show the steps"
         >

@@ -370,9 +370,23 @@ let gatewayPromise: Promise<GoogleCalendarGateway> | undefined;
 let accessCheckPromise: { id: string; promise: Promise<void> } | undefined;
 let accessCheckedFor: string | undefined;
 
+// The credentials the gateway was made with: a key saved on the website can
+// replace Vercel's, so a different one means a new gateway.
+let gatewayCredentials: string | undefined;
+
 export async function getCalendarGateway(): Promise<GoogleCalendarGateway> {
-  getCalendarConfig();
-  gatewayPromise ??= createCalendarAuthClient().then(
+  const config = getCalendarConfig();
+  const credentials = [
+    config.jsonCredentialsBase64 ?? "",
+    config.credentialsFile ?? "",
+    config.serviceAccountEmail ?? "",
+  ].join("|");
+  if (credentials !== gatewayCredentials) {
+    gatewayPromise = undefined;
+    gatewayCredentials = credentials;
+  }
+  if (gatewayPromise) return gatewayPromise;
+  const promise = createCalendarAuthClient().then(
     // The Calendar client bundles its own google-auth-library types; both
     // clients implement the same runtime AuthClient contract but TypeScript
     // sees their private fields as distinct.
@@ -389,7 +403,12 @@ export async function getCalendarGateway(): Promise<GoogleCalendarGateway> {
         }),
       ),
   );
-  return gatewayPromise;
+  gatewayPromise = promise;
+  // A failed attempt isn't kept: the next request tries again.
+  promise.catch(() => {
+    if (gatewayPromise === promise) gatewayPromise = undefined;
+  });
+  return promise;
 }
 
 export async function ensureCalendarReadable(): Promise<void> {
