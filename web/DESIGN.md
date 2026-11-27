@@ -36,6 +36,8 @@ Accordion, ScrollFade, Icon). Use those rather than one-off styles.
 
 ## 2. Visual detail
 
+- **Corners:** 16 px for cards and panels, 10 px for buttons, fields and
+  small controls.
 - **Nested corners.** Inner radius = outer radius − padding, so curves
   stay parallel. For example:
   - composer: 16 px outer, 8 px padding → 8 px chip
@@ -70,7 +72,9 @@ Accordion, ScrollFade, Icon). Use those rather than one-off styles.
 - **60 : 30 : 10, with a real colour in each band.** Greys alone are not
   the 30%.
   - **60% dominant:** `canvas` and `surface`. A calm, lightly blue-tinted
-    off-white (light) or deep navy (dark).
+    off-white (light), or a near-black navy (dark: `#090E17` page,
+    `#0D1626` sidebar, `#111B2A` cards, `#172337` raised, `#F3F6FA` text,
+    `#8E9CAF` secondary text, borders white at 8%, orange `#FF8A2A`).
   - **30% secondary: NUS blue** (`nav`, `brand`, `brand-soft`,
     `brand-text`). Used for:
     - the sidebar and phone top bar
@@ -95,22 +99,32 @@ Accordion, ScrollFade, Icon). Use those rather than one-off styles.
   - class (indigo)
   - task (teal)
   - spending (green)
+- **Dense pages use quiet panels** (`Panel`, `Metric`; first on
+  Spending): the title sits on the card with no blue band, labels are small
+  muted capitals, secondary text is grey rather than blue, and states are
+  muted pills (`ok` green, `warn` amber, `danger` red). Spending's chart is
+  orange (`chart-bar`, with `chart-bar-active` for the hovered or selected
+  day) instead of the category green.
+- **Sidebar:** the active page has a slightly lighter fill, white text, an
+  orange icon and a 2 px orange marker. The theme is one labelled row at the
+  foot ("Dark theme") that steps Light → Dark → System.
 - **Light, Dark or System** theme, chosen in Settings (or the top bar),
   stored in the browser. `System` follows the device.
 
 ## Tokens (use these Tailwind names)
 
-| Token                                                                                         | Use                                                               |
-| --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `canvas`                                                                                      | page background                                                   |
-| `nav`, `nav-ink`, `nav-muted`, `nav-hover`, `nav-active`                                      | the NUS-blue navigation                                           |
-| `brand`, `brand-soft`, `brand-text`                                                           | the 30% NUS blue elsewhere                                        |
-| `surface`                                                                                     | cards, panels                                                     |
-| `raised`                                                                                      | popovers, menus, tooltips (lighter than surface in dark)          |
-| `sunken`                                                                                      | inset areas: code, form trays, chips                              |
-| `hover`                                                                                       | translucent hover fill                                            |
-| `line`, `line-strong`                                                                         | borders (translucent); inputs use `line-strong`                   |
-| `ink`, `muted`, `faint`                                                                       | text: main, secondary, hints                                      |
-| `accent`, `accent-hover`, `accent-text`, `accent-soft`, `on-accent`                           | the 10% (NUS orange)                                              |
-| `danger`, `ok`, `warn` (+ `-soft`)                                                            | states                                                            |
-| `cat-event`, `cat-exam`, `cat-deadline`, `cat-reminder`, `cat-class`, `cat-task`, `cat-spend` | calendar categories (equal L and C); `pill pill-<type>` for items |
+| Token                                                                                         | Use                                                                 |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `canvas`                                                                                      | page background                                                     |
+| `nav`, `nav-ink`, `nav-muted`, `nav-hover`, `nav-active`                                      | the NUS-blue navigation                                             |
+| `brand`, `brand-soft`, `brand-text`                                                           | the 30% NUS blue elsewhere                                          |
+| `surface`                                                                                     | cards, panels                                                       |
+| `raised`                                                                                      | popovers, menus, tooltips (lighter than surface in dark)            |
+| `sunken`                                                                                      | inset areas: code, form trays, chips                                |
+| `hover`                                                                                       | translucent hover fill                                              |
+| `line`, `line-strong`                                                                         | borders (translucent); inputs use `line-strong`                     |
+| `ink`, `muted`, `faint`                                                                       | text: main, secondary, hints                                        |
+| `accent`, `accent-hover`, `accent-text`, `accent-soft`, `on-accent`                           | the 10% (NUS orange)                                                |
+| `danger`, `ok`, `warn` (+ `-soft`)                                                            | states                                                              |
+| `chart-bar`, `chart-bar-active`                                                               | Spending's bars: quiet orange, and full orange for the day in focus |
+| `cat-event`, `cat-exam`, `cat-deadline`, `cat-reminder`, `cat-class`, `cat-task`, `cat-spend` | calendar categories (equal L and C); `pill pill-<type>` for items   |

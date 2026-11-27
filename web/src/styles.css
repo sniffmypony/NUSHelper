@@ -25,6 +25,9 @@
   --bubble: oklch(0.37 0.13 256);
   /* Chart marks, checked with the dataviz validator against each surface. */
   --chart-spend: oklch(0.6 0.15 150);
+  /* Spending bars: quiet orange, and full orange for the one in focus. */
+  --chart-bar: oklch(0.82 0.09 60);
+  --chart-bar-active: oklch(0.66 0.17 50);
   --line: oklch(0.37 0.13 256 / 0.15);
   --line-strong: oklch(0.37 0.13 256 / 0.28);
   --ink: oklch(0.22 0.045 256);
@@ -57,40 +60,45 @@
     0 8px 24px oklch(0.37 0.13 256 / 0.16), 0 1px 2px oklch(0 0 0 / 0.08);
 }
 
-/* Dark: navy base; depth from lighter surfaces, not shadows. */
+/* Dark: a near-black navy (#090E17 page, #0D1626 sidebar, #111B2A cards,
+   #172337 raised), white text, one orange. Depth from lighter surfaces and
+   1 px translucent borders, not shadows. */
 :root.dark {
   color-scheme: dark;
-  --canvas: oklch(0.17 0.028 256);
-  --surface: oklch(0.215 0.034 256);
-  --raised: oklch(0.26 0.04 256);
-  --sunken: oklch(0.19 0.03 256);
-  --hover: oklch(0.85 0.08 250 / 0.08);
+  --canvas: oklch(0.163 0.021 262);
+  --surface: oklch(0.221 0.033 258);
+  --raised: oklch(0.256 0.042 260);
+  --sunken: oklch(0.19 0.027 260);
+  --hover: oklch(1 0 0 / 0.045);
   --brand: oklch(0.62 0.14 252);
-  --brand-soft: oklch(0.26 0.05 256);
+  --brand-soft: oklch(0.25 0.045 258);
   --brand-text: oklch(0.8 0.09 250);
-  --nav: oklch(0.24 0.07 257);
-  --nav-ink: oklch(0.96 0.012 250);
-  --nav-muted: oklch(0.74 0.05 250);
-  --nav-hover: oklch(1 0 0 / 0.07);
-  --nav-active: oklch(1 0 0 / 0.12);
+  --nav: oklch(0.2 0.035 261);
+  --nav-ink: oklch(0.972 0.006 255);
+  --nav-muted: oklch(0.688 0.032 256);
+  --nav-hover: oklch(1 0 0 / 0.05);
+  --nav-active: oklch(1 0 0 / 0.08);
   --bubble: oklch(0.37 0.11 256);
   --chart-spend: oklch(0.66 0.15 150);
-  --line: oklch(0.85 0.08 250 / 0.13);
-  --line-strong: oklch(0.85 0.08 250 / 0.22);
-  --ink: oklch(0.95 0.012 250);
-  --muted: oklch(0.76 0.04 250);
-  --faint: oklch(0.6 0.04 250);
-  --accent: oklch(0.76 0.16 58);
-  --accent-hover: oklch(0.8 0.15 62);
-  --accent-text: oklch(0.8 0.14 62);
-  --accent-soft: oklch(0.32 0.07 55);
+  --chart-bar: oklch(0.64 0.12 56);
+  --chart-bar-active: oklch(0.8 0.16 62);
+  --line: oklch(1 0 0 / 0.08);
+  --line-strong: oklch(1 0 0 / 0.14);
+  --ink: oklch(0.972 0.006 255);
+  --muted: oklch(0.688 0.032 256);
+  --faint: oklch(0.6 0.03 256);
+  --accent: oklch(0.749 0.173 54);
+  --accent-hover: oklch(0.79 0.16 58);
+  --accent-text: oklch(0.8 0.14 60);
+  --accent-soft: oklch(0.3 0.06 55);
   --on-accent: oklch(0.22 0.06 50);
-  --danger: oklch(0.72 0.16 25);
-  --danger-soft: oklch(0.29 0.07 25);
-  --ok: oklch(0.78 0.14 150);
-  --ok-soft: oklch(0.28 0.06 150);
-  --warn: oklch(0.82 0.13 80);
-  --warn-soft: oklch(0.3 0.06 80);
+  /* States: muted, so they inform without shouting. */
+  --danger: oklch(0.72 0.13 25);
+  --danger-soft: oklch(0.29 0.06 25);
+  --ok: oklch(0.76 0.1 155);
+  --ok-soft: oklch(0.28 0.045 155);
+  --warn: oklch(0.82 0.11 80);
+  --warn-soft: oklch(0.3 0.05 80);
   --card-shadow: none;
   --pop-shadow: 0 0 0 1px oklch(1 0 0 / 0.06);
 }
@@ -111,6 +119,8 @@
   --color-nav-active: var(--nav-active);
   --color-bubble: var(--bubble);
   --color-chart-spend: var(--chart-spend);
+  --color-chart-bar: var(--chart-bar);
+  --color-chart-bar-active: var(--chart-bar-active);
   --color-cat-event: var(--cat-event);
   --color-cat-exam: var(--cat-exam);
   --color-cat-deadline: var(--cat-deadline);
