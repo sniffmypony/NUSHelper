@@ -59,3 +59,7 @@ jobs:
       - run: pnpm setup:db
       - name: Run it again
         run: pnpm setup:db
+      - name: Database client against Postgres
+        run: pnpm vitest run tests/db.integration.test.ts
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
