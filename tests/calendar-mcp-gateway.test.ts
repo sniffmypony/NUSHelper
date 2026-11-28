@@ -135,6 +135,53 @@ describe("the assistant's calendar through MCP", () => {
     expect(await gateway.getAgendaEvent("gone")).toBeNull();
   });
 
+  // The shape Google's server sent to Settings → Check (28 Nov 2026):
+  // the events in structuredContent, and the same JSON as text.
+  it("reads the reply shape Google's server sends", async () => {
+    const reply = {
+      events: [
+        {
+          id: "e1",
+          summary: "Tutorial",
+          start: {
+            dateTime: "2026-12-01T10:00:00+08:00",
+            timeZone: "Asia/Singapore",
+          },
+          end: {
+            dateTime: "2026-12-01T11:00:00+08:00",
+            timeZone: "Asia/Singapore",
+          },
+          htmlLink: "https://www.google.com/calendar/event?eid=e1",
+          status: "confirmed",
+        },
+        {
+          id: "e2",
+          summary: "Gone",
+          start: { dateTime: "2026-12-02T10:00:00+08:00" },
+          end: { dateTime: "2026-12-02T11:00:00+08:00" },
+          status: "cancelled",
+        },
+      ],
+      summary: "Calendar",
+      timeZone: "Asia/Singapore",
+    };
+    const { gateway } = server(() => ({
+      ...json(reply),
+      structuredContent: reply,
+    }));
+    const events = await gateway.listRange(
+      "2026-12-01T00:00:00+08:00",
+      "2026-12-08T00:00:00+08:00",
+    );
+    expect(events).toEqual([
+      expect.objectContaining({
+        id: "e1",
+        title: "Tutorial",
+        htmlLink: "https://www.google.com/calendar/event?eid=e1",
+      }),
+    ]);
+  });
+
   it("lists a range across pages", async () => {
     let page = 0;
     const { gateway, calls } = server(() =>
