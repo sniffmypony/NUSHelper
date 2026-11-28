@@ -5,6 +5,7 @@ import { ICON } from "./icons";
 import { Accordion } from "./motion";
 import { errorText } from "./page";
 import { ago, CopyBlock, CopyText, OnOff, Step } from "./setup";
+import { useConfirm } from "./dialog";
 import { Button, Card, Notice, Row } from "./ui";
 
 interface BankEmailStatus {
@@ -87,6 +88,7 @@ function checkDbsEmails() {
 // Settings → Bank emails: the key the Apps Script sends, the script itself
 // and how to install it, and whether emails are arriving.
 export function BankEmailCard({ fresh }: { fresh: boolean }) {
+  const confirm = useConfirm();
   const [status, setStatus] = useState<BankEmailStatus | null>(null);
   const [key, setKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -105,6 +107,14 @@ export function BankEmailCard({ fresh }: { fresh: boolean }) {
   useEffect(load, [load]);
 
   const makeKey = async () => {
+    if (status?.enabled) {
+      const ok = await confirm({
+        title: "Replace the key?",
+        body: "A new key is made and the current one stops working at once. You'll need to paste the new key where the old one was.",
+        confirmLabel: "Replace key",
+      });
+      if (!ok) return;
+    }
     setBusy(true);
     setMessage(null);
     try {
@@ -121,10 +131,13 @@ export function BankEmailCard({ fresh }: { fresh: boolean }) {
   };
 
   const turnOff = async () => {
-    if (
-      !window.confirm("Turn bank emails off? The script's key stops working.")
-    )
-      return;
+    const ok = await confirm({
+      title: "Turn bank emails off?",
+      body: "The script's key stops working, so its emails are refused until you make a new key.",
+      confirmLabel: "Turn off",
+      danger: true,
+    });
+    if (!ok) return;
     setBusy(true);
     setMessage(null);
     try {
@@ -182,13 +195,17 @@ export function BankEmailCard({ fresh }: { fresh: boolean }) {
           </Notice>
         ) : (
           <div className="flex flex-wrap gap-2">
-            <Button disabled={busy} onClick={() => void makeKey()}>
+            <Button
+              variant={status?.enabled ? "secondary" : "primary"}
+              disabled={busy}
+              onClick={() => void makeKey()}
+            >
               <KeyRound {...ICON} />
               {status?.enabled ? "Replace key" : "Create key"}
             </Button>
             {status?.enabled && (
               <Button
-                variant="danger"
+                variant="danger-quiet"
                 disabled={busy}
                 onClick={() => void turnOff()}
               >

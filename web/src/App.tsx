@@ -1,5 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { api, type Me } from "./api";
+import { ConfirmProvider } from "./components/dialog";
+import { FeedbackProvider } from "./components/feedback";
+import { PageSkeleton } from "./components/page";
 import { NAV, Shell } from "./components/Shell";
 import { ALL_ON, FeaturesContext } from "./features";
 import { navigate, usePath } from "./navigation";
@@ -67,29 +70,33 @@ export function App() {
   const page = NAV.find((item) => path.startsWith(item.path));
   return (
     <FeaturesContext.Provider value={me.features ?? ALL_ON}>
-      <Shell path={path}>
-        {page?.path === "/today" ? (
-          <TodayPage />
-        ) : page?.path === "/tasks" ? (
-          <TasksPage />
-        ) : page?.path === "/spending" ? (
-          <SpendingPage />
-        ) : page?.path === "/timetable" ? (
-          <TimetablePage />
-        ) : page?.path === "/deadlines" ? (
-          <DeadlinesPage />
-        ) : page?.path === "/calendar" ? (
-          <CalendarPage />
-        ) : page?.path === "/chat" ? (
-          <Suspense fallback={<p className="text-sm text-faint">Loading…</p>}>
-            <ChatPage path={path} />
-          </Suspense>
-        ) : page?.path === "/settings" ? (
-          <SettingsPage me={me} onSessionChange={refresh} />
-        ) : (
-          <TodayPage />
-        )}
-      </Shell>
+      <FeedbackProvider>
+        <ConfirmProvider>
+          <Shell path={path}>
+            {page?.path === "/today" ? (
+              <TodayPage />
+            ) : page?.path === "/tasks" ? (
+              <TasksPage />
+            ) : page?.path === "/spending" ? (
+              <SpendingPage />
+            ) : page?.path === "/timetable" ? (
+              <TimetablePage />
+            ) : page?.path === "/deadlines" ? (
+              <DeadlinesPage />
+            ) : page?.path === "/calendar" ? (
+              <CalendarPage />
+            ) : page?.path === "/chat" ? (
+              <Suspense fallback={<PageSkeleton label="Opening Chat" />}>
+                <ChatPage path={path} />
+              </Suspense>
+            ) : page?.path === "/settings" ? (
+              <SettingsPage me={me} onSessionChange={refresh} />
+            ) : (
+              <TodayPage />
+            )}
+          </Shell>
+        </ConfirmProvider>
+      </FeedbackProvider>
     </FeaturesContext.Provider>
   );
 }

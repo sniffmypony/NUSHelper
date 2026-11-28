@@ -1,12 +1,14 @@
-import { Check } from "lucide-react";
+import { AnimatePresence, m } from "motion/react";
 import { useState } from "react";
 import { api } from "../api";
-import { ICON } from "./icons";
-import { Shake } from "./motion";
-import { Empty, errorText } from "./page";
-import { Button, Card, Input, Notice } from "./ui";
+import { useFeedback, useRemovable } from "./feedback";
+import { DUR, EASE_IN, SPRING } from "./motion";
+import { errorText } from "./page";
+import { Tick } from "./Tick";
+import { Button, Input, Notice, Panel } from "./ui";
 
-// Today's to-do list: tick one off (it's removed, as on Telegram) or add one.
+// Today's to-do list: tick one off (it leaves, with Undo; the bot deletes
+// ticked to-dos, as on Telegram) or add one.
 export function Todos({
   todos,
   onChanged,
@@ -18,6 +20,8 @@ export function Todos({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refused, setRefused] = useState(0);
+  const rows = useRemovable<number>();
+  const { show } = useFeedback();
 
   const add = async () => {
     setBusy(true);
@@ -26,6 +30,7 @@ export function Todos({
       await api("todos", { method: "POST", body: { description: text } });
       setText("");
       onChanged();
+      show({ message: "Added to today's list", duration: 2500 });
     } catch (failure) {
       setError(errorText(failure));
       setRefused((count) => count + 1);
@@ -34,67 +39,94 @@ export function Todos({
     }
   };
 
+  const visible = todos.filter((todo) => !rows.isHidden(todo.id));
+
   return (
-    <Card
+    <Panel
       title="To-do today"
-      description="Cleared each night, like on Telegram."
+      description="Ticked items are cleared, as on Telegram."
+      aside={
+        visible.length > 0 && (
+          <span className="tnum text-sm text-muted">{visible.length} left</span>
+        )
+      }
     >
-      <div className="space-y-3 px-5 py-4">
-        {todos.length === 0 ? (
-          <Empty>Nothing on today's list.</Empty>
-        ) : (
-          <ul className="space-y-1">
-            {todos.map((todo) => (
-              <li
-                key={todo.id}
-                className="flex animate-settle items-center gap-3"
-              >
-                <button
-                  type="button"
-                  aria-label={`Done: ${todo.description}`}
-                  className="group grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 border-line-strong transition-[transform,border-color,background-color] duration-150 ease-out hover:border-ok hover:bg-ok-soft active:scale-[0.97]"
-                  onClick={async () => {
-                    try {
-                      await api(`todos/${todo.id}`, { method: "DELETE" });
-                      onChanged();
-                    } catch (failure) {
-                      setError(errorText(failure));
-                    }
-                  }}
-                >
-                  <Check
-                    {...ICON}
-                    size={12}
-                    strokeWidth={2.5}
-                    className="text-ok opacity-0 transition-opacity duration-150 group-hover:opacity-100"
-                  />
-                </button>
-                <span className="text-sm">{todo.description}</span>
-              </li>
-            ))}
-          </ul>
+      <div className="px-4 pb-4 sm:px-5">
+        {visible.length === 0 && (
+          <p className="pb-3 text-sm text-faint">
+            Nothing left for today. Add one below, or send /todo on Telegram.
+          </p>
         )}
-        <Shake trigger={refused}>
-          <form
-            className="flex gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (text.trim()) void add();
+        <ul className="-mx-1">
+          <AnimatePresence initial={false}>
+            {visible.map((todo) => {
+              const ticked = rows.isTicked(todo.id);
+              return (
+                <m.li
+                  key={todo.id}
+                  layout
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{
+                    opacity: 0,
+                    transition: { duration: DUR.fast, ease: EASE_IN },
+                  }}
+                  transition={SPRING.snap}
+                  className="flex min-h-11 items-center gap-3 rounded-lg px-1"
+                >
+                  <span className="pl-1">
+                    <Tick
+                      checked={ticked}
+                      label={`Done: ${todo.description}`}
+                      disabled={ticked}
+                      onToggle={() =>
+                        rows.remove(
+                          todo.id,
+                          "To-do done",
+                          () => api(`todos/${todo.id}`, { method: "DELETE" }),
+                          { holdMs: 280, onDone: onChanged },
+                        )
+                      }
+                    />
+                  </span>
+                  <span
+                    className={`min-w-0 flex-1 py-2 text-sm transition-colors duration-[var(--dur-base)] ${ticked ? "text-faint line-through decoration-faint" : "text-ink"}`}
+                  >
+                    {todo.description}
+                  </span>
+                </m.li>
+              );
+            })}
+          </AnimatePresence>
+        </ul>
+        <form
+          className="mt-2 flex gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (text.trim()) void add();
+          }}
+        >
+          <Input
+            value={text}
+            onChange={(event) => {
+              setText(event.target.value);
+              setError(null);
             }}
+            placeholder="Add a to-do"
+            aria-label="New to-do"
+            invalid={Boolean(error)}
+            shake={refused}
+          />
+          <Button
+            type="submit"
+            variant="secondary"
+            disabled={busy || !text.trim()}
           >
-            <Input
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="Add a to-do"
-              invalid={Boolean(error)}
-            />
-            <Button type="submit" disabled={busy || !text.trim()}>
-              Add
-            </Button>
-          </form>
-        </Shake>
+            Add
+          </Button>
+        </form>
         {error && <Notice tone="error">{error}</Notice>}
       </div>
-    </Card>
+    </Panel>
   );
 }

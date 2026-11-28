@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { navigate } from "../navigation";
 import { ICON } from "./icons";
-import { Button, Card } from "./ui";
+import { Button, Panel } from "./ui";
 
 interface SetupItem {
   key: string;
@@ -66,7 +66,7 @@ function Item({ item }: { item: SetupItem }) {
       </div>
       {!item.done && item.href && (
         <Button
-          variant="ghost"
+          variant="quiet"
           className="shrink-0"
           onClick={() => navigate(item.href!)}
           aria-label={`${item.label}: open`}
@@ -101,11 +101,22 @@ export function SetupChecklist() {
 
   const doneCount = items.filter((item) => item.done).length;
   return (
-    <Card
+    <Panel
       title={essentialsDone ? "A few optional extras" : "Finish setting up"}
-      description={`${doneCount} of ${items.length} done.`}
+      description={`${doneCount} of ${items.length} done`}
+      aside={
+        <div
+          aria-hidden
+          className="mt-2 h-1.5 w-28 overflow-hidden rounded-full bg-pressed"
+        >
+          <div
+            className="h-full origin-left rounded-full bg-accent"
+            style={{ transform: `scaleX(${doneCount / items.length})` }}
+          />
+        </div>
+      }
     >
-      <div className="px-5 py-2">
+      <div className="border-t border-line px-4 py-2 sm:px-5">
         <ul className="divide-y divide-line">
           {required.map((item) => (
             <Item key={item.key} item={item} />
@@ -122,7 +133,7 @@ export function SetupChecklist() {
         {essentialsDone && (
           <div className="flex justify-end py-2">
             <Button
-              variant="ghost"
+              variant="quiet"
               onClick={() => {
                 try {
                   localStorage.setItem(HIDDEN, "1");
@@ -137,6 +148,6 @@ export function SetupChecklist() {
           </div>
         )}
       </div>
-    </Card>
+    </Panel>
   );
 }

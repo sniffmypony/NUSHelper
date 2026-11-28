@@ -8,6 +8,9 @@ import {
 } from "react";
 import {
   ArrowUp,
+  CalendarPlus,
+  CalendarX2,
+  Check,
   ChevronLeft,
   FileText,
   Image as ImageIcon,
@@ -16,8 +19,12 @@ import {
   Pencil,
   Pin,
   PinOff,
+  Plus,
+  Search,
   Trash2,
+  Undo2,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { api } from "../api";
 import {
@@ -29,34 +36,69 @@ import {
   type Upload,
 } from "../chat/api";
 import { Markdown } from "../chat/Markdown";
+import { useConfirm } from "../components/dialog";
 import { FeatureOff } from "../components/FeatureOff";
 import { ICON } from "../components/icons";
-import { useFeatures } from "../features";
+import { Logo } from "../components/Logo";
 import { Shake, SwapIcon, Tooltip } from "../components/motion";
-import { Button, Input, Notice } from "../components/ui";
+import { Skeleton, errorText } from "../components/page";
+import {
+  Badge,
+  Button,
+  IconButton,
+  Input,
+  Notice,
+  type Tone,
+} from "../components/ui";
+import { useFeatures } from "../features";
 import { navigate } from "../navigation";
 
 // Chat with the bot's assistant, like Telegram, with saved chats.
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : "Something went wrong.";
-}
 
 function shortDate(iso: string): string {
   const date = new Date(iso);
   const today = new Date();
   return date.toDateString() === today.toDateString()
-    ? date.toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })
+    ? date.toLocaleTimeString("en-SG", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
     : date.toLocaleDateString("en-SG", { day: "numeric", month: "short" });
 }
 
-const CARD_BUTTONS: Record<ChatCard["type"], [string, string | null]> = {
-  delete: ["Delete", "Keep"],
-  "calendar-delete": ["Delete", "Keep"],
-  "calendar-create": ["Create", "Cancel"],
-  undo: ["Undo", null],
+const CARD: Record<
+  ChatCard["type"],
+  { icon: LucideIcon; confirm: string; cancel: string | null; danger: boolean }
+> = {
+  delete: { icon: Trash2, confirm: "Delete", cancel: "Keep", danger: true },
+  "calendar-delete": {
+    icon: CalendarX2,
+    confirm: "Delete",
+    cancel: "Keep",
+    danger: true,
+  },
+  "calendar-create": {
+    icon: CalendarPlus,
+    confirm: "Create",
+    cancel: "Cancel",
+    danger: false,
+  },
+  undo: { icon: Undo2, confirm: "Undo", cancel: null, danger: false },
 };
 
+const CARD_STATE: Record<
+  ChatCard["state"],
+  { label: string; tone: Tone } | null
+> = {
+  pending: null,
+  done: { label: "Done", tone: "ok" },
+  cancelled: { label: "Cancelled", tone: "neutral" },
+  failed: { label: "Failed", tone: "danger" },
+};
+
+// The assistant's actions: what it will do (or did), and the buttons to
+// confirm, cancel or undo it.
 function Cards({
   chatId,
   message,
@@ -86,38 +128,65 @@ function Cards({
   return (
     <div className="mt-3 space-y-2">
       {message.cards.map((card, index) => {
-        const [confirm, cancel] = CARD_BUTTONS[card.type];
+        const kind = CARD[card.type];
+        const state = CARD_STATE[card.state];
         const open = card.state === "pending" || card.state === "failed";
         return (
           <div
             key={index}
-            // Inner radius 8 px = reply's 20 px − its 12 px padding.
-            className="rounded-[8px] border border-line bg-sunken px-3 py-2 text-sm"
+            className="rounded-xl border border-line bg-surface px-3 py-2.5 text-sm"
           >
-            <p className="break-words">{card.label}</p>
+            <div className="flex items-start gap-2.5">
+              <kind.icon
+                {...ICON}
+                className={`mt-0.5 shrink-0 ${kind.danger ? "text-danger" : "text-muted"}`}
+              />
+              <p className="min-w-0 flex-1 font-medium break-words">
+                {card.label}
+              </p>
+              {state && (
+                <Badge
+                  tone={state.tone}
+                  icon={card.state === "done" ? Check : undefined}
+                  className="animate-fade"
+                >
+                  {card.type === "undo" && card.state === "done"
+                    ? "Undone"
+                    : state.label}
+                </Badge>
+              )}
+            </div>
             {card.result && (
               <p
-                className={`mt-1 text-xs ${card.state === "failed" ? "text-danger" : "text-muted"}`}
+                className={`mt-1 pl-6.5 text-[13px] ${card.state === "failed" ? "text-danger" : "text-muted"}`}
               >
                 {card.result}
               </p>
             )}
             {open && (
-              <div className="mt-2 flex gap-2">
+              <div className="mt-2 flex gap-2 pl-6.5">
                 <Button
-                  variant={card.type === "undo" ? "secondary" : "primary"}
+                  size="sm"
+                  variant={
+                    card.type === "undo"
+                      ? "secondary"
+                      : kind.danger
+                        ? "danger"
+                        : "primary"
+                  }
                   disabled={busy !== null}
                   onClick={() => void press(index, "confirm")}
                 >
-                  {card.state === "failed" ? "Try again" : confirm}
+                  {card.state === "failed" ? "Try again" : kind.confirm}
                 </Button>
-                {cancel && (
+                {kind.cancel && (
                   <Button
-                    variant="ghost"
+                    size="sm"
+                    variant="quiet"
                     disabled={busy !== null}
                     onClick={() => void press(index, "cancel")}
                   >
-                    {cancel}
+                    {kind.cancel}
                   </Button>
                 )}
               </div>
@@ -130,15 +199,48 @@ function Cards({
   );
 }
 
-// Your messages are in the secondary NUS blue; the orange accent is kept for
-// the 10% (buttons, links, the active item), never large areas.
-const USER_BUBBLE =
-  "max-w-[85%] whitespace-pre-wrap break-words rounded-[20px] rounded-br-md bg-bubble px-4 py-2.5 text-sm text-nav-ink";
-// 20 px corners with 12 px padding, so the cards inside get 8 px.
-const REPLY_BUBBLE =
-  "max-w-[92%] min-w-0 rounded-[20px] rounded-bl-md border p-3";
+// Your messages sit in a soft bubble on the right. Replies are plain text
+// at reading width, set for reading rather than as UI.
+function UserBubble({
+  text,
+  faded = false,
+}: {
+  text: string;
+  faded?: boolean;
+}) {
+  return (
+    <div
+      className={`flex origin-bottom-right justify-end ${faded ? "opacity-60" : ""}`}
+    >
+      <div className="max-w-[85%] rounded-2xl rounded-br-md bg-bubble px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap break-words text-ink">
+        {text}
+      </div>
+    </div>
+  );
+}
 
-function Bubble({
+function Reply({
+  children,
+  failed = false,
+}: {
+  children: React.ReactNode;
+  failed?: boolean;
+}) {
+  return (
+    <div className="flex gap-3">
+      <span className="mt-0.5 shrink-0" aria-hidden>
+        <Logo size={22} />
+      </span>
+      <div
+        className={`min-w-0 flex-1 ${failed ? "rounded-xl border border-danger/25 bg-danger-soft px-3 py-2 text-danger" : ""}`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Message({
   chatId,
   message,
   onCards,
@@ -150,34 +252,22 @@ function Bubble({
   // New in this visit: it settles in. Messages loaded with the chat don't.
   arriving: boolean;
 }) {
-  const settle = arriving ? "animate-settle" : "";
-  if (message.role === "user") {
-    return (
-      <div className={`flex justify-end ${settle} origin-bottom-right`}>
-        <div className={USER_BUBBLE}>{message.content}</div>
-      </div>
-    );
-  }
   return (
-    <div className={`flex justify-start ${settle} origin-bottom-left`}>
-      <div
-        className={`${REPLY_BUBBLE} ${
-          message.failed
-            ? "border-danger/30 bg-danger-soft text-danger"
-            : "border-line bg-surface"
-        }`}
-      >
-        <div className="px-1">
+    <div className={arriving ? "animate-settle" : ""}>
+      {message.role === "user" ? (
+        <UserBubble text={message.content} />
+      ) : (
+        <Reply failed={message.failed}>
           {message.failed ? (
             <p className="text-sm">{message.content}</p>
           ) : (
             <Markdown text={message.content} />
           )}
-        </div>
-        {message.cards.length > 0 && onCards && (
-          <Cards chatId={chatId} message={message} onChange={onCards} />
-        )}
-      </div>
+          {message.cards.length > 0 && onCards && (
+            <Cards chatId={chatId} message={message} onChange={onCards} />
+          )}
+        </Reply>
+      )}
     </div>
   );
 }
@@ -195,54 +285,86 @@ function ChatList({
   onSearch: (value: string) => void;
   onNew: () => void;
 }) {
+  const groups = chats
+    ? [
+        { name: "Pinned", items: chats.filter((chat) => chat.pinned) },
+        { name: "Recent", items: chats.filter((chat) => !chat.pinned) },
+      ].filter((group) => group.items.length > 0)
+    : [];
   return (
-    <div className="flex h-full flex-col gap-3">
-      <div className="flex gap-2">
+    <div className="flex h-full flex-col gap-3 px-4 pt-4 md:px-0 md:pt-0">
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-2xl font-semibold tracking-[-0.015em] md:text-lg">
+          Chats
+        </h1>
+        <Button size="sm" onClick={onNew}>
+          <Plus {...ICON} strokeWidth={2} />
+          New chat
+        </Button>
+      </div>
+      <div className="relative">
+        <Search
+          {...ICON}
+          size={15}
+          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint"
+        />
         <Input
           value={search}
           onChange={(event) => onSearch(event.target.value)}
           placeholder="Search chats"
+          aria-label="Search chats"
           type="search"
+          className="pl-9"
         />
-        <Button onClick={onNew} className="shrink-0">
-          <Pencil {...ICON} />
-          New
-        </Button>
       </div>
-      <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+      <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pb-4">
         {chats === null ? (
-          <p className="px-2 text-sm text-faint">Loading…</p>
+          <div aria-busy="true" className="space-y-2 pt-1">
+            {[0, 1, 2].map((index) => (
+              <Skeleton key={index} className="h-9" />
+            ))}
+          </div>
         ) : chats.length === 0 ? (
           <p className="px-2 text-sm text-faint">
             {search ? "No chats match." : "No chats yet."}
           </p>
         ) : (
-          <ul className="space-y-0.5">
-            {chats.map((chat) => (
-              <li key={chat.id}>
-                <a
-                  href={`/chat/${chat.id}`}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    navigate(`/chat/${chat.id}`);
-                  }}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-[transform,background-color,color] duration-150 ease-out active:scale-[0.97] motion-reduce:active:scale-100 ${
-                    chat.id === activeId
-                      ? "bg-brand-soft font-medium text-brand-text"
-                      : "text-muted hover:bg-hover hover:text-ink"
-                  }`}
-                >
-                  {chat.pinned && (
-                    <Pin {...ICON} size={14} aria-label="Pinned" />
-                  )}
-                  <span className="min-w-0 flex-1 truncate">{chat.title}</span>
-                  <span className="shrink-0 text-xs text-faint">
-                    {shortDate(chat.updatedAt)}
-                  </span>
-                </a>
-              </li>
-            ))}
-          </ul>
+          groups.map((group) => (
+            <section key={group.name} className="mb-3">
+              <h2 className="px-2 pb-1 text-xs font-semibold tracking-[0.06em] text-muted uppercase">
+                {group.name}
+              </h2>
+              <ul className="space-y-0.5">
+                {group.items.map((chat) => {
+                  const active = chat.id === activeId;
+                  return (
+                    <li key={chat.id}>
+                      <a
+                        href={`/chat/${chat.id}`}
+                        aria-current={active ? "page" : undefined}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          navigate(`/chat/${chat.id}`);
+                        }}
+                        className={`flex min-h-10 items-center gap-2 rounded-lg px-2.5 text-sm transition-[transform,background-color,color] duration-[var(--dur-fast)] ease-out active:scale-[0.98] motion-reduce:active:scale-100 ${
+                          active
+                            ? "border border-line bg-surface font-medium text-ink"
+                            : "text-muted hover:bg-hover hover:text-ink"
+                        }`}
+                      >
+                        <span className="min-w-0 flex-1 truncate">
+                          {chat.title}
+                        </span>
+                        <span className="tnum shrink-0 text-xs text-faint">
+                          {shortDate(chat.updatedAt)}
+                        </span>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))
         )}
       </div>
     </div>
@@ -252,15 +374,24 @@ function ChatList({
 const ACCEPT =
   "image/jpeg,image/png,image/webp,.pdf,.pptx,.docx,.txt,.md,.csv,.json,.py,.java,.c,.cpp,.js,.ts,.sql,.tex";
 
+const STARTERS = [
+  "What's due this week?",
+  "Plan my revision for the next few days",
+  "Remind me at 9pm to pack for tomorrow",
+  "How much did I spend this week?",
+];
+
 function Composer({
   busy,
+  prefill,
   onSend,
 }: {
   busy: boolean;
+  prefill?: string;
   onSend: (text: string, upload: Upload | null) => Promise<boolean>;
 }) {
   const { ai } = useFeatures();
-  const [text, setText] = useState("");
+  const [text, setText] = useState(prefill ?? "");
   const [upload, setUpload] = useState<{ name: string; data: Upload } | null>(
     null,
   );
@@ -268,6 +399,14 @@ function Composer({
   // Goes up each time an upload or message is refused: the box shakes.
   const [refused, setRefused] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (prefill) {
+      setText(prefill);
+      box.current?.focus();
+    }
+  }, [prefill]);
 
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
@@ -307,41 +446,41 @@ function Composer({
     <Shake trigger={refused}>
       <form
         onSubmit={(event) => void submit(event)}
-        className={`rounded-2xl border bg-surface p-2 shadow-card transition-[border-color] duration-150 ease-out ${
+        className={`rounded-2xl border bg-surface p-1.5 transition-[border-color,box-shadow] duration-[var(--dur-fast)] ease-out focus-within:ring-3 ${
           error
-            ? "border-danger"
-            : "border-line-strong focus-within:border-accent"
+            ? "border-danger focus-within:ring-danger/15"
+            : "border-field focus-within:border-accent focus-within:ring-accent/15"
         }`}
       >
         {upload && (
-          // 8 px corners inside the box's 16 px with 8 px padding.
-          <div className="mb-2 flex animate-settle items-center gap-2 rounded-lg bg-sunken px-3 py-1.5 text-xs">
+          // 8 px corners inside the box's 16 px with 6 px padding.
+          <div className="m-1 mb-0.5 flex animate-settle items-center gap-2 rounded-lg bg-sunken py-1 pr-1 pl-3 text-[13px]">
             {upload.data.image ? (
               <ImageIcon {...ICON} size={14} />
             ) : (
               <FileText {...ICON} size={14} />
             )}
             <span className="min-w-0 flex-1 truncate">{upload.name}</span>
-            <button
-              type="button"
-              aria-label="Remove attachment"
-              className="rounded p-0.5 text-muted transition-[transform,color] duration-150 ease-out hover:text-ink active:scale-[0.97]"
+            <IconButton
+              label="Remove attachment"
               onClick={() => setUpload(null)}
             >
               <X {...ICON} size={14} />
-            </button>
+            </IconButton>
           </div>
         )}
         <textarea
+          ref={box}
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKey}
-          rows={2}
+          rows={1}
           maxLength={8000}
-          placeholder="Ask anything, or tell it to add a to-do, reminder or event…"
-          className="block max-h-48 w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-faint"
+          aria-label="Message"
+          placeholder="Ask anything, or add a to-do, reminder or event…"
+          className="block max-h-48 min-h-11 w-full resize-none bg-transparent px-2.5 py-2.5 text-[15px] outline-none [field-sizing:content] placeholder:text-faint focus-visible:outline-none"
         />
-        <div className="mt-1 flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           <input
             ref={fileInput}
             type="file"
@@ -360,22 +499,31 @@ function Composer({
               }
             }}
           />
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => fileInput.current?.click()}
-            disabled={busy}
+          <Tooltip label="Attach a photo or file">
+            <IconButton
+              label="Attach a photo or file"
+              onClick={() => fileInput.current?.click()}
+              disabled={busy}
+            >
+              <Paperclip {...ICON} />
+            </IconButton>
+          </Tooltip>
+          <IconButton
+            type="submit"
+            label={busy ? "Answering" : "Send"}
+            variant="secondary"
+            disabled={busy || (!text.trim() && !upload)}
+            className={
+              text.trim() || upload
+                ? "!border-transparent !bg-accent !text-on-accent hover:!bg-accent-hover"
+                : ""
+            }
           >
-            <Paperclip {...ICON} />
-            Attach
-          </Button>
-          <Button type="submit" disabled={busy || (!text.trim() && !upload)}>
-            {busy ? "Answering…" : "Send"}
-            {!busy && <ArrowUp {...ICON} />}
-          </Button>
+            <ArrowUp {...ICON} size={17} strokeWidth={2} />
+          </IconButton>
         </div>
         {error && (
-          <div className="mt-2">
+          <div className="px-2 pb-1">
             <Notice tone="error">{error}</Notice>
           </div>
         )}
@@ -384,20 +532,84 @@ function Composer({
   );
 }
 
+// Renaming happens in place: the title becomes a field.
+function Title({
+  chat,
+  onRename,
+}: {
+  chat: ChatSummary | null;
+  onRename: (title: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  if (!chat) {
+    return (
+      <h1 className="min-w-0 flex-1 truncate text-base font-semibold">
+        New chat
+      </h1>
+    );
+  }
+  if (editing) {
+    return (
+      <form
+        className="flex min-w-0 flex-1 gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (value.trim()) onRename(value.trim());
+          setEditing(false);
+        }}
+      >
+        <Input
+          autoFocus
+          value={value}
+          aria-label="Chat name"
+          onChange={(event) => setValue(event.target.value)}
+          onKeyDown={(event) => event.key === "Escape" && setEditing(false)}
+          onBlur={() => setEditing(false)}
+        />
+        <Button type="submit" size="sm" onMouseDown={(e) => e.preventDefault()}>
+          Save
+        </Button>
+      </form>
+    );
+  }
+  return (
+    <>
+      <h1 className="min-w-0 flex-1 truncate text-base font-semibold">
+        {chat.title}
+      </h1>
+      <Tooltip label="Rename" side="bottom">
+        <IconButton
+          label="Rename chat"
+          onClick={() => {
+            setValue(chat.title);
+            setEditing(true);
+          }}
+        >
+          <Pencil {...ICON} />
+        </IconButton>
+      </Tooltip>
+    </>
+  );
+}
+
 export function ChatPage({ path }: { path: string }) {
   const match = /^\/chat\/(\d+)/.exec(path);
   const activeId = match ? Number(match[1]) : null;
+  const confirm = useConfirm();
 
   const [chats, setChats] = useState<ChatSummary[] | null>(null);
   const [search, setSearch] = useState("");
   const [chat, setChat] = useState<ChatSummary | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [draft, setDraft] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [prefill, setPrefill] = useState<string | undefined>(undefined);
   const bottom = useRef<HTMLDivElement>(null);
   // Messages with ids above this arrived during this visit (they settle in).
   const [loadedUpTo, setLoadedUpTo] = useState(Infinity);
@@ -442,6 +654,7 @@ export function ChatPage({ path }: { path: string }) {
       return;
     }
     let cancelled = false;
+    setLoading(true);
     api<{ chat: ChatSummary; messages: ChatMessage[] }>(`chats/${activeId}`)
       .then((result) => {
         if (cancelled) return;
@@ -449,7 +662,8 @@ export function ChatPage({ path }: { path: string }) {
         setMessages(result.messages);
         setLoadedUpTo(Math.max(0, ...result.messages.map((m) => m.id)));
       })
-      .catch((failure) => !cancelled && setLoadError(errorText(failure)));
+      .catch((failure) => !cancelled && setLoadError(errorText(failure)))
+      .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
@@ -541,12 +755,14 @@ export function ChatPage({ path }: { path: string }) {
   };
 
   const remove = async () => {
-    if (
-      !chat ||
-      !window.confirm(`Delete "${chat.title}"? This can't be undone.`)
-    ) {
-      return;
-    }
+    if (!chat) return;
+    const ok = await confirm({
+      title: "Delete this chat?",
+      body: `"${chat.title}" and its messages are deleted. This can't be undone.`,
+      confirmLabel: "Delete chat",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api(`chats/${chat.id}`, { method: "DELETE" });
       navigate("/chat");
@@ -557,10 +773,11 @@ export function ChatPage({ path }: { path: string }) {
   };
 
   return (
-    <div className="flex h-[calc(100dvh-7.5rem)] gap-6 md:h-[calc(100dvh-5rem)]">
+    <div className="flex min-h-0 flex-1 md:gap-6">
       <aside
         key={activeId === null ? "list" : "list-hidden"}
-        className={`w-full shrink-0 md:block md:w-64 ${activeId === null ? "block" : "hidden"} ${slide === "left" ? "max-md:animate-slide-from-left" : ""}`}
+        aria-label="Chats"
+        className={`w-full shrink-0 md:block md:w-64 md:border-r md:border-line md:pr-5 ${activeId === null ? "block" : "hidden"} ${slide === "left" ? "max-md:animate-slide-from-left" : ""}`}
       >
         <ChatList
           chats={chats}
@@ -575,26 +792,23 @@ export function ChatPage({ path }: { path: string }) {
         key={activeId ?? "none"}
         className={`min-w-0 flex-1 flex-col ${activeId === null ? "hidden md:flex" : "flex"} ${slide === "right" ? "max-md:animate-slide-from-right" : ""}`}
       >
-        <header className="flex items-center gap-2 border-b border-line pb-3">
+        <header className="flex min-h-14 items-center gap-1 border-b border-line px-2 md:px-0 md:pb-3">
           {activeId !== null && (
-            <button
-              type="button"
-              className="-ml-1 inline-flex items-center rounded-lg py-1 pr-2 text-sm font-medium text-accent-text transition-transform duration-150 ease-out active:scale-[0.97] md:hidden"
+            <IconButton
+              label="Back to chats"
+              className="md:hidden"
               onClick={() => navigate("/chat")}
             >
-              <ChevronLeft {...ICON} />
-              Chats
-            </button>
+              <ChevronLeft {...ICON} size={20} />
+            </IconButton>
           )}
-          <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">
-            {chat?.title ?? "New chat"}
-          </h1>
+          <Title chat={chat} onRename={(title) => void change({ title })} />
           {chat && (
-            <div className="flex shrink-0 gap-0.5">
-              <Tooltip label={chat.pinned ? "Unpin" : "Pin"}>
-                <Button
-                  variant="ghost"
-                  aria-label={chat.pinned ? "Unpin" : "Pin"}
+            <div className="flex shrink-0">
+              <Tooltip label={chat.pinned ? "Unpin" : "Pin"} side="bottom">
+                <IconButton
+                  label={chat.pinned ? "Unpin chat" : "Pin chat"}
+                  aria-pressed={chat.pinned}
                   onClick={() => void change({ pinned: !chat.pinned })}
                 >
                   <SwapIcon
@@ -604,88 +818,112 @@ export function ChatPage({ path }: { path: string }) {
                       pinned: <PinOff {...ICON} />,
                     }}
                   />
-                </Button>
+                </IconButton>
               </Tooltip>
-              <Tooltip label="Rename">
-                <Button
-                  variant="ghost"
-                  aria-label="Rename"
-                  onClick={() => {
-                    const title = window.prompt("Rename chat", chat.title);
-                    if (title?.trim()) void change({ title: title.trim() });
-                  }}
-                >
-                  <Pencil {...ICON} />
-                </Button>
-              </Tooltip>
-              <Tooltip label="Delete">
-                <Button
-                  variant="ghost"
-                  aria-label="Delete"
+              <Tooltip label="Delete chat" side="bottom">
+                <IconButton
+                  label="Delete chat"
+                  variant="danger-quiet"
                   onClick={() => void remove()}
                 >
                   <Trash2 {...ICON} />
-                </Button>
+                </IconButton>
               </Tooltip>
             </div>
           )}
         </header>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-4">
-          {loadError && <Notice tone="error">{loadError}</Notice>}
-          {activeId === null && (
-            <div className="mx-auto max-w-md animate-settle pt-10 text-center text-sm text-muted">
-              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-accent-text">
-                <MessageSquare {...ICON} size={22} />
-              </span>
-              <p className="mt-3 font-semibold text-ink">
-                Ask the assistant anything
-              </p>
-              <p className="mt-1">
-                It's the same assistant as on Telegram: Canvas files and
-                deadlines, your calendar, to-dos, reminders and spending.
-                Deleting or adding events asks you first.
-              </p>
-            </div>
-          )}
-          {chat &&
-            messages.map((message) => (
-              <Bubble
-                key={message.id}
-                chatId={chat.id}
-                message={message}
-                arriving={message.id > loadedUpTo}
-                onCards={(cards) =>
-                  setMessages((current) =>
-                    current.map((m) =>
-                      m.id === message.id ? { ...m, cards } : m,
-                    ),
-                  )
-                }
-              />
-            ))}
-          {pending && (
-            <div className="flex origin-bottom-right animate-settle justify-end opacity-70">
-              <div className={USER_BUBBLE}>{pending}</div>
-            </div>
-          )}
-          {draft && (
-            <div className="flex origin-bottom-left animate-settle justify-start">
-              <div className={`${REPLY_BUBBLE} border-line bg-surface`}>
-                <div className="px-1">
-                  <Markdown text={draft} />
-                </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div
+            aria-live="polite"
+            aria-busy={busy}
+            className="mx-auto max-w-[46rem] space-y-6 px-4 py-6 md:px-2"
+          >
+            {loadError && <Notice tone="error">{loadError}</Notice>}
+            {loading && messages.length === 0 && (
+              <div aria-busy="true" className="space-y-6">
+                <Skeleton className="ml-auto h-10 w-2/3 rounded-2xl" />
+                <Skeleton className="h-24 w-5/6" />
               </div>
-            </div>
-          )}
-          {busy && status && !draft && (
-            <p className="animate-pulse text-sm text-muted">{status}…</p>
-          )}
-          {sendError && <Notice tone="error">{sendError}</Notice>}
-          <div ref={bottom} />
+            )}
+            {activeId === null && (
+              <div className="mx-auto max-w-md animate-settle pt-8 text-center">
+                <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-accent-soft text-accent-text">
+                  <MessageSquare {...ICON} size={22} />
+                </span>
+                <p className="mt-3 font-semibold text-ink">
+                  Ask the assistant anything
+                </p>
+                <p className="mt-1 text-sm text-muted">
+                  The same assistant as on Telegram: Canvas files and deadlines,
+                  your calendar, to-dos, reminders and spending. It asks before
+                  adding or deleting events.
+                </p>
+                <ul className="mt-5 flex flex-wrap justify-center gap-2">
+                  {STARTERS.map((starter) => (
+                    <li key={starter}>
+                      <button
+                        type="button"
+                        onClick={() => setPrefill(starter)}
+                        className="h-9 rounded-full border border-line bg-surface px-3.5 text-[13px] text-ink transition-[background-color,transform] duration-[var(--dur-fast)] hover:bg-hover active:scale-[0.97] motion-reduce:active:scale-100"
+                      >
+                        {starter}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {chat &&
+              messages.map((message) => (
+                <Message
+                  key={message.id}
+                  chatId={chat.id}
+                  message={message}
+                  arriving={message.id > loadedUpTo}
+                  onCards={(cards) =>
+                    setMessages((current) =>
+                      current.map((m) =>
+                        m.id === message.id ? { ...m, cards } : m,
+                      ),
+                    )
+                  }
+                />
+              ))}
+            {pending && (
+              <div className="animate-settle">
+                <UserBubble text={pending} faded />
+              </div>
+            )}
+            {draft && (
+              <div className="animate-fade">
+                <Reply>
+                  <Markdown text={draft} />
+                  <span
+                    aria-hidden
+                    className="ml-0.5 inline-block h-4 w-[2px] animate-caret bg-accent align-[-2px]"
+                  />
+                </Reply>
+              </div>
+            )}
+            {busy && status && !draft && (
+              <Reply>
+                <p
+                  role="status"
+                  className="flex animate-pulse-soft items-center gap-2 pt-0.5 text-sm text-muted"
+                >
+                  {status}…
+                </p>
+              </Reply>
+            )}
+            {sendError && <Notice tone="error">{sendError}</Notice>}
+            <div ref={bottom} />
+          </div>
         </div>
 
-        <Composer busy={busy} onSend={onSend} />
+        <div className="mx-auto w-full max-w-[46rem] px-3 pt-2 pb-3 md:px-2 md:pb-0">
+          <Composer busy={busy} prefill={prefill} onSend={onSend} />
+        </div>
       </section>
     </div>
   );
