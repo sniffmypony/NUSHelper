@@ -106,8 +106,8 @@ function AssistantGoogleCard({
 
   return (
     <Card
-      title="Assistant's Google access"
-      description="From February 2027 Google requires AI assistants to reach your calendar through its MCP server, signed in as you. The rest of the bot keeps using the service account above."
+      title="Assistant's calendar access"
+      description="Lets the assistant look up your events and add, move or delete them when you ask, in Telegram or Chat. Connect your Google account once."
     >
       <TextSettingRow
         setting={clientId}

@@ -6,6 +6,7 @@ import { calendarId, FIXED_TIME_ZONE, isCalendarConfigured } from "./config.js";
 export const CALENDAR_NOT_SET_UP =
   "Google Calendar isn't set up for this bot (GOOGLE_CALENDAR_ID is empty).";
 import { calendarErrorMessage, getCalendarGateway } from "./google.js";
+import { QUIET } from "../telegram-quiet.js";
 import { CalendarOperations, type ConfirmResult } from "./operations.js";
 import {
   describeRepeat,
@@ -136,24 +137,30 @@ async function replyForResult(
       result.status === "updated" || requested === "update"
         ? "updated"
         : "created";
-    return ctx.reply(
-      mappingSummary(verb, result.mapping),
-      resultKeyboard(result.mapping),
-    );
+    return ctx.reply(mappingSummary(verb, result.mapping), {
+      ...resultKeyboard(result.mapping),
+      ...QUIET,
+    });
   }
   if (result.status === "deleted") {
     await removeKeyboard(ctx);
-    return ctx.reply("Deleted from Google Calendar.");
+    return ctx.reply("Deleted from Google Calendar.", QUIET);
   }
   if (result.status === "already-deleted") {
     await removeKeyboard(ctx);
-    return ctx.reply("This event is already deleted.");
+    return ctx.reply("This event is already deleted.", QUIET);
   }
   if (result.status === "expired")
-    return ctx.reply("This confirmation has expired. Send the event again.");
+    return ctx.reply(
+      "This confirmation has expired. Send the event again.",
+      QUIET,
+    );
   if (result.status === "processing")
-    return ctx.reply("This calendar request is already being processed.");
-  return ctx.reply("This confirmation is no longer valid.");
+    return ctx.reply(
+      "This calendar request is already being processed.",
+      QUIET,
+    );
+  return ctx.reply("This confirmation is no longer valid.", QUIET);
 }
 
 export async function stageCalendarMessage(
@@ -367,6 +374,7 @@ export function registerCalendarHandlers(
         result === "deleted"
           ? `Deleted from Google Calendar: ${event?.title ?? "event"}`
           : "That event was already deleted.",
+        QUIET,
       );
     } catch (error) {
       console.error(`Calendar event delete failed (${errorType(error)})`);
@@ -377,7 +385,7 @@ export function registerCalendarHandlers(
   bot.action("cal:gkeep", async (ctx) => {
     await answerCallback(ctx);
     await removeKeyboard(ctx);
-    await ctx.reply("Kept the event.");
+    await ctx.reply("Kept the event.", QUIET);
   });
 
   bot.action(/^cal:confirm-delete:([0-9a-f-]{36})$/, async (ctx) => {
@@ -400,7 +408,7 @@ export function registerCalendarHandlers(
     await answerCallback(ctx);
     await (await operations()).cancel(ctx.match[1], ownerId);
     await removeKeyboard(ctx);
-    await ctx.reply("Kept the event.");
+    await ctx.reply("Kept the event.", QUIET);
   });
 
   // Vercel's per-function compiler can resolve a second copy of

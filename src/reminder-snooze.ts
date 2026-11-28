@@ -1,4 +1,5 @@
 import type { Telegraf } from "telegraf";
+import { QUIET } from "./telegram-quiet.js";
 import type { TelegramInlineKeyboard } from "./telegram.js";
 import { acknowledge, callbackId, setButtons } from "./telegram-buttons.js";
 
@@ -42,6 +43,6 @@ export function registerReminderSnooze(
     const result = await snooze(id, ownerId, minutes, firedMessageId);
     // The snooze is already set, so the buttons go even if this fails.
     await setButtons(ctx);
-    await ctx.reply(result);
+    await ctx.reply(result, QUIET);
   });
 }

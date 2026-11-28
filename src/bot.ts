@@ -30,6 +30,7 @@ import { classesOn, registerTimetableCommands } from "./nus/timetable.js";
 import { describeAcadWeek, parseWeekCommand } from "./nus/week.js";
 import {
   createLoginToken,
+  LINK_TTL_MS,
   loginLink,
   loginLinkStore,
   websiteUrl,
@@ -51,6 +52,7 @@ import {
   threadIdOf,
 } from "./topics.js";
 import { sendTelegramMessage } from "./telegram.js";
+import { QUIET } from "./telegram-quiet.js";
 import { splitTelegramMessage } from "./assistant/format.js";
 import { assistantStore } from "./assistant/store.js";
 import {
@@ -135,7 +137,7 @@ async function applyExpenditure(
   if (result.kind === "inactive" || result.kind === "duplicate") return null;
   if (result.kind === "negative") {
     const message = `Cannot remove ${formatCurrency(amountCents)} from ${formatLongDate(result.spendDate)} because the total is only ${formatCurrency(result.totalCents)}.`;
-    await ctx.reply(message);
+    await ctx.reply(message, QUIET);
     return message;
   }
 
@@ -145,6 +147,7 @@ async function applyExpenditure(
   );
   await ctx.reply(confirmation, {
     reply_markup: expenditureKeyboard(result.spendDate),
+    ...QUIET,
   });
   if (shouldSendReportsNow(result.spendDate, now)) {
     await processCompletedExpenditureDay(
@@ -393,17 +396,35 @@ bot.command("week", (ctx) => {
 // Only the owner gets this far (see the owner gate above), so the link
 // reaches no one else. Link previews are off: a preview fetch must not
 // open it.
-bot.command("web", async (ctx) => {
+// /web sends a button that stays: each press sends a new one-time sign-in
+// link, so an old /web message is enough to sign in again later.
+const WEB_LINK_BUTTON = {
+  inline_keyboard: [
+    [{ text: "Get a sign-in link", callback_data: "web:link" }],
+  ],
+};
+
+bot.command("web", (ctx) =>
+  ctx.reply("Tap for a link that signs you in to the website.", {
+    reply_markup: WEB_LINK_BUTTON,
+    ...QUIET,
+  }),
+);
+
+bot.action("web:link", async (ctx) => {
+  await ctx.answerCbQuery();
   const base = websiteUrl();
   if (!base) {
-    return ctx.reply(
+    await ctx.reply(
       "The website's address isn't known. Set WEB_URL in Vercel.",
+      QUIET,
     );
+    return;
   }
   const token = await createLoginToken(loginLinkStore);
-  return ctx.reply(
-    `Sign in to the website (works once, for 10 minutes):\n${loginLink(base, token)}`,
-    { link_preview_options: { is_disabled: true } },
+  await ctx.reply(
+    `Sign in to the website (works once, for ${LINK_TTL_MS / 60_000} minutes):\n${loginLink(base, token)}`,
+    { link_preview_options: { is_disabled: true }, ...QUIET },
   );
 });
 

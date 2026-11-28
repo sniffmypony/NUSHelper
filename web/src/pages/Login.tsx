@@ -85,7 +85,8 @@ export function LoginPage({
         <p className="text-sm text-muted">
           Send{" "}
           <code className="rounded bg-sunken px-1.5 py-0.5 text-ink">/web</code>{" "}
-          to your bot and tap the link it sends. It works once, for 10 minutes.
+          to your bot, tap its button and open the link. It works once, for 20
+          minutes.
         </p>
         <p className="mt-6 text-xs text-faint">
           Private to the bot's owner. You stay signed in for 60 days.
