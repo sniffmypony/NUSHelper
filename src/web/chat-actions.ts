@@ -5,7 +5,7 @@ import { describeDeletable } from "../assistant/buttons.js";
 import * as actions from "../bot-actions.js";
 import { formatCalendarAgendaEvent } from "../calendar/agenda.js";
 import { listCalendarEvents } from "../calendar/handlers.js";
-import { getCalendarGateway } from "../calendar/google.js";
+import { assistantCalendarGateway } from "../calendar/assistant-gateway.js";
 import { parseCalendarEventMessage } from "../calendar/parser.js";
 import { SINGAPORE_TIME_ZONE, todayInSingapore } from "../dates.js";
 import { classesOn } from "../nus/timetable.js";
@@ -128,7 +128,9 @@ export function webBotActions(
       if (!/^[A-Za-z0-9_]{1,1024}$/.test(eventId)) {
         return "Error: that event id is not valid. Use an id from list_calendar_events.";
       }
-      const event = await (await getCalendarGateway()).getAgendaEvent(eventId);
+      const event = await (
+        await assistantCalendarGateway()
+      ).getAgendaEvent(eventId);
       if (!event) return "Error: no event with that id was found.";
       cards.push({
         type: "calendar-delete",

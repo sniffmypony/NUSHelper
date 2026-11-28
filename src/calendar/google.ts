@@ -432,6 +432,13 @@ export async function ensureCalendarReadable(): Promise<void> {
 }
 
 export function calendarErrorMessage(error: unknown): string {
+  // The assistant's MCP access explains itself (never with the token).
+  if (
+    error instanceof Error &&
+    (error.name === "CalendarMcpError" || error.name === "AssistantCalendarOff")
+  ) {
+    return error.message;
+  }
   const status = errorStatus(error);
   if (status === 401)
     return "Google Calendar authentication failed. Please check the bot's OIDC configuration.";

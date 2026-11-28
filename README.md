@@ -245,6 +245,8 @@ From 1 February 2027, Google's terms require AI tools to reach Google Calendar t
 3. **Clients → Create client**: **Web application**, redirect URI `https://<your-site>/api/web/google/callback`, and tick **Use this client for an AI-powered agent**.
 4. On the website, **Settings → Assistant's Google access**: paste the client ID and secret, press **Connect**, and allow Calendar access (Google warns the app isn't verified: choose **Advanced → Go to NUSHelper**). **Check** lists the next week's events through the MCP server.
 
+Once connected, the assistant lists, adds and deletes events through the MCP server: its Create and Delete buttons on Telegram, and its Confirm cards in Chat. Events you type yourself, the Calendar page and the scheduled jobs keep the service account. Without the connection the assistant keeps the service account until 1 February 2027; after that its calendar tools ask you to connect.
+
 ### 7. Optional: Canvas
 
 In Canvas, go to **Account → Settings → New access token**, and set `CANVAS_API_TOKEN` and `CANVAS_BASE_URL`. The token can act as you on Canvas, so keep it only in Vercel.

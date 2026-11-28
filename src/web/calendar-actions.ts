@@ -2,6 +2,7 @@ import { randomBytes, randomInt } from "node:crypto";
 import { and, asc, eq, gte, isNotNull, lt, lte } from "drizzle-orm";
 import { addReminder, cancelReminder } from "../bot-actions.js";
 import { isCalendarConfigured } from "../calendar/config.js";
+import { assistantCalendarGateway } from "../calendar/assistant-gateway.js";
 import { getCalendarGateway } from "../calendar/google.js";
 import { parseCalendarEventMessage } from "../calendar/parser.js";
 import { db } from "../db/client.js";
@@ -48,8 +49,9 @@ export interface CalendarActions {
   cancelReminder(id: number): Promise<ActionResult>;
   // A reminder that follows a Google Calendar event, `offsetMin` before it.
   linkReminder(eventId: string, offsetMin: number): Promise<ActionResult>;
-  addEvent(line: string): Promise<ActionResult>;
-  deleteEvent(id: string): Promise<ActionResult>;
+  // From a chat card (the assistant's proposal): through its calendar access.
+  addEvent(line: string, viaAssistant?: boolean): Promise<ActionResult>;
+  deleteEvent(id: string, viaAssistant?: boolean): Promise<ActionResult>;
 }
 
 // The source id of a website change, so it can't collide with a Telegram
@@ -263,7 +265,7 @@ export const calendarActions: CalendarActions = {
     };
   },
 
-  async addEvent(line) {
+  async addEvent(line, viaAssistant = false) {
     if (!isCalendarConfigured()) {
       return { ok: false, message: "Google Calendar isn't set up." };
     }
@@ -274,18 +276,24 @@ export const calendarActions: CalendarActions = {
         message: "That event isn't valid. Check the date and times.",
       };
     }
-    const gateway = await getCalendarGateway();
+    const gateway = viaAssistant
+      ? await assistantCalendarGateway()
+      : await getCalendarGateway();
     // Google event ids may use 0-9 and a-v; random hex fits.
     const eventId = randomBytes(16).toString("hex");
     await gateway.create(eventId, parsed.event, eventId, WEB_CHAT, 0);
     return { ok: true, message: `Added: ${parsed.event.title}` };
   },
 
-  async deleteEvent(id) {
+  async deleteEvent(id, viaAssistant = false) {
     if (!isCalendarConfigured()) {
       return { ok: false, message: "Google Calendar isn't set up." };
     }
-    const result = await (await getCalendarGateway()).delete(id);
+    const result = await (
+      viaAssistant
+        ? await assistantCalendarGateway()
+        : await getCalendarGateway()
+    ).delete(id);
     // Its reminders go with it.
     await db
       .delete(reminders)

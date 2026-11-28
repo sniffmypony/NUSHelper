@@ -18,6 +18,8 @@ export class CalendarMcpError extends Error {
   constructor(
     message: string,
     readonly status?: number,
+    // A refusal from the server's tool itself (not sign-in or network).
+    readonly fromTool = false,
   ) {
     super(message);
     this.name = "CalendarMcpError";
@@ -118,6 +120,8 @@ export async function callCalendarTool(
     if (reply.error) {
       throw new CalendarMcpError(
         `Google Calendar refused: ${reply.error.message ?? `error ${reply.error.code}`}.`,
+        undefined,
+        true,
       );
     }
     return reply.result;
@@ -140,6 +144,8 @@ export async function callCalendarTool(
     const text = result.content?.find((part) => part.text)?.text ?? "";
     throw new CalendarMcpError(
       `Google Calendar couldn't do that${text ? `: ${text.slice(0, 200)}` : "."}`,
+      undefined,
+      true,
     );
   }
   return result;

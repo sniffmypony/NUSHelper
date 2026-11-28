@@ -5,6 +5,7 @@ import { calendarId, FIXED_TIME_ZONE, isCalendarConfigured } from "./config.js";
 
 export const CALENDAR_NOT_SET_UP =
   "Google Calendar isn't set up for this bot (GOOGLE_CALENDAR_ID is empty).";
+import { assistantCalendarGateway } from "./assistant-gateway.js";
 import { calendarErrorMessage, getCalendarGateway } from "./google.js";
 import { CalendarOperations, type ConfirmResult } from "./operations.js";
 import {
@@ -109,8 +110,16 @@ function resultKeyboard(mapping: CalendarEventMapping) {
   return Markup.inlineKeyboard(rows);
 }
 
-async function operations(): Promise<CalendarOperations> {
-  return new CalendarOperations(calendarStore, await getCalendarGateway());
+// The assistant's actions (an AI's) go through Google's Calendar MCP server
+// once it's connected (see assistant-gateway.ts); typed messages and the
+// rest keep the service account.
+async function operations(viaAssistant = false): Promise<CalendarOperations> {
+  return new CalendarOperations(
+    calendarStore,
+    viaAssistant
+      ? await assistantCalendarGateway()
+      : await getCalendarGateway(),
+  );
 }
 
 async function removeKeyboard(ctx: Context): Promise<void> {
@@ -163,6 +172,9 @@ export async function stageCalendarMessage(
   sourceLine: number,
   ownerId: string,
   replyOnInvalid = true,
+  // Staged by the assistant: its buttons confirm through the assistant's
+  // calendar access.
+  viaAssistant = false,
 ): Promise<boolean> {
   const parsed = parseCalendarEventMessage(text);
   if (!parsed.ok) {
@@ -199,7 +211,7 @@ export async function stageCalendarMessage(
       [
         Markup.button.callback(
           isUpdate ? "Update event" : "Create event",
-          `cal:${isUpdate ? "update" : "create"}:${pending.operationId}`,
+          `cal:${viaAssistant ? "a" : ""}${isUpdate ? "update" : "create"}:${pending.operationId}`,
         ),
         Markup.button.callback("Cancel", `cal:cancel:${pending.operationId}`),
       ],
@@ -213,6 +225,7 @@ export async function sendCalendarDeletePrompt(
   ctx: Context,
   ownerId: string,
   actionToken: string,
+  viaAssistant = false,
 ): Promise<boolean> {
   const pending = await (await operations()).stageDelete(ownerId, actionToken);
   if (!pending) return false;
@@ -222,7 +235,7 @@ export async function sendCalendarDeletePrompt(
       [
         Markup.button.callback(
           "Confirm deletion",
-          `cal:confirm-delete:${pending.operationId}`,
+          `cal:${viaAssistant ? "a" : ""}confirm-delete:${pending.operationId}`,
         ),
         Markup.button.callback("Keep event", `cal:keep:${pending.operationId}`),
       ],
@@ -236,7 +249,10 @@ export async function listCalendarEvents(
   days: number,
 ): Promise<string> {
   const { timeMin, timeMax } = singaporeDateRange(startDate, days);
-  const events = await (await getCalendarGateway()).listRange(timeMin, timeMax);
+  // Only the assistant asks for this list.
+  const events = await (
+    await assistantCalendarGateway()
+  ).listRange(timeMin, timeMax);
   if (events.length === 0) return "No events in that range.";
   return events
     .slice(0, 40)
@@ -259,7 +275,7 @@ export async function requestCalendarEventDeletion(
   );
   if (
     mapping &&
-    (await sendCalendarDeletePrompt(ctx, ownerId, mapping.actionToken))
+    (await sendCalendarDeletePrompt(ctx, ownerId, mapping.actionToken, true))
   ) {
     return pending;
   }
@@ -267,7 +283,9 @@ export async function requestCalendarEventDeletion(
   if (!/^[A-Za-z0-9_]{1,55}$/.test(eventId)) {
     return "Error: that event id is not valid. Use an id from list_calendar_events.";
   }
-  const event = await (await getCalendarGateway()).getAgendaEvent(eventId);
+  const event = await (
+    await assistantCalendarGateway()
+  ).getAgendaEvent(eventId);
   if (!event) return "Error: no event with that id was found.";
   await ctx.reply(
     `Delete this event from Google Calendar?\n${formatCalendarAgendaEvent(event)}`,
@@ -300,33 +318,41 @@ export function registerCalendarHandlers(
   bot: Telegraf<Context>,
   ownerId: string,
 ): void {
-  bot.action(/^cal:create:([0-9a-f-]{36})$/, async (ctx) => {
+  bot.action(/^cal:(a?)create:([0-9a-f-]{36})$/, async (ctx) => {
+    const viaAssistant = ctx.match[1] === "a";
+    const operationId = ctx.match[2];
     await answerCallback(ctx);
     try {
       await replyForResult(
         ctx,
-        await (await operations()).confirmCreate(ctx.match[1], ownerId),
+        await (
+          await operations(viaAssistant)
+        ).confirmCreate(operationId, ownerId),
         "create",
       );
     } catch (error) {
       console.error(
-        `Calendar create operation ${ctx.match[1]} failed (${errorType(error)})`,
+        `Calendar create operation ${operationId} failed (${errorType(error)})`,
       );
       await ctx.reply(calendarErrorMessage(error));
     }
   });
 
-  bot.action(/^cal:update:([0-9a-f-]{36})$/, async (ctx) => {
+  bot.action(/^cal:(a?)update:([0-9a-f-]{36})$/, async (ctx) => {
+    const viaAssistant = ctx.match[1] === "a";
+    const operationId = ctx.match[2];
     await answerCallback(ctx);
     try {
       await replyForResult(
         ctx,
-        await (await operations()).confirmUpdate(ctx.match[1], ownerId),
+        await (
+          await operations(viaAssistant)
+        ).confirmUpdate(operationId, ownerId),
         "update",
       );
     } catch (error) {
       console.error(
-        `Calendar update operation ${ctx.match[1]} failed (${errorType(error)})`,
+        `Calendar update operation ${operationId} failed (${errorType(error)})`,
       );
       await ctx.reply(calendarErrorMessage(error));
     }
@@ -360,7 +386,8 @@ export function registerCalendarHandlers(
     await answerCallback(ctx);
     await removeKeyboard(ctx);
     try {
-      const gateway = await getCalendarGateway();
+      // Offered only by the assistant.
+      const gateway = await assistantCalendarGateway();
       const event = await gateway.getAgendaEvent(ctx.match[1]);
       const result = await gateway.delete(ctx.match[1]);
       await ctx.reply(
@@ -380,17 +407,21 @@ export function registerCalendarHandlers(
     await ctx.reply("Kept the event.");
   });
 
-  bot.action(/^cal:confirm-delete:([0-9a-f-]{36})$/, async (ctx) => {
+  bot.action(/^cal:(a?)confirm-delete:([0-9a-f-]{36})$/, async (ctx) => {
+    const viaAssistant = ctx.match[1] === "a";
+    const operationId = ctx.match[2];
     await answerCallback(ctx);
     try {
       await replyForResult(
         ctx,
-        await (await operations()).confirmDelete(ctx.match[1], ownerId),
+        await (
+          await operations(viaAssistant)
+        ).confirmDelete(operationId, ownerId),
         "delete",
       );
     } catch (error) {
       console.error(
-        `Calendar delete operation ${ctx.match[1]} failed (${errorType(error)})`,
+        `Calendar delete operation ${operationId} failed (${errorType(error)})`,
       );
       await ctx.reply(calendarErrorMessage(error));
     }

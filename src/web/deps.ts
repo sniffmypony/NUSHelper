@@ -16,6 +16,7 @@ import { sql } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { features } from "./setup.js";
 import { googleAccess } from "./google-access.js";
+import { assistantUsesMcp } from "../calendar/assistant-gateway.js";
 import { forgetLoadedSettings, refreshSettings } from "../settings/runtime.js";
 import { consumeLoginToken, loginLinkStore } from "./login-links.js";
 import { calendarActions } from "./calendar-actions.js";
@@ -93,6 +94,7 @@ export const webDependencies: WebDependencies = {
       return undefined;
     }
   },
+  assistantGoogle: assistantUsesMcp,
   async hasTimetable() {
     return (await timetableStore.all()).length > 0;
   },
@@ -167,8 +169,10 @@ export const webDependencies: WebDependencies = {
     errorMessage: assistantErrorMessage,
     cards: {
       performDelete: (kind, id) => performDelete(kind, id, telegramOwnerId()),
-      addCalendarEvent: (line) => calendarActions.addEvent(line),
-      deleteCalendarEvent: (eventId) => calendarActions.deleteEvent(eventId),
+      // The assistant's proposals, confirmed on a card.
+      addCalendarEvent: (line) => calendarActions.addEvent(line, true),
+      deleteCalendarEvent: (eventId) =>
+        calendarActions.deleteEvent(eventId, true),
     },
   },
 

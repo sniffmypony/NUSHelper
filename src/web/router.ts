@@ -74,6 +74,7 @@ export interface WebDependencies {
   features(): Features;
   dispatchLastRun(): Promise<Date | null | undefined>;
   hasTimetable(): Promise<boolean>;
+  assistantGoogle(): boolean;
   // The assistant's own Google sign-in (Calendar MCP).
   google: GoogleAccess;
   listModels(): Promise<string[]>;

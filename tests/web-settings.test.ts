@@ -115,6 +115,7 @@ function setup(now = NOW) {
     features: () => ({ ai: true, calendar: false, canvas: false }),
     dispatchLastRun: async () => new Date(now * 1000 - 60_000),
     hasTimetable: async () => false,
+    assistantGoogle: () => false,
     connectTelegram: vi.fn(async () => ({
       expectedUrl: "https://site.example/api/webhook",
       url: "https://site.example/api/webhook",
@@ -549,6 +550,7 @@ describe("website API", () => {
       ["ai", true],
       ["dispatch", true],
       ["calendar", false],
+      ["assistant-google", false],
       ["canvas", false],
       ["timetable", false],
     ]);
