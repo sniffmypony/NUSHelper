@@ -24,8 +24,8 @@ export async function refreshSettings(
 ): Promise<void> {
   if (now - loadedAt < MAX_AGE_MS) return;
   try {
-    // One after the other: the bot has a single database connection, and
-    // Supabase's transaction pooler can hang on queries pipelined on one.
+    // One after the other: queries in a request run one at a time, as
+    // Supabase's transaction pooler can hang on pipelined queries.
     const values = await store.values();
     const secrets = await store.secrets();
     const overrides = new Map<string, string>();

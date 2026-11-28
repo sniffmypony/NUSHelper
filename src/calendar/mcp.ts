@@ -150,21 +150,3 @@ export async function callCalendarTool(
   }
   return result;
 }
-
-// The shape of a reply, without its values: for checking what the server
-// sends (logged by the website's Check button; no event details).
-export function shapeOf(value: unknown, depth = 0): unknown {
-  if (Array.isArray(value)) {
-    return value.length ? [shapeOf(value[0], depth + 1)] : [];
-  }
-  if (value && typeof value === "object") {
-    if (depth > 4) return "{…}";
-    return Object.fromEntries(
-      Object.entries(value).map(([key, inner]) => [
-        key,
-        shapeOf(inner, depth + 1),
-      ]),
-    );
-  }
-  return typeof value;
-}
