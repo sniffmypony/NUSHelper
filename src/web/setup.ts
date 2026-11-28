@@ -60,7 +60,8 @@ export async function setupChecklist(
   now = new Date(),
 ): Promise<SetupItem[]> {
   const on = deps.features();
-  // One after the other: Telegram, then the database (single connection).
+  // One after the other: Telegram, then the database (queries in a request
+  // run one at a time).
   let telegram: boolean | null;
   try {
     telegram = (await deps.telegramStatus()).connected;

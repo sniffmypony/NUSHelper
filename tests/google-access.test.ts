@@ -191,9 +191,8 @@ describe("the assistant's Google sign-in on the website", () => {
       timeZone: "Asia/Singapore",
       pageSize: 5,
     });
-    // The shape is logged, never the events themselves.
-    expect(String(log.mock.calls[0][0])).not.toContain("Secret meeting");
-    expect(String(log.mock.calls[0][0])).toContain('"summary":"string"');
+    // Nothing about the events is logged.
+    expect(log).not.toHaveBeenCalled();
     log.mockRestore();
   });
 });

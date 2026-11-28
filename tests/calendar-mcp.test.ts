@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { callCalendarTool, shapeOf } from "../src/calendar/mcp.js";
+import { callCalendarTool } from "../src/calendar/mcp.js";
 
 // A stand-in for Google's Calendar MCP server: initialize answers JSON with
 // a session id, the notification gets 202, and the tool call answers as a
@@ -89,15 +89,5 @@ describe("calling Google's Calendar MCP server", () => {
       offline,
     ).catch((failure: Error) => failure);
     expect(String(error)).not.toContain("secret-token");
-  });
-
-  it("describes a reply's shape without its values", () => {
-    expect(
-      shapeOf({
-        events: [{ summary: "Private dinner", start: { dateTime: "x" } }],
-      }),
-    ).toEqual({
-      events: [{ summary: "string", start: { dateTime: "string" } }],
-    });
   });
 });

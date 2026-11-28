@@ -1,6 +1,6 @@
 import { DateTime } from "luxon";
 import { calendarId } from "../calendar/config.js";
-import { callCalendarTool, shapeOf, type ToolResult } from "../calendar/mcp.js";
+import { callCalendarTool, type ToolResult } from "../calendar/mcp.js";
 import { SINGAPORE_TIME_ZONE } from "../dates.js";
 import { optionalEnv } from "../env.js";
 import {
@@ -143,7 +143,7 @@ export function googleAccess(deps: GoogleAccessDependencies): GoogleAccess {
           botToken: deps.botToken(),
           fetchImpl,
         });
-        // One after the other (single database connection).
+        // One query at a time (see src/db/client.ts).
         await deps.store.setSecret(
           REFRESH_TOKEN,
           encryptSecret(signedIn.refreshToken, deps.botToken()),
@@ -173,8 +173,7 @@ export function googleAccess(deps: GoogleAccessDependencies): GoogleAccess {
       await deps.settingsChanged();
     },
 
-    // Read-only: next week's events through the MCP server. The reply's
-    // shape (never its contents) is logged, to see what the server sends.
+    // Read-only: next week's events through the MCP server.
     async check() {
       const client = clientConfig();
       const refreshToken = optionalEnv(REFRESH_TOKEN);
@@ -197,18 +196,6 @@ export function googleAccess(deps: GoogleAccessDependencies): GoogleAccess {
         },
         token,
         fetchImpl,
-      );
-      let textShape: unknown = null;
-      const text = result.content?.find((part) => part.text)?.text;
-      if (text) {
-        try {
-          textShape = shapeOf(JSON.parse(text));
-        } catch {
-          textShape = "plain text";
-        }
-      }
-      console.log(
-        `Calendar MCP list_events reply shape: ${JSON.stringify({ result: shapeOf(result), text: textShape })}`,
       );
       return { count: eventsIn(result)?.length ?? null };
     },

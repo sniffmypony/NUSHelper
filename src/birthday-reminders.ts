@@ -60,7 +60,7 @@ export async function scheduleBirthdayReminders(
     if (!birthday) continue;
     // An occurrence of a yearly event has its own id; key on the series.
     const seriesId = event.recurringEventId ?? birthday.id;
-    // One reminder at a time (single database connection).
+    // One reminder at a time (queries run one at a time).
     await store.create({
       ownerId,
       chatId: ownerId,

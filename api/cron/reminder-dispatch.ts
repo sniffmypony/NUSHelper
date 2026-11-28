@@ -120,7 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       now,
       // The 11:30pm message shows the day's Apple Pay payments.
       async (date) => {
-        // One query after the other (single database connection).
+        // One query after the other (see src/db/client.ts).
         const day = await applePayStore.daySummary(date);
         const waiting = await applePayStore.waitingCount();
         return { ...day, waiting };
