@@ -236,6 +236,15 @@ Press **Reconnect** if the site's address or the bot token ever changes. (`pnpm 
 
 Advanced: instead of a JSON key, the bot can authenticate without stored keys via Vercel OIDC and Google Workload Identity Federation (`GCP_*` variables in `.env.example`).
 
+#### The assistant's Google access
+
+From 1 February 2027, Google's terms require AI tools to reach Google Calendar through its **Calendar MCP server**, signed in as you (a service account can't be used there with a personal Gmail account). The assistant's own calendar actions will use it; the rest of the bot keeps using the service account above. Once, in the same Google Cloud project:
+
+1. Enable **Calendar MCP** (`calendarmcp.googleapis.com`).
+2. In **Google Auth Platform**: Audience **External**, add yourself as a test user, fill in **Branding** (home page `https://<your-site>`, privacy policy `https://<your-site>/privacy`, authorised domain `<your-site>`, no logo, so no verification is needed), then **Publish app** so the sign-in doesn't expire after 7 days.
+3. **Clients → Create client**: **Web application**, redirect URI `https://<your-site>/api/web/google/callback`, and tick **Use this client for an AI-powered agent**.
+4. On the website, **Settings → Assistant's Google access**: paste the client ID and secret, press **Connect**, and allow Calendar access (Google warns the app isn't verified: choose **Advanced → Go to NUSHelper**). **Check** lists the next week's events through the MCP server.
+
 ### 7. Optional: Canvas
 
 In Canvas, go to **Account → Settings → New access token**, and set `CANVAS_API_TOKEN` and `CANVAS_BASE_URL`. The token can act as you on Canvas, so keep it only in Vercel.

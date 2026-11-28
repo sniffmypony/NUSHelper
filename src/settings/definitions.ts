@@ -127,6 +127,25 @@ export const SETTINGS: SettingDefinition[] = [
     validate: token,
   },
   {
+    key: "GOOGLE_OAUTH_CLIENT_ID",
+    label: "Assistant's Google client ID",
+    help: "Google Auth Platform → Clients: a Web application client marked “Use this client for an AI-powered agent”.",
+    secret: false,
+    env: ["GOOGLE_OAUTH_CLIENT_ID"],
+    validate: (value) =>
+      /^[\w-]{10,200}\.apps\.googleusercontent\.com$/.test(value)
+        ? null
+        : "Enter a client ID ending in .apps.googleusercontent.com.",
+  },
+  {
+    key: "GOOGLE_OAUTH_CLIENT_SECRET",
+    label: "Assistant's Google client secret",
+    help: "The same client's secret (from its JSON file).",
+    secret: true,
+    env: ["GOOGLE_OAUTH_CLIENT_SECRET"],
+    validate: token,
+  },
+  {
     key: "GOOGLE_SERVICE_ACCOUNT_JSON_BASE64",
     label: "Service-account key",
     help: "The JSON key of a Google Cloud service account with the Calendar API enabled.",

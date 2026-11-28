@@ -15,6 +15,7 @@ import {
 import { sql } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { features } from "./setup.js";
+import { googleAccess } from "./google-access.js";
 import { forgetLoadedSettings, refreshSettings } from "../settings/runtime.js";
 import { consumeLoginToken, loginLinkStore } from "./login-links.js";
 import { calendarActions } from "./calendar-actions.js";
@@ -63,6 +64,16 @@ export const webDependencies: WebDependencies = {
   env: (name) => process.env[name]?.trim() || undefined,
 
   features,
+  google: googleAccess({
+    store: settingsStore,
+    botToken: telegramBotToken,
+    ownerId: telegramOwnerId,
+    siteUrl: () => websiteUrl(),
+    async settingsChanged() {
+      forgetLoadedSettings();
+      await refreshSettings();
+    },
+  }),
   async dispatchLastRun() {
     // pg_cron's own record of the job set up by pnpm setup:db. Without
     // pg_cron (not Supabase) the query fails and the answer is unknown.
