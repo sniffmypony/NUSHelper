@@ -23,7 +23,7 @@ export function FeatureOff({
           event.preventDefault();
           navigate(href);
         }}
-        className="inline-flex items-center gap-1.5 rounded-[10px] font-medium text-accent-text hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+        className="inline-flex h-9 items-center gap-1.5 rounded-lg px-1 font-medium text-accent-text hover:underline"
       >
         <Settings {...ICON} size={15} />
         {action}

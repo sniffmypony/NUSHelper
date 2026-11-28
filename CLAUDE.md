@@ -5,12 +5,16 @@ A private Telegram bot plus a website (`web/`) for one NUS student. See
 
 ## Website design
 
-Before changing anything in `web/`, read `web/DESIGN.md` and follow it:
-OKLCH colour tokens (60:30:10), translucent borders, nested corner radii,
-lucide icons matched to text weight, and subtle physical motion (settle-in
-entrances, 0.97 button presses, shakes for rejected input, directional
-slides, `interpolate-size` accordions, transform/opacity only, reduced
-motion respected). Reuse the shared components in `web/src/components/`.
+Before changing anything in `web/`, read `web/DESIGN.md` and follow it
+("Notebook"): OKLCH tokens only (warm neutrals, one pine action colour,
+marigold only for "now"), states with an icon and a word, flat panels with
+hairline borders, Undo for reversible changes and `useConfirm` for
+irreversible ones (never `window.confirm`), and restrained motion (CSS for
+presses and entrances, Motion via `LazyMotion` for exits, layout and shared
+indicators; transform/opacity only; reduced motion respected). Reuse the
+shared components in `web/src/components/`. The Motion AI Kit's skills
+(`.claude/skills/motion*`) and its MCP server (`.mcp.json`) help with
+animation work.
 
 ## Working rules
 

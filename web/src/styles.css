@@ -1,106 +1,111 @@
 @import "tailwindcss";
 
-/* Design rules: web/DESIGN.md. Colours are OKLCH tokens that switch with
-   the theme, so pages use one class (bg-surface) instead of light/dark
-   pairs. The theme is a class on <html> (set by src/theme.ts). */
+/* Design rules: web/DESIGN.md ("Notebook"). Every colour is an OKLCH token
+   that switches with the theme, so components use one class (bg-surface)
+   instead of light/dark pairs. The theme is a class on <html> (src/theme.ts).
+   Contrast figures in comments are against the surface named. */
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   color-scheme: light;
-  /* 60%: calm, lightly blue-tinted base. */
-  --canvas: oklch(0.972 0.01 250);
-  --surface: oklch(1 0 0);
+  /* Warm paper neutrals (hue 75–85, almost no chroma). */
+  --canvas: oklch(0.975 0.006 85);
+  --surface: oklch(0.995 0.003 85);
   --raised: oklch(1 0 0);
-  --sunken: oklch(0.955 0.013 250);
-  --hover: oklch(0.38 0.13 255 / 0.07);
-  /* 30%: NUS blue for navigation, headers, borders and secondary text. */
-  --brand: oklch(0.37 0.13 256);
-  --brand-soft: oklch(0.945 0.028 250);
-  --brand-text: oklch(0.4 0.13 256);
-  --nav: oklch(0.33 0.12 257);
-  --nav-ink: oklch(0.97 0.012 250);
-  --nav-muted: oklch(0.8 0.05 250);
-  --nav-hover: oklch(1 0 0 / 0.08);
-  --nav-active: oklch(1 0 0 / 0.14);
-  --bubble: oklch(0.37 0.13 256);
-  /* Chart marks, checked with the dataviz validator against each surface. */
-  --chart-spend: oklch(0.6 0.15 150);
-  /* Spending bars: quiet orange, and full orange for the one in focus. */
-  --chart-bar: oklch(0.82 0.09 60);
-  --chart-bar-active: oklch(0.66 0.17 50);
-  --line: oklch(0.37 0.13 256 / 0.15);
-  --line-strong: oklch(0.37 0.13 256 / 0.28);
-  --ink: oklch(0.22 0.045 256);
-  --muted: oklch(0.46 0.06 256);
-  --faint: oklch(0.6 0.045 256);
-  /* 10%: NUS orange for actions, today, the active item and links. */
-  --accent: oklch(0.74 0.17 55);
-  --accent-hover: oklch(0.78 0.16 60);
-  --accent-text: oklch(0.55 0.16 48);
-  --accent-soft: oklch(0.95 0.045 65);
-  --on-accent: oklch(0.24 0.06 50);
-  --danger: oklch(0.55 0.2 25);
-  --danger-soft: oklch(0.96 0.025 25);
-  --ok: oklch(0.5 0.13 150);
-  --ok-soft: oklch(0.955 0.04 150);
-  --warn: oklch(0.55 0.13 75);
-  --warn-soft: oklch(0.965 0.045 85);
-  /* Calendar categories: one lightness and chroma, clearly different hues,
-     so each type is recognisable and none looks heavier (both themes). */
-  --cat-event: oklch(0.68 0.15 225);
-  --cat-exam: oklch(0.68 0.15 305);
-  --cat-deadline: oklch(0.68 0.15 25);
-  --cat-reminder: oklch(0.68 0.15 345);
-  --cat-class: oklch(0.68 0.15 270);
-  --cat-task: oklch(0.68 0.15 185);
-  --cat-spend: oklch(0.68 0.15 150);
-  --card-shadow:
-    0 1px 2px oklch(0.37 0.13 256 / 0.06), 0 1px 1px oklch(0 0 0 / 0.03);
-  --pop-shadow:
-    0 8px 24px oklch(0.37 0.13 256 / 0.16), 0 1px 2px oklch(0 0 0 / 0.08);
+  --sunken: oklch(0.955 0.008 85);
+  --hover: oklch(0.3 0.02 75 / 0.05);
+  --pressed: oklch(0.3 0.02 75 / 0.09);
+  --line: oklch(0.3 0.02 75 / 0.12);
+  --line-strong: oklch(0.3 0.02 75 / 0.2);
+  /* Borders of fields and checkboxes: 3.3:1 on surface. */
+  --field: oklch(0.64 0.012 75);
+  /* Text: 15.3, 6.4 and 4.8:1 on canvas. */
+  --ink: oklch(0.24 0.012 75);
+  --muted: oklch(0.47 0.015 75);
+  --faint: oklch(0.52 0.014 75);
+  /* Pine: the one action colour (6.4:1 with white text). */
+  --accent: oklch(0.47 0.085 180);
+  --accent-hover: oklch(0.43 0.085 180);
+  --accent-press: oklch(0.39 0.08 180);
+  --accent-soft: oklch(0.94 0.03 180);
+  --accent-text: oklch(0.45 0.085 180);
+  --on-accent: oklch(0.99 0.005 180);
+  /* Marigold: only for now, today and what's next (9.3:1 with on-now). */
+  --now: oklch(0.82 0.14 80);
+  --now-soft: oklch(0.96 0.045 85);
+  --on-now: oklch(0.2 0.03 75);
+  /* States: always with an icon and a word, never colour alone. */
+  --ok: oklch(0.48 0.12 150);
+  --ok-soft: oklch(0.95 0.035 150);
+  --warn: oklch(0.5 0.11 65);
+  --warn-soft: oklch(0.955 0.045 80);
+  --danger: oklch(0.52 0.18 27);
+  --danger-soft: oklch(0.955 0.03 27);
+  --on-danger: oklch(0.99 0.005 27);
+  --info: oklch(0.5 0.12 245);
+  --info-soft: oklch(0.955 0.025 245);
+  /* Your own chat messages. */
+  --bubble: oklch(0.935 0.012 85);
+  /* Charts: quiet ink bars, pine for the one in focus. */
+  --chart-bar: oklch(0.3 0.02 75 / 0.2);
+  --chart-focus: var(--accent);
+  /* Calendar categories: one lightness and chroma, different hues, so none
+     looks heavier; each also has an icon (category.tsx). */
+  --cat-class: oklch(0.6 0.13 270);
+  --cat-event: oklch(0.6 0.13 235);
+  --cat-exam: oklch(0.6 0.13 315);
+  --cat-deadline: oklch(0.6 0.13 25);
+  --cat-reminder: oklch(0.6 0.13 60);
+  --cat-task: oklch(0.6 0.13 185);
+  --cat-spend: oklch(0.6 0.13 145);
+  --shadow-pop:
+    0 12px 32px oklch(0.3 0.02 75 / 0.12), 0 2px 6px oklch(0.3 0.02 75 / 0.06);
 }
 
-/* Dark: a near-black navy (#090E17 page, #0D1626 sidebar, #111B2A cards,
-   #172337 raised), white text, one orange. Depth from lighter surfaces and
-   1 px translucent borders, not shadows. */
+/* Dark: warm charcoal, designed on its own rather than inverted. Depth comes
+   from lighter surfaces, not shadows; text is off-white to cut glare. */
 :root.dark {
   color-scheme: dark;
-  --canvas: oklch(0.163 0.021 262);
-  --surface: oklch(0.221 0.033 258);
-  --raised: oklch(0.256 0.042 260);
-  --sunken: oklch(0.19 0.027 260);
+  --canvas: oklch(0.17 0.006 75);
+  --surface: oklch(0.205 0.007 75);
+  --raised: oklch(0.24 0.008 75);
+  --sunken: oklch(0.15 0.006 75);
   --hover: oklch(1 0 0 / 0.045);
-  --brand: oklch(0.62 0.14 252);
-  --brand-soft: oklch(0.25 0.045 258);
-  --brand-text: oklch(0.8 0.09 250);
-  --nav: oklch(0.2 0.035 261);
-  --nav-ink: oklch(0.972 0.006 255);
-  --nav-muted: oklch(0.688 0.032 256);
-  --nav-hover: oklch(1 0 0 / 0.05);
-  --nav-active: oklch(1 0 0 / 0.08);
-  --bubble: oklch(0.37 0.11 256);
-  --chart-spend: oklch(0.66 0.15 150);
-  --chart-bar: oklch(0.64 0.12 56);
-  --chart-bar-active: oklch(0.8 0.16 62);
-  --line: oklch(1 0 0 / 0.08);
-  --line-strong: oklch(1 0 0 / 0.14);
-  --ink: oklch(0.972 0.006 255);
-  --muted: oklch(0.688 0.032 256);
-  --faint: oklch(0.6 0.03 256);
-  --accent: oklch(0.749 0.173 54);
-  --accent-hover: oklch(0.79 0.16 58);
-  --accent-text: oklch(0.8 0.14 60);
-  --accent-soft: oklch(0.3 0.06 55);
-  --on-accent: oklch(0.22 0.06 50);
-  /* States: muted, so they inform without shouting. */
-  --danger: oklch(0.72 0.13 25);
-  --danger-soft: oklch(0.29 0.06 25);
-  --ok: oklch(0.76 0.1 155);
-  --ok-soft: oklch(0.28 0.045 155);
-  --warn: oklch(0.82 0.11 80);
-  --warn-soft: oklch(0.3 0.05 80);
-  --card-shadow: none;
-  --pop-shadow: 0 0 0 1px oklch(1 0 0 / 0.06);
+  --pressed: oklch(1 0 0 / 0.08);
+  --line: oklch(1 0 0 / 0.09);
+  --line-strong: oklch(1 0 0 / 0.15);
+  --field: oklch(0.54 0.01 75);
+  --ink: oklch(0.93 0.008 85);
+  --muted: oklch(0.74 0.012 85);
+  --faint: oklch(0.64 0.012 85);
+  --accent: oklch(0.74 0.1 178);
+  --accent-hover: oklch(0.78 0.1 178);
+  --accent-press: oklch(0.7 0.095 178);
+  --accent-soft: oklch(0.28 0.04 180);
+  --accent-text: oklch(0.79 0.09 178);
+  --on-accent: oklch(0.18 0.03 180);
+  --now: oklch(0.8 0.13 80);
+  --now-soft: oklch(0.3 0.05 80);
+  --on-now: oklch(0.2 0.03 75);
+  --ok: oklch(0.76 0.12 150);
+  --ok-soft: oklch(0.27 0.04 150);
+  --warn: oklch(0.8 0.12 75);
+  --warn-soft: oklch(0.28 0.045 75);
+  --danger: oklch(0.74 0.14 25);
+  --danger-soft: oklch(0.28 0.05 25);
+  --on-danger: oklch(0.17 0.03 25);
+  --info: oklch(0.76 0.09 245);
+  --info-soft: oklch(0.27 0.04 245);
+  --bubble: oklch(0.27 0.009 75);
+  --chart-bar: oklch(1 0 0 / 0.22);
+  --cat-class: oklch(0.7 0.12 270);
+  --cat-event: oklch(0.7 0.12 235);
+  --cat-exam: oklch(0.7 0.12 315);
+  --cat-deadline: oklch(0.7 0.12 25);
+  --cat-reminder: oklch(0.7 0.12 60);
+  --cat-task: oklch(0.7 0.12 185);
+  --cat-spend: oklch(0.7 0.12 145);
+  --shadow-pop: 0 0 0 1px oklch(1 0 0 / 0.06), 0 16px 40px oklch(0 0 0 / 0.45);
 }
 
 @theme inline {
@@ -109,60 +114,70 @@
   --color-raised: var(--raised);
   --color-sunken: var(--sunken);
   --color-hover: var(--hover);
-  --color-brand: var(--brand);
-  --color-brand-soft: var(--brand-soft);
-  --color-brand-text: var(--brand-text);
-  --color-nav: var(--nav);
-  --color-nav-ink: var(--nav-ink);
-  --color-nav-muted: var(--nav-muted);
-  --color-nav-hover: var(--nav-hover);
-  --color-nav-active: var(--nav-active);
-  --color-bubble: var(--bubble);
-  --color-chart-spend: var(--chart-spend);
-  --color-chart-bar: var(--chart-bar);
-  --color-chart-bar-active: var(--chart-bar-active);
-  --color-cat-event: var(--cat-event);
-  --color-cat-exam: var(--cat-exam);
-  --color-cat-deadline: var(--cat-deadline);
-  --color-cat-reminder: var(--cat-reminder);
-  --color-cat-class: var(--cat-class);
-  --color-cat-task: var(--cat-task);
-  --color-cat-spend: var(--cat-spend);
+  --color-pressed: var(--pressed);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+  --color-field: var(--field);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-faint: var(--faint);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
-  --color-accent-text: var(--accent-text);
+  --color-accent-press: var(--accent-press);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
   --color-on-accent: var(--on-accent);
-  --color-danger: var(--danger);
-  --color-danger-soft: var(--danger-soft);
+  --color-now: var(--now);
+  --color-now-soft: var(--now-soft);
+  --color-on-now: var(--on-now);
   --color-ok: var(--ok);
   --color-ok-soft: var(--ok-soft);
   --color-warn: var(--warn);
   --color-warn-soft: var(--warn-soft);
-  --shadow-card: var(--card-shadow);
-  --shadow-pop: var(--pop-shadow);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-on-danger: var(--on-danger);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-bubble: var(--bubble);
+  --color-chart-bar: var(--chart-bar);
+  --color-chart-focus: var(--chart-focus);
+  --color-cat-class: var(--cat-class);
+  --color-cat-event: var(--cat-event);
+  --color-cat-exam: var(--cat-exam);
+  --color-cat-deadline: var(--cat-deadline);
+  --color-cat-reminder: var(--cat-reminder);
+  --color-cat-task: var(--cat-task);
+  --color-cat-spend: var(--cat-spend);
+  --shadow-pop: var(--shadow-pop);
 }
 
 @theme {
   --font-sans:
-    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    sans-serif;
+    "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
-  /* Motion (web/DESIGN.md §1). */
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --animate-settle: settle 220ms var(--ease-out) both;
-  --animate-slide-from-right: slide-from-right 240ms var(--ease-out) both;
-  --animate-slide-from-left: slide-from-left 240ms var(--ease-out) both;
+  /* Motion (web/DESIGN.md §5). Exits take about 70% of the entrance. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.5, 0, 0.75, 0);
+  --ease-move: cubic-bezier(0.65, 0, 0.35, 1);
+  --animate-settle: settle 180ms var(--ease-out) both;
+  --animate-fade: fade-in 120ms var(--ease-out) both;
+  --animate-slide-from-right: slide-from-right 320ms var(--ease-out) both;
+  --animate-slide-from-left: slide-from-left 320ms var(--ease-out) both;
+  --animate-pulse-soft: pulse-soft 1.4s ease-in-out infinite;
+  --animate-caret: caret 1s steps(1) infinite;
 
   @keyframes settle {
     from {
       opacity: 0;
-      transform: scale(0.97);
+      transform: translateY(4px);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
     }
   }
   @keyframes slide-from-right {
@@ -177,35 +192,23 @@
       transform: translateX(-24px);
     }
   }
+  @keyframes pulse-soft {
+    50% {
+      opacity: 0.55;
+    }
+  }
+  @keyframes caret {
+    50% {
+      opacity: 0;
+    }
+  }
 }
 
-/* A calendar item: tinted in its category colour, with a bar of it on the
-   left, and text in ink so it reads in both themes. */
-.pill {
-  background: color-mix(in oklch, var(--pill) 20%, transparent);
-  box-shadow: inset 2px 0 0 var(--pill);
-  color: var(--ink);
-}
-.pill-event {
-  --pill: var(--cat-event);
-}
-.pill-exam {
-  --pill: var(--cat-exam);
-}
-.pill-deadline {
-  --pill: var(--cat-deadline);
-}
-.pill-reminder {
-  --pill: var(--cat-reminder);
-}
-.pill-class {
-  --pill: var(--cat-class);
-}
-.pill-task {
-  --pill: var(--cat-task);
-}
-.pill-spend {
-  --pill: var(--cat-spend);
+:root {
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 240ms;
+  --dur-space: 320ms;
 }
 
 html,
@@ -216,10 +219,24 @@ body,
 
 body {
   @apply bg-canvas text-ink antialiased;
+  font-feature-settings: "cv11", "ss03";
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* One visible focus style everywhere: a pine ring outside the element. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Numbers that line up (money, times, counts). */
+.tnum {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Accordions: <details> whose height animates to auto where the browser
-   allows it (Chrome/Edge 129+); elsewhere they open instantly. */
+   allows it (Chrome/Edge 129+); elsewhere they open instantly. Kept for
+   small panels only, since block-size runs layout each frame. */
 @supports (interpolate-size: allow-keywords) {
   :root {
     interpolate-size: allow-keywords;
@@ -229,8 +246,8 @@ details.accordion::details-content {
   block-size: 0;
   overflow: clip;
   transition:
-    block-size 250ms var(--ease-out),
-    content-visibility 250ms allow-discrete;
+    block-size var(--dur-slow) var(--ease-out),
+    content-visibility var(--dur-slow) allow-discrete;
 }
 details.accordion[open]::details-content {
   block-size: auto;
@@ -243,22 +260,22 @@ details.accordion > summary::-webkit-details-marker {
   display: none;
 }
 details.accordion .accordion-chevron {
-  transition: transform 200ms var(--ease-out);
+  transition: transform var(--dur-base) var(--ease-out);
 }
 details.accordion[open] .accordion-chevron {
   transform: rotate(90deg);
 }
 
-/* Icon swaps: the outgoing icon blurs away as the new one comes in. */
+/* Icon swaps: the old icon blurs away as the new one comes in. */
 .swap-icon {
   transition:
-    opacity 150ms var(--ease-out),
-    filter 150ms var(--ease-out),
-    transform 150ms var(--ease-out);
+    opacity var(--dur-fast) var(--ease-out),
+    filter var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 .swap-icon[data-on="false"] {
   opacity: 0;
-  filter: blur(4px);
+  filter: blur(3px);
   transform: scale(0.6);
 }
 
@@ -278,6 +295,12 @@ details.accordion[open] .accordion-chevron {
     transparent
   );
 }
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
 
 /* While the theme changes nothing transitions (src/theme.ts). */
 .theme-switching *,
@@ -286,14 +309,18 @@ details.accordion[open] .accordion-chevron {
   transition: none !important;
 }
 
-/* Reduced motion: no movement, quick fades only. (Buttons skip their
-   press scale with motion-reduce:, and Shake checks this itself.) */
+/* Reduced motion: nothing moves; short fades only. Motion components follow
+   <MotionConfig reducedMotion="user"> (main.tsx). */
 @media (prefers-reduced-motion: reduce) {
   .animate-settle,
   .animate-slide-from-right,
   .animate-slide-from-left {
     animation-name: fade-in;
-    animation-duration: 150ms;
+    animation-duration: var(--dur-fast);
+  }
+  .animate-pulse-soft,
+  .animate-caret {
+    animation: none;
   }
   .swap-icon[data-on="false"] {
     filter: none;
@@ -304,15 +331,10 @@ details.accordion[open] .accordion-chevron {
     transition: none;
   }
 }
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-}
 
-/* Assistant replies in Chat (Markdown). */
+/* Assistant replies in Chat (Markdown): set for reading, not for UI. */
 .chat-markdown {
-  @apply space-y-3 text-sm leading-relaxed break-words;
+  @apply space-y-3 text-[15px] leading-[1.65] break-words;
 }
 .chat-markdown ul {
   @apply list-disc space-y-1 pl-5;
@@ -320,10 +342,13 @@ details.accordion[open] .accordion-chevron {
 .chat-markdown ol {
   @apply list-decimal space-y-1 pl-5;
 }
+.chat-markdown li::marker {
+  color: var(--faint);
+}
 .chat-markdown h1,
 .chat-markdown h2,
 .chat-markdown h3 {
-  @apply font-semibold;
+  @apply pt-1 font-semibold tracking-tight;
 }
 .chat-markdown h1 {
   @apply text-lg;
@@ -331,11 +356,14 @@ details.accordion[open] .accordion-chevron {
 .chat-markdown h2 {
   @apply text-base;
 }
+.chat-markdown strong {
+  @apply font-semibold;
+}
 .chat-markdown a {
-  @apply text-accent-text underline;
+  @apply text-accent-text underline decoration-1 underline-offset-2;
 }
 .chat-markdown code {
-  @apply rounded bg-sunken px-1 py-0.5 font-mono text-[0.85em];
+  @apply rounded-md bg-sunken px-1 py-0.5 font-mono text-[0.85em];
 }
 .chat-markdown pre {
   @apply w-max min-w-full p-3;
@@ -344,15 +372,193 @@ details.accordion[open] .accordion-chevron {
   @apply bg-transparent p-0;
 }
 .chat-markdown blockquote {
-  @apply border-l-4 border-line-strong pl-3 text-muted;
+  @apply border-l-2 border-line-strong pl-3 text-muted;
 }
 .chat-markdown table {
-  @apply border-collapse text-left;
+  @apply border-collapse text-left text-sm;
+  font-variant-numeric: tabular-nums;
+}
+.chat-markdown th {
+  @apply bg-sunken font-semibold;
 }
 .chat-markdown th,
 .chat-markdown td {
-  @apply border border-line px-2 py-1;
+  @apply border border-line px-2.5 py-1.5;
 }
 .chat-markdown .katex-display {
   @apply overflow-x-auto overflow-y-hidden py-1;
+}
+
+/* Toast countdown (feedback.tsx): its end closes the toast. With reduced
+   motion the bar stays still but the timer still runs. */
+.toast-countdown {
+  animation-name: countdown;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes countdown {
+  to {
+    transform: scaleX(0);
+  }
+}
+@keyframes countdown-still {
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast-countdown {
+    animation-name: countdown-still;
+  }
+}
+
+/* Confirm dialogs (dialog.tsx): native <dialog>, so focus is trapped and
+   Escape closes it. Scale 0.97 and fade in; out faster. */
+dialog.confirm {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out),
+    overlay var(--dur-base) allow-discrete,
+    display var(--dur-base) allow-discrete;
+}
+dialog.confirm:not([open]) {
+  opacity: 0;
+  transform: scale(0.97);
+  transition-duration: var(--dur-fast);
+  transition-timing-function: var(--ease-in);
+}
+@starting-style {
+  dialog.confirm[open] {
+    opacity: 0;
+    transform: scale(0.97) translateY(4px);
+  }
+}
+dialog.confirm::backdrop {
+  background: oklch(0.2 0.01 75 / 0.35);
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    overlay var(--dur-base) allow-discrete,
+    display var(--dur-base) allow-discrete;
+}
+dialog.confirm:not([open])::backdrop {
+  opacity: 0;
+}
+@starting-style {
+  dialog.confirm[open]::backdrop {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  dialog.confirm,
+  dialog.confirm:not([open]) {
+    transform: none;
+  }
+  @starting-style {
+    dialog.confirm[open] {
+      transform: none;
+    }
+  }
+}
+
+/* A block tinted in its category colour with a bar of it on the left
+   (timetable lessons, finals). Text stays ink, so it reads in both themes. */
+.tint {
+  background: color-mix(in oklab, var(--tint) 12%, var(--surface));
+  box-shadow: inset 3px 0 0 var(--tint);
+  color: var(--ink);
+}
+.dark .tint {
+  background: color-mix(in oklab, var(--tint) 20%, var(--surface));
+}
+.tint-class {
+  --tint: var(--cat-class);
+}
+.tint-event {
+  --tint: var(--cat-event);
+}
+.tint-exam {
+  --tint: var(--cat-exam);
+}
+.tint-deadline {
+  --tint: var(--cat-deadline);
+}
+.tint-reminder {
+  --tint: var(--cat-reminder);
+}
+.tint-task {
+  --tint: var(--cat-task);
+}
+.tint-spend {
+  --tint: var(--cat-spend);
+}
+
+/* Today's layout. Phones: one column in order of use (now, to-dos, the
+   day, spending, the week). Desktop: the day on the left, a sticky column
+   of to-dos and spending on the right. */
+.today-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.today-side {
+  display: contents;
+}
+.today-now {
+  order: 1;
+}
+.today-todo {
+  order: 2;
+}
+.today-agenda {
+  order: 3;
+}
+.today-money {
+  order: 4;
+}
+.today-week {
+  order: 5;
+}
+@media (min-width: 64rem) {
+  .today-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    grid-template-areas: "now side" "agenda side" "week side";
+    grid-template-rows: auto auto 1fr;
+    align-items: start;
+  }
+  .today-now {
+    grid-area: now;
+  }
+  .today-agenda {
+    grid-area: agenda;
+  }
+  .today-week {
+    grid-area: week;
+  }
+  .today-side {
+    grid-area: side;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    position: sticky;
+    top: 2rem;
+  }
+}
+
+/* Spending's bars grow from the baseline when a month appears. */
+.bar-grow {
+  animation: bar-grow var(--dur-slow) var(--ease-out) both;
+}
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar-grow {
+    animation-name: fade-in;
+    animation-duration: var(--dur-fast);
+  }
 }

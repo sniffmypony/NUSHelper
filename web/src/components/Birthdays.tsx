@@ -2,9 +2,10 @@ import { Cake, Check, Trash2, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { ICON } from "./icons";
+import { useRemovable } from "./feedback";
 import { Shake, Tooltip } from "./motion";
-import { Empty, errorText } from "./page";
-import { Button, Card, FIELD, Notice } from "./ui";
+import { Empty, Skeleton, errorText } from "./page";
+import { Badge, Button, IconButton, Notice, Panel, Textarea } from "./ui";
 
 interface Birthday {
   id: string;
@@ -24,7 +25,17 @@ interface LineCheck {
 type Status = { tone: "ok" | "error"; text: string } | null;
 
 // Shown at first; the rest behind "Show all".
-const FIRST = 8;
+const FIRST = 6;
+
+// "11-14" (month-day, as the server sends it) -> "14 Nov".
+function dayMonth(date: string): string {
+  const [month, day] = date.split("-").map(Number);
+  const name = new Date(Date.UTC(2000, month - 1, day)).toLocaleDateString(
+    "en-SG",
+    { timeZone: "UTC", month: "short" },
+  );
+  return Number.isNaN(day) ? date : `${day} ${name}`;
+}
 
 function when(days: number): string {
   if (days === 0) return "Today";
@@ -52,6 +63,7 @@ export function Birthdays() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<Status>(null);
   const [refused, setRefused] = useState(0);
+  const rows = useRemovable<string>();
 
   const load = useCallback(() => {
     api<{ configured: boolean; birthdays: Birthday[] }>("birthdays")
@@ -99,36 +111,32 @@ export function Birthdays() {
       load();
     });
 
-  const remove = (birthday: Birthday) => {
-    if (
-      !window.confirm(
-        `Remove ${birthday.name}'s birthday from Google Calendar?`,
-      )
-    )
-      return;
-    void run(async () => {
-      const result = await api<{ message: string }>(
-        `birthdays/${birthday.id}`,
-        { method: "DELETE" },
-      );
-      setStatus({ tone: "ok", text: result.message });
-      load();
-    });
-  };
+  // Removed at once with Undo; the calendar event is deleted when the toast
+  // closes.
+  const remove = (birthday: Birthday) =>
+    rows.remove(
+      birthday.id,
+      `Removed ${birthday.name}'s birthday`,
+      () => api(`birthdays/${birthday.id}`, { method: "DELETE" }),
+      { onDone: load },
+    );
 
-  const birthdays = list?.birthdays ?? [];
+  const birthdays = (list?.birthdays ?? []).filter((b) => !rows.isHidden(b.id));
   const shown = showAll ? birthdays : birthdays.slice(0, FIRST);
 
   return (
-    <Card
+    <Panel
       title="Birthdays"
-      description="Each one is a yearly all-day event in Google Calendar. The bot reminds you on Telegram at 23:55 the night before."
+      description="Yearly all-day events in Google Calendar. The bot reminds you at 23:55 the night before."
     >
-      <div className="space-y-4 px-5 py-4">
+      <div className="space-y-4 border-t border-line px-4 py-3 sm:px-5">
         {loadError ? (
           <Notice tone="error">{loadError}</Notice>
         ) : list === null ? (
-          <p className="text-sm text-faint">Loading…</p>
+          <div aria-busy="true" className="space-y-3 py-1">
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-4 w-1/2" />
+          </div>
         ) : !list.configured ? (
           <Notice tone="info">
             Set up Google Calendar in Settings to add birthdays.
@@ -137,38 +145,37 @@ export function Birthdays() {
           <Empty>No birthdays yet.</Empty>
         ) : (
           <div>
-            <ul className="divide-y divide-line">
+            <ul className="-mx-1 divide-y divide-line">
               {shown.map((birthday) => (
                 <li
                   key={birthday.id}
-                  className="flex animate-settle items-center gap-3 py-2.5"
+                  className="flex items-center gap-3 px-1 py-1.5"
                 >
-                  <Cake {...ICON} className="shrink-0 text-cat-task" />
+                  <Cake {...ICON} className="shrink-0 text-muted" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">{birthday.name}</p>
-                    <p className="text-xs text-muted">
-                      {birthday.date}
+                    <p className="truncate text-sm font-medium">
+                      {birthday.name}
+                    </p>
+                    <p className="tnum text-[13px] text-muted">
+                      {dayMonth(birthday.date)}
                       {birthday.turns !== null && ` · turns ${birthday.turns}`}
                     </p>
                   </div>
-                  <span
-                    className={`shrink-0 text-xs tabular-nums ${
-                      birthday.daysUntil <= 7
-                        ? "font-semibold text-accent-text"
-                        : "text-muted"
-                    }`}
-                  >
-                    {when(birthday.daysUntil)}
-                  </span>
+                  {birthday.daysUntil <= 7 ? (
+                    <Badge tone="now">{when(birthday.daysUntil)}</Badge>
+                  ) : (
+                    <span className="tnum shrink-0 text-[13px] text-muted">
+                      {when(birthday.daysUntil)}
+                    </span>
+                  )}
                   <Tooltip label="Remove">
-                    <Button
-                      variant="ghost"
-                      aria-label={`Remove ${birthday.name}'s birthday`}
+                    <IconButton
+                      label={`Remove ${birthday.name}'s birthday`}
                       disabled={busy}
                       onClick={() => remove(birthday)}
                     >
                       <Trash2 {...ICON} />
-                    </Button>
+                    </IconButton>
                   </Tooltip>
                 </li>
               ))}
@@ -176,7 +183,7 @@ export function Birthdays() {
             {birthdays.length > FIRST && (
               <button
                 type="button"
-                className="mt-1 text-sm font-medium text-accent-text hover:underline"
+                className="mt-1 inline-flex h-9 items-center rounded-lg px-1 text-sm font-medium text-accent-text hover:underline"
                 onClick={() => setShowAll(!showAll)}
               >
                 {showAll ? "Show fewer" : `Show all ${birthdays.length}`}
@@ -188,17 +195,20 @@ export function Birthdays() {
         {list?.configured && (
           <Shake trigger={refused}>
             <form
-              className="space-y-2 rounded-xl bg-sunken p-3"
+              className="space-y-2"
               onSubmit={(event) => {
                 event.preventDefault();
                 void (check ? addAll() : checkLines());
               }}
             >
-              <label className="block text-xs text-muted" htmlFor="birthdays">
+              <label
+                className="block text-[13px] font-medium text-muted"
+                htmlFor="birthdays"
+              >
                 One per line: a name and a date, day first. The year is
                 optional.
               </label>
-              <textarea
+              <Textarea
                 id="birthdays"
                 value={text}
                 rows={4}
@@ -207,7 +217,6 @@ export function Birthdays() {
                   setCheck(null);
                 }}
                 placeholder={PLACEHOLDER}
-                className={`block w-full resize-y ${FIELD} border-line-strong focus:border-accent focus:ring-accent/20`}
               />
 
               {check && (
@@ -251,7 +260,7 @@ export function Birthdays() {
                     </Button>
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="quiet"
                       disabled={busy}
                       onClick={() => setCheck(null)}
                     >
@@ -259,7 +268,11 @@ export function Birthdays() {
                     </Button>
                   </>
                 ) : (
-                  <Button type="submit" disabled={busy || !text.trim()}>
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    disabled={busy || !text.trim()}
+                  >
                     Check
                   </Button>
                 )}
@@ -269,6 +282,6 @@ export function Birthdays() {
         )}
         {status && <Notice tone={status.tone}>{status.text}</Notice>}
       </div>
-    </Card>
+    </Panel>
   );
 }

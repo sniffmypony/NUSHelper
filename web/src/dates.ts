@@ -47,3 +47,45 @@ export function formatDay(
 export function formatMoney(cents: number): string {
   return `S$${(cents / 100).toFixed(2)}`;
 }
+
+// The time now in Singapore, as minutes after midnight.
+export function nowMinutes(): number {
+  const [hours, minutes] = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Singapore",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  })
+    .format(new Date())
+    .split(":")
+    .map(Number);
+  return hours * 60 + minutes;
+}
+
+export function minutesOf(hhmm: string): number {
+  const [hours, minutes] = hhmm.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+export function clockOf(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+// "in 25 min", "in 2 h 30 min", "in 3 h".
+export function inTime(minutes: number): string {
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `in ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest && hours < 3 ? `in ${hours} h ${rest} min` : `in ${hours} h`;
+}
+
+// "Y2S1W13, AY 26/27" -> "Week 13"; "Y2S1 Reading Week, AY 26/27" ->
+// "Reading Week"; anything else is kept as it is.
+export function weekLabel(label: string): string {
+  const head = label.split(",")[0];
+  const week = /W(\d+)$/.exec(head);
+  if (week) return `Week ${week[1]}`;
+  const named = /^Y\d+S\d+\s+(.+)$/.exec(head);
+  return named ? named[1] : head;
+}

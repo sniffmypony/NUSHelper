@@ -1,5 +1,5 @@
-import { Check, Copy, Download } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Check, Copy, Download, ShieldAlert } from "lucide-react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   api,
   type AuditEntry,
@@ -12,7 +12,8 @@ import { ApplePayCard } from "../components/ApplePayCard";
 import { BankEmailCard } from "../components/BankEmailCard";
 import { TelegramCard } from "../components/TelegramCard";
 import { ICON } from "../components/icons";
-import { Accordion, SwapIcon } from "../components/motion";
+import { useConfirm } from "../components/dialog";
+import { Accordion, ScrollFade, SwapIcon } from "../components/motion";
 import { ThemeSwitch } from "../components/ThemeSwitch";
 import {
   Button,
@@ -24,7 +25,13 @@ import {
   SourceBadge,
   formatDate,
 } from "../components/ui";
-import { useRefusals } from "../components/page";
+import {
+  LoadError,
+  PageHeader,
+  PageSkeleton,
+  Skeleton,
+  useRefusals,
+} from "../components/page";
 import { navigate } from "../navigation";
 import { SignIn } from "./Login";
 
@@ -79,6 +86,7 @@ function AssistantGoogleCard({
   fresh: boolean;
   onSaved: () => void;
 }) {
+  const confirm = useConfirm();
   const [status, setStatus] = useState<GoogleAccessStatus | null>(null);
   const [message, setMessage] = useState<Status>(googleReturn);
   const [busy, setBusy] = useState(false);
@@ -185,11 +193,16 @@ function AssistantGoogleCard({
                 Check
               </Button>
               <Button
-                variant="ghost"
+                variant="quiet"
                 disabled={busy || !fresh}
-                onClick={() => {
-                  if (!window.confirm("Disconnect the assistant from Google?"))
-                    return;
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: "Disconnect Google?",
+                    body: "The assistant loses access to your calendar until you connect again. Events already made stay.",
+                    confirmLabel: "Disconnect",
+                    danger: true,
+                  });
+                  if (!ok) return;
                   void run(async () => {
                     await api("google/disconnect", { method: "POST" });
                     setMessage({ tone: "ok", text: "Disconnected." });
@@ -341,7 +354,7 @@ function ModelRow({
         </Button>
         {setting.source === "website" && (
           <Button
-            variant="ghost"
+            variant="quiet"
             disabled={busy}
             onClick={() =>
               run(async () => {
@@ -356,7 +369,7 @@ function ModelRow({
               })
             }
           >
-            Use Vercel's
+            Use Vercel's value
           </Button>
         )}
       </div>
@@ -456,7 +469,7 @@ function KeyRow({
           </Button>
           <Button
             type="button"
-            variant="ghost"
+            variant="quiet"
             onClick={() => {
               setEditing(false);
               setValue("");
@@ -469,7 +482,7 @@ function KeyRow({
         <div className="mt-3 flex flex-wrap gap-2">
           {file ? (
             <label
-              className={`inline-flex select-none items-center justify-center gap-1.5 rounded-[10px] border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-brand-text transition-[transform,background-color] duration-150 ease-out focus-within:outline-2 focus-within:outline-accent hover:bg-brand-soft active:scale-[0.97] motion-reduce:active:scale-100 ${
+              className={`inline-flex select-none items-center justify-center gap-1.5 h-10 rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-[transform,background-color] duration-[var(--dur-fast)] ease-out focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent hover:bg-hover active:scale-[0.97] motion-reduce:active:scale-100 ${
                 !fresh || busy
                   ? "pointer-events-none opacity-50"
                   : "cursor-pointer"
@@ -502,11 +515,11 @@ function KeyRow({
           )}
           {secret.source === "website" && (
             <Button
-              variant="ghost"
+              variant="quiet"
               disabled={!fresh || busy}
               onClick={() => void save("DELETE")}
             >
-              Use Vercel's
+              Use Vercel's value
             </Button>
           )}
         </div>
@@ -575,8 +588,8 @@ function TextSettingRow({
           Save
         </Button>
         {setting.source === "website" && (
-          <Button variant="ghost" onClick={() => void send("DELETE")}>
-            Use Vercel's
+          <Button variant="quiet" onClick={() => void send("DELETE")}>
+            Use Vercel's value
           </Button>
         )}
       </div>
@@ -651,7 +664,7 @@ function CalendarCard({
               {calendar.serviceAccountEmail}
             </code>
             <Button
-              variant="ghost"
+              variant="quiet"
               onClick={() => {
                 void navigator.clipboard
                   .writeText(calendar.serviceAccountEmail!)
@@ -698,11 +711,11 @@ function CalendarCard({
           </Button>
           {setting.source === "website" && (
             <Button
-              variant="ghost"
+              variant="quiet"
               disabled={busy}
               onClick={() => void send("DELETE")}
             >
-              Use Vercel's
+              Use Vercel's value
             </Button>
           )}
           <Button
@@ -748,6 +761,7 @@ function CalendarCard({
 }
 
 function SecurityCard({ onSessionChange }: { onSessionChange: () => void }) {
+  const confirm = useConfirm();
   const [entries, setEntries] = useState<AuditEntry[] | null>(null);
   useEffect(() => {
     api<{ entries: AuditEntry[] }>("audit")
@@ -762,7 +776,7 @@ function SecurityCard({ onSessionChange }: { onSessionChange: () => void }) {
     >
       <Row label="Recent changes">
         {entries === null ? (
-          <p className="text-sm text-faint">Loading…</p>
+          <Skeleton className="h-4 w-48" />
         ) : entries.length === 0 ? (
           <p className="text-sm text-muted">No changes yet.</p>
         ) : (
@@ -792,35 +806,109 @@ function SecurityCard({ onSessionChange }: { onSessionChange: () => void }) {
           </Accordion>
         )}
       </Row>
-      <Row label="Sign out">
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="secondary"
-            onClick={() =>
-              void api("auth/logout", { method: "POST" }).then(onSessionChange)
-            }
-          >
-            Sign out
-          </Button>
-          <Button
-            variant="danger"
-            onClick={() => {
-              if (
-                window.confirm(
-                  "Sign out of every browser and device, including this one?",
-                )
-              ) {
-                void api("auth/logout-all", { method: "POST" }).then(
-                  onSessionChange,
-                );
-              }
-            }}
-          >
-            Sign out everywhere
-          </Button>
-        </div>
+      <Row label="Sign out" help="Ends the session in this browser only.">
+        <Button
+          variant="secondary"
+          onClick={() =>
+            void api("auth/logout", { method: "POST" }).then(onSessionChange)
+          }
+        >
+          Sign out
+        </Button>
       </Row>
+      <div className="bg-danger-soft/50 px-4 py-4 sm:px-5">
+        <div className="grid gap-3 md:grid-cols-[15rem_1fr] md:gap-6">
+          <div>
+            <p className="flex items-center gap-1.5 text-sm font-medium text-danger">
+              <ShieldAlert {...ICON} size={15} />
+              Sign out everywhere
+            </p>
+            <p className="mt-1 text-[13px] text-muted">
+              Ends every session on every browser and device, including this
+              one. Use it if a device is lost.
+            </p>
+          </div>
+          <div>
+            <Button
+              variant="danger-quiet"
+              className="ring-1 ring-danger/30 ring-inset"
+              onClick={async () => {
+                const ok = await confirm({
+                  title: "Sign out everywhere?",
+                  body: "Every browser and device is signed out, including this one. You'll need Telegram Login or /web to sign in again.",
+                  confirmLabel: "Sign out everywhere",
+                  danger: true,
+                });
+                if (ok) {
+                  void api("auth/logout-all", { method: "POST" }).then(
+                    onSessionChange,
+                  );
+                }
+              }}
+            >
+              Sign out everywhere
+            </Button>
+          </div>
+        </div>
+      </div>
     </Card>
+  );
+}
+
+const SECTIONS = [
+  { id: "general", label: "General" },
+  { id: "assistant", label: "Assistant" },
+  { id: "calendar", label: "Calendar" },
+  { id: "school", label: "School" },
+  { id: "payments", label: "Payments" },
+  { id: "data", label: "Data and security" },
+];
+
+// Phones: the sections as a row of links under the title.
+function SectionNav() {
+  return (
+    <nav aria-label="Settings sections" className="-mx-4 lg:hidden">
+      <ScrollFade className="px-4">
+        <ul className="flex gap-1.5">
+          {SECTIONS.map((section) => (
+            <li key={section.id} className="shrink-0">
+              <a
+                href={`#${section.id}`}
+                className="inline-flex h-9 items-center rounded-full border border-line bg-surface px-3.5 text-[13px] font-medium text-muted hover:text-ink"
+              >
+                {section.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </ScrollFade>
+    </nav>
+  );
+}
+
+function Group({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      id={id}
+      aria-labelledby={`${id}-title`}
+      className="scroll-mt-6 space-y-4"
+    >
+      <h2
+        id={`${id}-title`}
+        className="text-xs font-semibold tracking-[0.06em] text-muted uppercase"
+      >
+        {label}
+      </h2>
+      {children}
+    </section>
   );
 }
 
@@ -849,161 +937,198 @@ export function SettingsPage({
       .catch((failure) => setModelsError(errorText(failure)));
   }, []);
 
-  if (error) return <Notice tone="error">{error}</Notice>;
-  if (!data) return <p className="text-sm text-faint">Loading…</p>;
+  if (error && !data) return <LoadError message={error} onRetry={load} />;
+  if (!data) return <PageSkeleton label="Loading settings" />;
 
   const setting = (key: string) =>
     data.settings.find((row) => row.key === key)!;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-muted">
-          Everything the bot uses. A value set here wins over the one in Vercel.
-        </p>
-      </div>
-
-      <TelegramCard />
-
-      <Card title="Appearance">
-        <Row
-          label="Theme"
-          help="System follows your device. Saved in this browser."
+      <PageHeader
+        title="Settings"
+        description="Everything the bot uses. A value set here wins over the one in Vercel; “Use Vercel's value” clears it."
+      />
+      <SectionNav />
+      <div className="grid items-start gap-8 lg:grid-cols-[11rem_minmax(0,1fr)]">
+        <nav
+          aria-label="Settings sections"
+          className="sticky top-8 hidden lg:block"
         >
-          <ThemeSwitch labels />
-        </Row>
-      </Card>
+          <ul className="space-y-0.5 text-sm">
+            {SECTIONS.map((section) => (
+              <li key={section.id}>
+                <a
+                  href={`#${section.id}`}
+                  className="flex h-8 items-center rounded-md px-2.5 text-muted hover:bg-hover hover:text-ink"
+                >
+                  {section.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <div className="min-w-0 space-y-10">
+          <Group id="general" label="General">
+            <Card title="Appearance">
+              <Row
+                label="Theme"
+                help="System follows your device. Saved in this browser."
+              >
+                <ThemeSwitch labels />
+              </Row>
+            </Card>
+            <TelegramCard />
+          </Group>
 
-      <Card
-        title="AI assistant"
-        description="Your AI provider and its models, for replies on Telegram and in Chat."
-      >
-        <TextSettingRow
-          setting={setting("LLM_BASE_URL")}
-          onSaved={load}
-          placeholder="https://api.openai.com/v1"
-          url
-        />
-        {["LLM_MODEL", "LLM_FALLBACK_MODEL"].map((key) => (
-          <ModelRow
-            key={key}
-            setting={setting(key)}
-            models={models}
-            onSaved={load}
-          />
-        ))}
-        {modelsError && (
-          <div className="px-5 py-3">
-            <Notice tone="info">
-              Couldn't list your provider's models ({modelsError}). Check its
-              address and API key, or type a model id instead.
-            </Notice>
-          </div>
-        )}
-      </Card>
+          <Group id="assistant" label="Assistant">
+            <Card
+              title="AI assistant"
+              description="Your AI provider and its models, for replies on Telegram and in Chat."
+            >
+              <TextSettingRow
+                setting={setting("LLM_BASE_URL")}
+                onSaved={load}
+                placeholder="https://api.openai.com/v1"
+                url
+              />
+              {["LLM_MODEL", "LLM_FALLBACK_MODEL"].map((key) => (
+                <ModelRow
+                  key={key}
+                  setting={setting(key)}
+                  models={models}
+                  onSaved={load}
+                />
+              ))}
+              {modelsError && (
+                <div className="px-5 py-3">
+                  <Notice tone="info">
+                    Couldn't list your provider's models ({modelsError}). Check
+                    its address and API key, or type a model id instead.
+                  </Notice>
+                </div>
+              )}
+            </Card>
 
-      <Card
-        title="Keys"
-        description="Stored encrypted. Saved keys are never shown again."
-      >
-        {!me.fresh && (
-          <div className="bg-warn-soft px-5 py-4">
-            <SignIn
-              onSignedIn={onSessionChange}
-              title="Confirm it's you"
-              description="Sign in again to change keys, or send /web to the bot and open its link. This lasts 10 minutes."
-            />
-          </div>
-        )}
-        {data.secrets
-          .filter(
-            (secret) =>
-              secret.key !== SERVICE_KEY && secret.key !== ASSISTANT_SECRET,
-          )
-          .map((secret) => (
-            <KeyRow
-              key={secret.key}
-              secret={secret}
+            <Card
+              title="Keys"
+              description="Stored encrypted. Saved keys are never shown again."
+            >
+              {!me.fresh && (
+                <div className="bg-warn-soft px-5 py-4">
+                  <SignIn
+                    onSignedIn={onSessionChange}
+                    title="Confirm it's you"
+                    description="Sign in again to change keys, or send /web to the bot and open its link. This lasts 10 minutes."
+                  />
+                </div>
+              )}
+              {data.secrets
+                .filter(
+                  (secret) =>
+                    secret.key !== SERVICE_KEY &&
+                    secret.key !== ASSISTANT_SECRET,
+                )
+                .map((secret) => (
+                  <KeyRow
+                    key={secret.key}
+                    secret={secret}
+                    fresh={me.fresh}
+                    onSaved={load}
+                  />
+                ))}
+            </Card>
+          </Group>
+
+          <Group id="calendar" label="Calendar">
+            <CalendarCard
+              calendar={data.calendar}
+              setting={setting("GOOGLE_CALENDAR_ID")}
+              serviceKey={data.secrets.find(
+                (secret) => secret.key === SERVICE_KEY,
+              )}
               fresh={me.fresh}
               onSaved={load}
             />
-          ))}
-      </Card>
+            <AssistantGoogleCard
+              clientId={setting("GOOGLE_OAUTH_CLIENT_ID")}
+              clientSecret={data.secrets.find(
+                (secret) => secret.key === ASSISTANT_SECRET,
+              )}
+              fresh={me.fresh}
+              onSaved={load}
+            />
+          </Group>
 
-      <CalendarCard
-        calendar={data.calendar}
-        setting={setting("GOOGLE_CALENDAR_ID")}
-        serviceKey={data.secrets.find((secret) => secret.key === SERVICE_KEY)}
-        fresh={me.fresh}
-        onSaved={load}
-      />
-      <AssistantGoogleCard
-        clientId={setting("GOOGLE_OAUTH_CLIENT_ID")}
-        clientSecret={data.secrets.find(
-          (secret) => secret.key === ASSISTANT_SECRET,
-        )}
-        fresh={me.fresh}
-        onSaved={load}
-      />
-      <Card title="NUSMods timetable">
-        <Row
-          label="Timetable"
-          help="Your classes and finals, and the NUSMods link."
-        >
-          <Button variant="secondary" onClick={() => navigate("/timetable")}>
-            Open Timetable
-          </Button>
-        </Row>
-      </Card>
-
-      <Card title="School" description="NUS week labels and your Canvas.">
-        <TextSettingRow
-          setting={setting("NUS_MATRICULATION_YEAR")}
-          onSaved={load}
-          placeholder="2025"
-        />
-        <TextSettingRow
-          setting={setting("CANVAS_BASE_URL")}
-          onSaved={load}
-          placeholder="https://canvas.nus.edu.sg"
-          url
-        />
-      </Card>
-
-      <ApplePayCard fresh={me.fresh} />
-
-      <BankEmailCard fresh={me.fresh} />
-
-      <Card
-        title="Data"
-        description="Download what the bot keeps, as CSV files for Excel or Sheets."
-      >
-        <Row label="Download" help="Each file is made when you click it.">
-          <div className="flex flex-wrap gap-2">
-            {[
-              ["spending", "Spending"],
-              ["tasks", "Tasks"],
-              ["todos", "To-dos"],
-              ["reminders", "Reminders"],
-              ["repeating", "Repeating"],
-              ["chats", "Chats"],
-              ["applepay", "Automatic payments"],
-            ].map(([kind, label]) => (
-              <a
-                key={kind}
-                href={`/api/web/export/${kind}.csv`}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-brand-text transition-[transform,background-color] duration-150 ease-out hover:bg-brand-soft active:scale-[0.97] motion-reduce:active:scale-100"
+          <Group id="school" label="School">
+            <Card title="NUSMods timetable">
+              <Row
+                label="Timetable"
+                help="Your classes and finals, and the NUSMods link."
               >
-                <Download {...ICON} />
-                {label}
-              </a>
-            ))}
-          </div>
-        </Row>
-      </Card>
+                <Button
+                  variant="secondary"
+                  onClick={() => navigate("/timetable")}
+                >
+                  Open Timetable
+                </Button>
+              </Row>
+            </Card>
 
-      <SecurityCard onSessionChange={onSessionChange} />
+            <Card title="School" description="NUS week labels and your Canvas.">
+              <TextSettingRow
+                setting={setting("NUS_MATRICULATION_YEAR")}
+                onSaved={load}
+                placeholder="2025"
+              />
+              <TextSettingRow
+                setting={setting("CANVAS_BASE_URL")}
+                onSaved={load}
+                placeholder="https://canvas.nus.edu.sg"
+                url
+              />
+            </Card>
+          </Group>
+
+          <Group id="payments" label="Payments">
+            <ApplePayCard fresh={me.fresh} />
+
+            <BankEmailCard fresh={me.fresh} />
+          </Group>
+
+          <Group id="data" label="Data and security">
+            <Card
+              title="Data"
+              description="Download what the bot keeps, as CSV files for Excel or Sheets."
+            >
+              <Row label="Download" help="Each file is made when you click it.">
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    ["spending", "Spending"],
+                    ["tasks", "Tasks"],
+                    ["todos", "To-dos"],
+                    ["reminders", "Reminders"],
+                    ["repeating", "Repeating"],
+                    ["chats", "Chats"],
+                    ["applepay", "Automatic payments"],
+                  ].map(([kind, label]) => (
+                    <a
+                      key={kind}
+                      href={`/api/web/export/${kind}.csv`}
+                      className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-[transform,background-color] duration-[var(--dur-fast)] ease-out hover:bg-hover active:scale-[0.97] motion-reduce:active:scale-100 [@media(pointer:fine)]:h-9"
+                    >
+                      <Download {...ICON} />
+                      {label}
+                    </a>
+                  ))}
+                </div>
+              </Row>
+            </Card>
+
+            <SecurityCard onSessionChange={onSessionChange} />
+          </Group>
+        </div>
+      </div>
     </div>
   );
 }

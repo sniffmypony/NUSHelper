@@ -8,15 +8,34 @@ import {
   Download,
   Flame,
   Gauge,
+  CircleCheck,
+  CircleDashed,
+  Clock,
+  Minus,
   Plus,
   TrendingUp,
+  Wallet,
+  type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { ICON } from "../components/icons";
 import { Shake } from "../components/motion";
-import { Empty, Metric, errorText } from "../components/page";
-import { Button, Input, Notice, Panel } from "../components/ui";
+import {
+  EmptyState,
+  LoadError,
+  Metric,
+  Skeleton,
+  errorText,
+} from "../components/page";
+import {
+  Badge,
+  Button,
+  Input,
+  Notice,
+  Panel,
+  type Tone,
+} from "../components/ui";
 import { formatDay, formatMoney, todayIso } from "../dates";
 
 interface SpendingDay {
@@ -157,7 +176,7 @@ function PaymentList({
               </span>
               {counted && (
                 <Button
-                  variant="ghost"
+                  variant="quiet"
                   disabled={busy !== null}
                   onClick={() =>
                     void act(payment, `applepay/${payment.id}/undo`)
@@ -179,7 +198,7 @@ function PaymentList({
                     </Button>
                   )}
                   <Button
-                    variant="ghost"
+                    variant="quiet"
                     disabled={busy !== null}
                     onClick={() =>
                       void act(payment, `payments/${payment.id}/skip`)
@@ -198,50 +217,51 @@ function PaymentList({
   );
 }
 
-// Each day's status as a compact pill: green when logged, amber while the
-// bot waits for a reply, red when nothing was logged, grey for no reply.
+// Each day's status: an icon and a word. Nothing logged isn't an error, so
+// it stays neutral; only "waiting for your reply" asks for attention.
 const STATUS: Record<
   string,
-  { label: string; tone: "ok" | "warn" | "danger" | "neutral"; help: string }
+  { label: string; tone: Tone; icon: LucideIcon; help: string }
 > = {
-  logged: { label: "Logged", tone: "ok", help: "You logged this day." },
+  logged: {
+    label: "Logged",
+    tone: "ok",
+    icon: CircleCheck,
+    help: "You logged this day.",
+  },
   pending: {
     label: "Waiting",
     tone: "warn",
+    icon: Clock,
     help: "Waiting for your reply to the 11:30pm check-in.",
   },
   auto_zero: {
     label: "No reply",
     tone: "neutral",
+    icon: Minus,
     help: "No reply to the check-in, so it counts as S$0.",
   },
   auto: {
     label: "No reply",
     tone: "neutral",
+    icon: Minus,
     help: "No reply to the check-in; only the payments the bot recorded count.",
   },
 };
 const NOT_LOGGED = {
   label: "Not logged",
-  tone: "danger" as const,
+  tone: "neutral" as Tone,
+  icon: CircleDashed,
   help: "Nothing was logged for this day.",
-};
-
-const PILL_TONE = {
-  ok: "bg-ok-soft text-ok",
-  warn: "bg-warn-soft text-warn",
-  danger: "bg-danger-soft text-danger",
-  neutral: "bg-hover text-muted",
 };
 
 function StatusPill({ status }: { status: string | null }) {
   const info = status ? (STATUS[status] ?? NOT_LOGGED) : NOT_LOGGED;
   return (
-    <span
-      title={info.help}
-      className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-line ring-inset ${PILL_TONE[info.tone]}`}
-    >
-      {info.label}
+    <span title={info.help}>
+      <Badge tone={info.tone} icon={info.icon}>
+        {info.label}
+      </Badge>
     </span>
   );
 }
@@ -299,7 +319,7 @@ function Sparkline({ days }: { days: SpendingDay[] }) {
       <polyline
         points={points}
         fill="none"
-        stroke="var(--chart-bar-active)"
+        stroke="var(--chart-focus)"
         strokeWidth="1.75"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -401,11 +421,13 @@ function DailyChart({
                   onBlur={() => setActive(null)}
                   onClick={() => onPick(day.date)}
                   // The hit area is the whole day slot, not just the bar.
-                  className="flex h-full min-w-0 flex-1 items-end justify-center rounded-[4px] outline-none focus-visible:ring-2 focus-visible:ring-accent/60 disabled:cursor-default"
+                  className="flex h-full min-w-0 flex-1 items-end justify-center rounded-[4px] outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default"
                 >
+                  {/* Grows from the baseline when the month appears
+                      (transform only); the colour change is instant. */}
                   <span
-                    className={`block w-full max-w-[18px] rounded-t-[4px] ${
-                      lit ? "bg-chart-bar-active" : "bg-chart-bar"
+                    className={`bar-grow block w-full max-w-[18px] origin-bottom rounded-t-[3px] ${
+                      lit ? "bg-chart-focus" : "bg-chart-bar"
                     }`}
                     style={{ height: `${height}%` }}
                   />
@@ -427,7 +449,7 @@ function DailyChart({
         <div
           role="status"
           // Above the bar, kept inside the card at the top and the sides.
-          className={`pointer-events-none absolute z-10 whitespace-nowrap rounded-[10px] border border-line bg-raised px-2.5 py-1.5 shadow-pop ${
+          className={`pointer-events-none absolute z-10 whitespace-nowrap rounded-lg border border-line bg-raised px-2.5 py-1.5 shadow-pop ${
             place < 0.15
               ? "-translate-x-[15%]"
               : place > 0.85
@@ -507,7 +529,7 @@ function EditDay({
   return (
     <div
       ref={box}
-      className="animate-settle scroll-m-6 rounded-xl border border-line bg-sunken p-3"
+      className="animate-settle scroll-m-6 rounded-xl border border-line bg-sunken p-3 sm:p-4"
     >
       <label htmlFor="spend-amount" className="text-sm font-medium">
         {formatDay(date, { weekday: "long", day: "numeric", month: "long" })}
@@ -556,10 +578,10 @@ function MonthPicker({
   onGo: (by: number) => void;
 }) {
   const arrow =
-    "inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-muted transition-[transform,background-color,color] duration-150 ease-out hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 motion-reduce:active:scale-100";
+    "inline-flex h-9 w-9 items-center justify-center rounded-md text-muted transition-[transform,background-color,color] duration-[var(--dur-fast)] ease-out hover:bg-hover hover:text-ink active:scale-[0.97] disabled:cursor-not-allowed disabled:text-faint disabled:opacity-50 disabled:active:scale-100 motion-reduce:active:scale-100 [@media(pointer:fine)]:h-8 [@media(pointer:fine)]:w-8";
   return (
-    // 10 px outer corners, 2 px padding → 8 px buttons.
-    <div className="inline-flex items-center rounded-[10px] border border-line bg-surface p-0.5">
+    // 8 px outer corners, 2 px padding → 6 px buttons.
+    <div className="inline-flex items-center rounded-lg border border-line bg-surface p-0.5">
       <button
         type="button"
         className={arrow}
@@ -675,11 +697,11 @@ export function SpendingPage() {
     <div className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div>
-          <h1 className="text-[28px] font-semibold leading-tight tracking-tight md:text-[32px]">
+          <h1 className="text-2xl font-semibold tracking-[-0.015em] md:text-[28px]">
             Spending
           </h1>
-          <p className="mt-1 text-[15px] text-muted">
-            Track and review your daily expenses
+          <p className="mt-1 text-sm text-muted">
+            Daily totals, as logged on Telegram or recorded automatically.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-end">
@@ -695,8 +717,20 @@ export function SpendingPage() {
         </div>
       </header>
 
-      {error && <Notice tone="error">{error}</Notice>}
-      {!data && !error && <p className="text-sm text-faint">Loading…</p>}
+      {error && <LoadError message={error} onRetry={load} />}
+      {!data && !error && (
+        <div aria-busy="true" className="space-y-5">
+          <span className="sr-only" role="status">
+            Loading spending…
+          </span>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((index) => (
+              <Skeleton key={index} className="h-24 rounded-xl" />
+            ))}
+          </div>
+          <Skeleton className="h-72 rounded-xl" />
+        </div>
+      )}
       {data && (
         <div key={month} className={`space-y-5 ${slide}`}>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -770,7 +804,9 @@ export function SpendingPage() {
             <Panel title="Daily spending" description="Tap a day to change it.">
               <div className="px-5 pb-4">
                 {data.recordedDays === 0 ? (
-                  <Empty>Nothing logged this month.</Empty>
+                  <EmptyState icon={Wallet} title="Nothing logged this month">
+                    Reply to the bot's 11:30pm check-in, or tap Add expense.
+                  </EmptyState>
                 ) : (
                   <DailyChart
                     days={data.days}
@@ -792,39 +828,41 @@ export function SpendingPage() {
                 )}
               </div>
             </Panel>
-            <Panel title="By week">
-              <ul className="px-5 pb-3">
-                {data.weeks.map((week) => (
-                  <li key={week.start} className="py-2">
-                    <div className="flex items-baseline justify-between gap-3 text-[15px]">
-                      <span className="text-muted">
-                        {formatDay(week.start, {
-                          day: "numeric",
-                          month: "short",
-                        })}
-                        {week.end !== week.start &&
-                          ` – ${formatDay(week.end, { day: "numeric", month: "short" })}`}
-                      </span>
-                      <span className="font-semibold tabular-nums">
-                        {formatMoney(week.cents)}
-                      </span>
-                    </div>
-                    {/* Each week's share of the biggest week. */}
-                    <div
-                      aria-hidden="true"
-                      className="mt-1.5 h-1 overflow-hidden rounded-full bg-hover"
-                    >
+            {data.weeks.some((week) => week.cents > 0) && (
+              <Panel title="By week">
+                <ul className="px-5 pb-3">
+                  {data.weeks.map((week) => (
+                    <li key={week.start} className="py-2">
+                      <div className="flex items-baseline justify-between gap-3 text-[15px]">
+                        <span className="text-muted">
+                          {formatDay(week.start, {
+                            day: "numeric",
+                            month: "short",
+                          })}
+                          {week.end !== week.start &&
+                            ` – ${formatDay(week.end, { day: "numeric", month: "short" })}`}
+                        </span>
+                        <span className="font-semibold tabular-nums">
+                          {formatMoney(week.cents)}
+                        </span>
+                      </div>
+                      {/* Each week's share of the biggest week. */}
                       <div
-                        className="h-full rounded-full bg-chart-bar-active/80"
-                        style={{
-                          width: `${(week.cents / biggestWeek) * 100}%`,
-                        }}
-                      />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </Panel>
+                        aria-hidden="true"
+                        className="mt-1.5 h-1 overflow-hidden rounded-full bg-hover"
+                      >
+                        <div
+                          className="h-full origin-left rounded-full bg-chart-focus"
+                          style={{
+                            transform: `scaleX(${week.cents / biggestWeek})`,
+                          }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+            )}
           </div>
 
           <Panel
@@ -856,7 +894,7 @@ export function SpendingPage() {
                         <tr
                           key={day.date}
                           onClick={() => toggle(day.date)}
-                          className={`group cursor-pointer ${open ? "bg-accent-soft/40" : "hover:bg-hover"}`}
+                          className={`group cursor-pointer ${open ? "bg-accent-soft" : "hover:bg-hover"}`}
                         >
                           <td className="py-3 pl-5 pr-3">
                             <p className="font-medium leading-snug text-ink">
@@ -879,7 +917,7 @@ export function SpendingPage() {
                           </td>
                           <td className="py-2 pl-3 pr-4 text-right">
                             <Button
-                              variant="ghost"
+                              variant="quiet"
                               aria-expanded={open}
                               aria-label={`${open ? "Close" : "Edit"} ${formatDay(day.date, { day: "numeric", month: "long" })}`}
                               onClick={(event) => {
@@ -909,7 +947,7 @@ export function SpendingPage() {
       <p className="text-xs text-muted">
         <a
           href="/api/web/export/spending.csv"
-          className="inline-flex items-center gap-1 rounded font-medium text-accent-text hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+          className="inline-flex h-9 items-center gap-1 rounded font-medium text-accent-text hover:underline"
         >
           <Download {...ICON} size={14} />
           Download all spending (CSV)

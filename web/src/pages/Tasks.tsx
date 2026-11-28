@@ -1,221 +1,272 @@
-import { Check, Repeat, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { AnimatePresence, m } from "motion/react";
+import { AlertCircle, ListChecks, Plus, Repeat, Trash2 } from "lucide-react";
+import { useState, type FormEvent } from "react";
 import { api } from "../api";
 import { Birthdays } from "../components/Birthdays";
 import { Pill } from "../components/category";
+import { useFeedback, useRemovable } from "../components/feedback";
 import { ICON } from "../components/icons";
-import { Shake, Tooltip } from "../components/motion";
-import { Empty, PageHeader, errorText } from "../components/page";
+import { DUR, EASE_IN, SPRING, Tooltip } from "../components/motion";
+import {
+  EmptyState,
+  LoadError,
+  PageHeader,
+  PageSkeleton,
+  errorText,
+  useLoad,
+} from "../components/page";
+import { Tick } from "../components/Tick";
 import { Todos } from "../components/Todos";
-import { Button, Card, Input, Notice, Select } from "../components/ui";
-import { formatDay, todayIso } from "../dates";
+import {
+  Badge,
+  Button,
+  IconButton,
+  Input,
+  Notice,
+  Panel,
+  Select,
+} from "../components/ui";
+import { addDays, formatDay, todayIso } from "../dates";
+
+interface Task {
+  id: number;
+  description: string;
+  module: string | null;
+  dueDate: string | null;
+}
 
 interface TasksView {
-  tasks: Array<{
-    id: number;
-    description: string;
-    module: string | null;
-    dueDate: string | null;
-  }>;
+  tasks: Task[];
   todos: Array<{ id: number; description: string }>;
   repeating: Array<{ id: number; description: string; when: string }>;
 }
 
-type Status = { tone: "ok" | "error"; text: string } | null;
+type Group = "Overdue" | "Today" | "Next 7 days" | "Later" | "No date";
+const GROUPS: Group[] = ["Overdue", "Today", "Next 7 days", "Later", "No date"];
 
-// Runs a change, shows its message, and shakes the form if it was refused.
-function useAction(onDone: () => void) {
+function groupOf(task: Task, today: string): Group {
+  if (!task.dueDate) return "No date";
+  if (task.dueDate < today) return "Overdue";
+  if (task.dueDate === today) return "Today";
+  if (task.dueDate <= addDays(today, 7)) return "Next 7 days";
+  return "Later";
+}
+
+function dueText(dueDate: string, today: string): string {
+  if (dueDate === today) return "Due today";
+  if (dueDate === addDays(today, 1)) return "Due tomorrow";
+  const sameYear = dueDate.slice(0, 4) === today.slice(0, 4);
+  const date = formatDay(dueDate, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+  return dueDate < today ? `Was due ${date}` : `Due ${date}`;
+}
+
+// The quick-add bar: what, then optionally the module and the due date.
+function AddTask({ onAdded }: { onAdded: () => void }) {
+  const empty = { description: "", module: "", dueDate: "" };
+  const [draft, setDraft] = useState(empty);
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<Status>(null);
+  const [error, setError] = useState<string | null>(null);
   const [refused, setRefused] = useState(0);
-  const run = async (work: () => Promise<{ message?: string }>) => {
+  const { show } = useFeedback();
+
+  const add = async (event: FormEvent) => {
+    event.preventDefault();
     setBusy(true);
-    setStatus(null);
+    setError(null);
     try {
-      const result = await work();
-      setStatus({ tone: "ok", text: result.message ?? "Done." });
-      onDone();
-      return true;
+      const result = await api<{ message?: string }>("tasks", {
+        method: "POST",
+        body: draft,
+      });
+      setDraft(empty);
+      onAdded();
+      show({ message: result.message ?? "Task added", duration: 3000 });
     } catch (failure) {
-      setStatus({ tone: "error", text: errorText(failure) });
+      setError(errorText(failure));
       setRefused((count) => count + 1);
-      return false;
     } finally {
       setBusy(false);
     }
   };
-  return { busy, status, refused, run };
-}
 
-function dueLabel(
-  dueDate: string | null,
-): { text: string; late: boolean } | null {
-  if (!dueDate) return null;
-  const today = todayIso();
-  if (dueDate < today) {
-    return {
-      text: `Overdue · ${formatDay(dueDate, { day: "numeric", month: "short" })}`,
-      late: true,
-    };
-  }
-  if (dueDate === today) return { text: "Due today", late: false };
-  return {
-    text: `Due ${formatDay(dueDate, { weekday: "short", day: "numeric", month: "short" })}`,
-    late: false,
-  };
+  return (
+    <form onSubmit={add} className="px-4 pb-4 sm:px-5">
+      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_7.5rem_10.5rem_auto]">
+        <Input
+          value={draft.description}
+          onChange={(e) => {
+            setDraft({ ...draft, description: e.target.value });
+            setError(null);
+          }}
+          placeholder="New task, e.g. Draft ER diagram"
+          aria-label="New task"
+          invalid={Boolean(error)}
+          shake={refused}
+        />
+        <div className="grid grid-cols-2 gap-2 sm:contents">
+          <Input
+            value={draft.module}
+            onChange={(e) => setDraft({ ...draft, module: e.target.value })}
+            placeholder="Module"
+            aria-label="Module (optional)"
+            autoCapitalize="characters"
+          />
+          <Input
+            type="date"
+            value={draft.dueDate}
+            onChange={(e) => setDraft({ ...draft, dueDate: e.target.value })}
+            aria-label="Due date (optional)"
+          />
+        </div>
+        <Button type="submit" disabled={busy || !draft.description.trim()}>
+          <Plus {...ICON} strokeWidth={2} />
+          Add task
+        </Button>
+      </div>
+      {error && <Notice tone="error">{error}</Notice>}
+    </form>
+  );
 }
 
 function TaskList({
-  data,
+  tasks,
   onChanged,
 }: {
-  data: TasksView;
+  tasks: Task[];
   onChanged: () => void;
 }) {
-  const [draft, setDraft] = useState({
-    description: "",
-    module: "",
-    dueDate: "",
-  });
-  const { busy, status, refused, run } = useAction(onChanged);
+  const today = todayIso();
+  const rows = useRemovable<number>();
+  const visible = tasks.filter((task) => !rows.isHidden(task.id));
+  const groups = GROUPS.map((name) => ({
+    name,
+    items: visible
+      .filter((task) => groupOf(task, today) === name)
+      .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? "")),
+  })).filter((group) => group.items.length > 0);
 
-  const add = (event: FormEvent) => {
-    event.preventDefault();
-    void run(() =>
-      api<{ message: string }>("tasks", { method: "POST", body: draft }),
-    ).then(
-      (ok) => ok && setDraft({ description: "", module: "", dueDate: "" }),
+  if (visible.length === 0) {
+    return (
+      <EmptyState icon={ListChecks} title="No tasks">
+        Add longer-term work above. A task due today also joins today's to-dos.
+      </EmptyState>
     );
-  };
+  }
 
   return (
-    <Card
-      title="Tasks"
-      description="Longer-term work. A task due today also joins today's to-dos."
-    >
-      <div className="space-y-4 px-5 py-4">
-        {data.tasks.length === 0 ? (
-          <Empty>Nothing on your list.</Empty>
-        ) : (
-          <ul className="divide-y divide-line">
-            {data.tasks.map((task) => {
-              const due = dueLabel(task.dueDate);
-              return (
-                <li
-                  key={task.id}
-                  className="flex animate-settle items-start gap-3 py-2.5"
-                >
-                  <Tooltip label="Mark done">
-                    <button
-                      type="button"
-                      aria-label={`Mark done: ${task.description}`}
-                      disabled={busy}
-                      className="group mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 border-line-strong transition-[transform,border-color,background-color] duration-150 ease-out hover:border-ok hover:bg-ok-soft active:scale-[0.97]"
-                      onClick={() =>
-                        void run(() =>
-                          api<{ message: string }>(`tasks/${task.id}/done`, {
-                            method: "POST",
-                          }),
-                        )
-                      }
-                    >
-                      <Check
-                        {...ICON}
-                        size={12}
-                        strokeWidth={2.5}
-                        className="text-ok opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+    <div className="space-y-1 pb-2">
+      {groups.map((group) => (
+        <section key={group.name} aria-labelledby={`group-${group.name}`}>
+          <h3
+            id={`group-${group.name}`}
+            className={`flex items-center gap-1.5 px-4 pt-3 pb-1 text-xs font-semibold tracking-[0.06em] uppercase sm:px-5 ${group.name === "Overdue" ? "text-danger" : "text-muted"}`}
+          >
+            {group.name === "Overdue" && <AlertCircle {...ICON} size={13} />}
+            {group.name}
+            <span className="tnum font-medium text-faint">
+              {group.items.length}
+            </span>
+          </h3>
+          <ul>
+            <AnimatePresence initial={false}>
+              {group.items.map((task) => {
+                const ticked = rows.isTicked(task.id);
+                const late = group.name === "Overdue";
+                return (
+                  <m.li
+                    key={task.id}
+                    layout
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{
+                      opacity: 0,
+                      transition: { duration: DUR.fast, ease: EASE_IN },
+                    }}
+                    transition={SPRING.snap}
+                    className="group flex items-start gap-3 px-4 py-2 hover:bg-hover sm:px-5"
+                  >
+                    <span className="pt-1 pl-0.5">
+                      <Tick
+                        checked={ticked}
+                        disabled={ticked}
+                        label={`Mark done: ${task.description}`}
+                        onToggle={() =>
+                          rows.remove(
+                            task.id,
+                            "Task done",
+                            () =>
+                              api(`tasks/${task.id}/done`, { method: "POST" }),
+                            { holdMs: 280, onDone: onChanged },
+                          )
+                        }
                       />
-                    </button>
-                  </Tooltip>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">{task.description}</p>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-                      {task.module && (
-                        <Pill category="class" className="py-0.5 font-medium">
-                          {task.module}
-                        </Pill>
-                      )}
-                      {due && (
-                        <span
-                          className={
-                            due.late
-                              ? "font-semibold text-danger"
-                              : "text-muted"
-                          }
-                        >
-                          {due.text}
-                        </span>
+                    </span>
+                    <div className="min-w-0 flex-1 py-1.5">
+                      <p
+                        className={`text-sm font-medium transition-colors duration-[var(--dur-base)] ${ticked ? "text-faint line-through" : "text-ink"}`}
+                      >
+                        {task.description}
+                      </p>
+                      {(task.module || task.dueDate) && (
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[13px]">
+                          {task.module && (
+                            <Pill category="class">{task.module}</Pill>
+                          )}
+                          {task.dueDate &&
+                            (late ? (
+                              <Badge tone="danger" icon={AlertCircle}>
+                                {dueText(task.dueDate, today)}
+                              </Badge>
+                            ) : (
+                              <span className="tnum text-muted">
+                                {dueText(task.dueDate, today)}
+                              </span>
+                            ))}
+                        </div>
                       )}
                     </div>
-                  </div>
-                  <Tooltip label="Delete">
-                    <Button
-                      variant="ghost"
-                      aria-label={`Delete: ${task.description}`}
-                      disabled={busy}
-                      onClick={() => {
-                        if (window.confirm(`Delete "${task.description}"?`)) {
-                          void run(() =>
-                            api<{ message: string }>(`tasks/${task.id}`, {
-                              method: "DELETE",
-                            }),
-                          );
-                        }
-                      }}
-                    >
-                      <Trash2 {...ICON} />
-                    </Button>
-                  </Tooltip>
-                </li>
-              );
-            })}
+                    <span className="pt-1 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100">
+                      <Tooltip label="Delete">
+                        <IconButton
+                          label={`Delete: ${task.description}`}
+                          disabled={ticked}
+                          onClick={() =>
+                            rows.remove(
+                              task.id,
+                              "Task deleted",
+                              () =>
+                                api(`tasks/${task.id}`, { method: "DELETE" }),
+                              { onDone: onChanged },
+                            )
+                          }
+                        >
+                          <Trash2 {...ICON} />
+                        </IconButton>
+                      </Tooltip>
+                    </span>
+                  </m.li>
+                );
+              })}
+            </AnimatePresence>
           </ul>
-        )}
-
-        <Shake trigger={refused}>
-          <form
-            onSubmit={add}
-            className="grid gap-2 rounded-xl bg-sunken p-3 sm:grid-cols-[1fr_8rem_10rem_auto]"
-          >
-            <Input
-              value={draft.description}
-              onChange={(e) =>
-                setDraft({ ...draft, description: e.target.value })
-              }
-              placeholder="New task"
-              invalid={status?.tone === "error"}
-            />
-            <Input
-              value={draft.module}
-              onChange={(e) => setDraft({ ...draft, module: e.target.value })}
-              placeholder="Module"
-              aria-label="Module (optional)"
-              autoCapitalize="characters"
-            />
-            <Input
-              type="date"
-              value={draft.dueDate}
-              onChange={(e) => setDraft({ ...draft, dueDate: e.target.value })}
-              aria-label="Due date (optional)"
-            />
-            <Button type="submit" disabled={busy || !draft.description.trim()}>
-              Add
-            </Button>
-          </form>
-        </Shake>
-        {status && <Notice tone={status.tone}>{status.text}</Notice>}
-      </div>
-    </Card>
+        </section>
+      ))}
+    </div>
   );
 }
 
 const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 function RepeatingList({
-  data,
+  items,
   onChanged,
 }: {
-  data: TasksView;
+  items: TasksView["repeating"];
   onChanged: () => void;
 }) {
   const [description, setDescription] = useState("");
@@ -224,158 +275,169 @@ function RepeatingList({
   );
   const [days, setDays] = useState<string[]>(["mon"]);
   const [dayOfMonth, setDayOfMonth] = useState("1");
-  const { busy, status, refused, run } = useAction(onChanged);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [refused, setRefused] = useState(0);
+  const rows = useRemovable<number>();
+  const { show } = useFeedback();
+  const visible = items.filter((item) => !rows.isHidden(item.id));
 
   const when =
     kind === "weekly" ? days.join(",") : kind === "monthly" ? dayOfMonth : kind;
 
+  const add = async (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api<{ message?: string }>("repeating", {
+        method: "POST",
+        body: { when, description },
+      });
+      setDescription("");
+      onChanged();
+      show({
+        message: result.message ?? "Repeating item added",
+        duration: 3000,
+      });
+    } catch (failure) {
+      setError(errorText(failure));
+      setRefused((count) => count + 1);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <Card
+    <Panel
       title="Repeating"
-      description="Each one joins your to-do list at 8am on its days."
+      description="Each joins your to-do list at 8am on its days."
     >
-      <div className="space-y-4 px-5 py-4">
-        {data.repeating.length === 0 ? (
-          <Empty>Nothing repeats yet.</Empty>
-        ) : (
-          <ul className="divide-y divide-line">
-            {data.repeating.map((item) => (
-              <li
+      {visible.length > 0 && (
+        <ul className="border-t border-line">
+          <AnimatePresence initial={false}>
+            {visible.map((item) => (
+              <m.li
                 key={item.id}
-                className="flex animate-settle items-center gap-3 py-2.5"
+                layout
+                exit={{
+                  opacity: 0,
+                  transition: { duration: DUR.fast, ease: EASE_IN },
+                }}
+                transition={SPRING.snap}
+                className="group flex items-center gap-3 border-b border-line px-4 py-2 sm:px-5"
               >
                 <Repeat {...ICON} className="shrink-0 text-cat-task" />
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 py-1">
                   <p className="text-sm font-medium">{item.description}</p>
-                  <p className="text-xs text-muted">{item.when}</p>
+                  <p className="text-[13px] text-muted">{item.when}</p>
                 </div>
                 <Tooltip label="Stop repeating">
-                  <Button
-                    variant="ghost"
-                    aria-label={`Stop repeating: ${item.description}`}
-                    disabled={busy}
-                    onClick={() => {
-                      if (
-                        window.confirm(`Stop repeating "${item.description}"?`)
-                      ) {
-                        void run(() =>
-                          api<{ message: string }>(`repeating/${item.id}`, {
-                            method: "DELETE",
-                          }),
-                        );
-                      }
-                    }}
+                  <IconButton
+                    label={`Stop repeating: ${item.description}`}
+                    onClick={() =>
+                      rows.remove(
+                        item.id,
+                        "Stopped repeating",
+                        () => api(`repeating/${item.id}`, { method: "DELETE" }),
+                        { onDone: onChanged },
+                      )
+                    }
                   >
                     <Trash2 {...ICON} />
-                  </Button>
+                  </IconButton>
                 </Tooltip>
-              </li>
+              </m.li>
             ))}
-          </ul>
-        )}
-
-        <Shake trigger={refused}>
-          <form
-            className="space-y-2 rounded-xl bg-sunken p-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void run(() =>
-                api<{ message: string }>("repeating", {
-                  method: "POST",
-                  body: { when, description },
-                }),
-              ).then((ok) => ok && setDescription(""));
-            }}
+          </AnimatePresence>
+        </ul>
+      )}
+      <form className="space-y-2 px-4 py-4 sm:px-5" onSubmit={add}>
+        <Input
+          value={description}
+          onChange={(e) => {
+            setDescription(e.target.value);
+            setError(null);
+          }}
+          placeholder="e.g. Gym"
+          aria-label="Repeating to-do"
+          invalid={Boolean(error)}
+          shake={refused}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={kind}
+            onChange={(e) => setKind(e.target.value as typeof kind)}
+            aria-label="How often"
           >
+            <option value="day">Every day</option>
+            <option value="weekdays">Every weekday</option>
+            <option value="weekly">Weekly on…</option>
+            <option value="monthly">Monthly on day…</option>
+          </Select>
+          {kind === "monthly" && (
             <Input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Gym"
-              invalid={status?.tone === "error"}
+              type="number"
+              min={1}
+              max={31}
+              value={dayOfMonth}
+              onChange={(e) => setDayOfMonth(e.target.value)}
+              className="w-20"
+              aria-label="Day of the month"
             />
-            <div className="flex flex-wrap items-center gap-2">
-              <Select
-                value={kind}
-                onChange={(e) => setKind(e.target.value as typeof kind)}
-                aria-label="How often"
-              >
-                <option value="day">Every day</option>
-                <option value="weekdays">Every weekday</option>
-                <option value="weekly">Weekly on…</option>
-                <option value="monthly">Monthly on day…</option>
-              </Select>
-              {kind === "weekly" &&
-                WEEKDAYS.map((day) => (
-                  <label
-                    key={day}
-                    className={`cursor-pointer select-none rounded-md px-2 py-1 text-xs font-medium capitalize transition-colors duration-150 ${
-                      days.includes(day)
-                        ? "bg-brand-soft text-brand-text ring-1 ring-line-strong"
-                        : "text-muted hover:bg-hover"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      className="sr-only"
-                      checked={days.includes(day)}
-                      onChange={(e) =>
-                        setDays(
-                          e.target.checked
-                            ? WEEKDAYS.filter(
-                                (d) => d === day || days.includes(d),
-                              )
-                            : days.filter((d) => d !== day),
-                        )
-                      }
-                    />
-                    {day}
-                  </label>
-                ))}
-              {kind === "monthly" && (
-                <Input
-                  type="number"
-                  min={1}
-                  max={31}
-                  value={dayOfMonth}
-                  onChange={(e) => setDayOfMonth(e.target.value)}
-                  className="w-20"
-                  aria-label="Day of the month"
-                />
-              )}
-              <Button
-                type="submit"
-                disabled={
-                  busy ||
-                  !description.trim() ||
-                  (kind === "weekly" && days.length === 0)
-                }
-              >
-                Add
-              </Button>
-            </div>
-          </form>
-        </Shake>
-        {status && <Notice tone={status.tone}>{status.text}</Notice>}
-      </div>
-    </Card>
+          )}
+          <Button
+            type="submit"
+            variant="secondary"
+            className="ml-auto"
+            disabled={
+              busy ||
+              !description.trim() ||
+              (kind === "weekly" && days.length === 0)
+            }
+          >
+            Add
+          </Button>
+        </div>
+        {kind === "weekly" && (
+          <div role="group" aria-label="Days" className="flex flex-wrap gap-1">
+            {WEEKDAYS.map((day) => {
+              const on = days.includes(day);
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() =>
+                    setDays(
+                      on
+                        ? days.filter((d) => d !== day)
+                        : WEEKDAYS.filter((d) => d === day || days.includes(d)),
+                    )
+                  }
+                  className={`h-9 min-w-11 rounded-lg px-2 text-[13px] font-medium capitalize ring-1 transition-[background-color,color,transform] duration-[var(--dur-fast)] ring-inset active:scale-[0.97] motion-reduce:active:scale-100 ${
+                    on
+                      ? "bg-accent-soft text-accent-text ring-accent/30"
+                      : "text-muted ring-line hover:bg-hover"
+                  }`}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {error && <Notice tone="error">{error}</Notice>}
+      </form>
+    </Panel>
   );
 }
 
 export function TasksPage() {
-  const [data, setData] = useState<TasksView | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const load = useCallback(() => {
-    api<TasksView>("tasks")
-      .then((view) => {
-        setData(view);
-        setError(null);
-      })
-      .catch((failure) => setError(errorText(failure)));
-  }, []);
-  useEffect(load, [load]);
+  const { data, error, reload } = useLoad(() => api<TasksView>("tasks"), []);
 
-  if (error) return <Notice tone="error">{error}</Notice>;
-  if (!data) return <p className="text-sm text-faint">Loading…</p>;
+  if (error && !data) return <LoadError message={error} onRetry={reload} />;
+  if (!data) return <PageSkeleton label="Loading tasks" />;
 
   return (
     <div className="space-y-6">
@@ -383,14 +445,27 @@ export function TasksPage() {
         title="Tasks"
         description="The same lists as /task, /todo and /every on Telegram."
       />
-      <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-6">
-          <TaskList data={data} onChanged={load} />
-          <RepeatingList data={data} onChanged={load} />
-          <Birthdays />
+          <Panel
+            title="Tasks"
+            description="Longer-term work, by when it's due."
+            aside={
+              <span className="tnum text-sm text-muted">
+                {data.tasks.length} open
+              </span>
+            }
+          >
+            <AddTask onAdded={reload} />
+            <div className="border-t border-line">
+              <TaskList tasks={data.tasks} onChanged={reload} />
+            </div>
+          </Panel>
+          <RepeatingList items={data.repeating} onChanged={reload} />
         </div>
-        <div className="lg:sticky lg:top-6 lg:self-start">
-          <Todos todos={data.todos} onChanged={load} />
+        <div className="space-y-6">
+          <Todos todos={data.todos} onChanged={reload} />
+          <Birthdays />
         </div>
       </div>
     </div>

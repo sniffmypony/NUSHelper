@@ -2,7 +2,7 @@ import { Check, Copy } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { ICON } from "./icons";
 import { SwapIcon } from "./motion";
-import { Button } from "./ui";
+import { Badge, IconButton } from "./ui";
 
 // Pieces shared by the Settings cards that walk through a setup (Apple Pay,
 // Bank emails): numbered steps, text to copy, and "5 min ago".
@@ -19,9 +19,8 @@ export function ago(iso: string): string {
 function CopyButton({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <Button
-      variant="ghost"
-      aria-label={`Copy ${label}`}
+    <IconButton
+      label={`Copy ${label}`}
       onClick={() => {
         void navigator.clipboard.writeText(value).then(() => {
           setCopied(true);
@@ -36,14 +35,14 @@ function CopyButton({ value, label }: { value: string; label: string }) {
           copied: <Check {...ICON} className="text-ok" />,
         }}
       />
-    </Button>
+    </IconButton>
   );
 }
 
 export function CopyText({ value, label }: { value: string; label: string }) {
   return (
     <div className="flex items-center gap-2">
-      <code className="min-w-0 flex-1 break-all rounded-lg bg-sunken px-2.5 py-1.5 text-xs">
+      <code className="min-w-0 flex-1 rounded-lg bg-sunken px-2.5 py-1.5 font-mono text-xs break-all ring-1 ring-line ring-inset">
         {value}
       </code>
       <CopyButton value={value} label={label} />
@@ -68,7 +67,7 @@ export function CopyBlock({ value, label }: { value: string; label: string }) {
 export function Step({ n, children }: { n: number; children: ReactNode }) {
   return (
     <li className="flex gap-3">
-      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-soft text-xs font-semibold text-brand-text">
+      <span className="tnum grid h-6 w-6 shrink-0 place-items-center rounded-full bg-sunken text-xs font-semibold text-muted ring-1 ring-line ring-inset">
         {n}
       </span>
       <div className="min-w-0 flex-1 space-y-1.5 pt-0.5">{children}</div>
@@ -78,12 +77,8 @@ export function Step({ n, children }: { n: number; children: ReactNode }) {
 
 export function OnOff({ on }: { on: boolean }) {
   return (
-    <span
-      className={`mr-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-line ring-inset ${
-        on ? "bg-ok-soft text-ok" : "bg-sunken text-muted"
-      }`}
-    >
+    <Badge tone={on ? "ok" : "neutral"} className="mr-2">
       {on ? "On" : "Off"}
-    </span>
+    </Badge>
   );
 }

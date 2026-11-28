@@ -7,8 +7,8 @@ import { useSyncExternalStore } from "react";
 export type ThemeChoice = "light" | "dark" | "system";
 
 const KEY = "nh-theme";
-// For the browser's own UI (address bar): the navigation blue.
-const THEME_COLOR = { light: "#003271", dark: "#061e40" };
+// For the browser's own UI (address bar): the page colour.
+const THEME_COLOR = { light: "#f9f6f2", dark: "#110f0d" };
 
 const listeners = new Set<() => void>();
 const media = () => window.matchMedia("(prefers-color-scheme: dark)");

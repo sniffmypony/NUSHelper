@@ -123,7 +123,7 @@ export function TelegramCard() {
             {status?.connected ? "Reconnect" : "Connect"}
           </Button>
           <Button
-            variant="ghost"
+            variant="quiet"
             disabled={busy}
             onClick={load}
             aria-label="Check again"

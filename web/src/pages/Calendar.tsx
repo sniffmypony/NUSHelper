@@ -1,18 +1,38 @@
 import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+  BellRing,
+  CalendarX2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  MapPin,
+  Trash2,
+  Wallet,
+} from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 import { api } from "../api";
+import {
+  CATEGORY,
+  CategoryIcon,
+  cleanTitle,
+  Dot,
+  isExam,
+  type Category,
+} from "../components/category";
+import { useConfirm } from "../components/dialog";
+import { useFeedback, useRemovable } from "../components/feedback";
 import { FeatureOff } from "../components/FeatureOff";
-import { useFeatures } from "../features";
-import { isExam } from "../components/category";
 import { ICON } from "../components/icons";
-import { Accordion, Shake } from "../components/motion";
-import { Button, Input, Notice } from "../components/ui";
+import { Tooltip } from "../components/motion";
+import { LoadError, Skeleton, errorText, useLoad } from "../components/page";
+import { Segmented } from "../components/Segmented";
+import {
+  Badge,
+  Button,
+  IconButton,
+  Input,
+  Notice,
+  Select,
+} from "../components/ui";
 import {
   addDays,
   formatDay,
@@ -20,7 +40,9 @@ import {
   fromIso,
   monthGrid,
   todayIso,
+  weekLabel,
 } from "../dates";
+import { useFeatures } from "../features";
 
 export interface CalendarDay {
   week: string;
@@ -61,8 +83,6 @@ export interface CalendarRange {
   eventsError: string | null;
 }
 
-type Status = { tone: "ok" | "error"; text: string } | null;
-
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const REPEATS = ["", "daily", "weekdays", "weekly", "monthly", "yearly"];
 // "Remind me" choices, in minutes before the event (all-day events: 9am).
@@ -78,21 +98,54 @@ const ALL_DAY_OFFSETS: Array<[number, string]> = [
   [1440, "9am the day before"],
 ];
 
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : "Something went wrong.";
+const plural = (n: number, word: string) =>
+  `${n} ${word}${n === 1 ? "" : word.endsWith("s") ? "es" : "s"}`;
+
+// A cell's items, most important first: deadlines, exams, events,
+// reminders, tasks.
+function cellItems(day: CalendarDay) {
+  return [
+    ...day.deadlines.map((d) => ({
+      text: `${d.moduleCode} due`,
+      category: "deadline" as Category,
+    })),
+    ...day.events.map((e) => ({
+      text:
+        e.allDay || !e.start
+          ? cleanTitle(e.title)
+          : `${e.start} ${cleanTitle(e.title)}`,
+      category: (isExam(e.title) ? "exam" : "event") as Category,
+    })),
+    ...day.reminders.map((r) => ({
+      text: `${r.time} ${r.description}`,
+      category: "reminder" as Category,
+    })),
+    ...day.tasks.map((t) => ({
+      text: t.description,
+      category: "task" as Category,
+    })),
+  ];
 }
 
-// "Y2S1W12, AY 26/27" -> "S1W12"; "Y2S1 Reading Week, AY 26/27" -> "Reading"
-function shortWeek(label: string): string {
-  const head = label.split(",")[0].replace(/^Y\d+/, "");
-  const named = /\s(\w+)/.exec(head);
-  return named ? named[1] : head;
-}
-
-function Dot({ className }: { className: string }) {
-  return (
-    <span className={`inline-block h-1.5 w-1.5 rounded-full ${className}`} />
-  );
+// What a screen reader hears for a day: the date and what's on it.
+function describeDay(date: string, day: CalendarDay | undefined): string {
+  const name = formatDay(date, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  if (!day) return name;
+  const parts = [
+    day.classes.length && plural(day.classes.length, "class"),
+    day.events.length && plural(day.events.length, "event"),
+    day.deadlines.length && plural(day.deadlines.length, "deadline"),
+    day.reminders.length && plural(day.reminders.length, "reminder"),
+    day.tasks.length && plural(day.tasks.length, "task"),
+    day.spending &&
+      day.spending.cents > 0 &&
+      `spent ${formatMoney(day.spending.cents)}`,
+  ].filter(Boolean);
+  return parts.length ? `${name}: ${parts.join(", ")}` : name;
 }
 
 function DayCell({
@@ -110,138 +163,162 @@ function DayCell({
   today: boolean;
   onPick: () => void;
 }) {
-  const isMonday = fromIso(date).getUTCDay() === 1;
-  // Each item is a pill in its category's colour (styles.css).
-  const items = day
-    ? [
-        ...day.deadlines.map((d) => ({
-          text: `${d.moduleCode} due`,
-          pill: "pill-deadline",
-        })),
-        ...day.events.map((e) => ({
-          text: e.allDay || !e.start ? e.title : `${e.start} ${e.title}`,
-          pill: isExam(e.title) ? "pill-exam" : "pill-event",
-        })),
-        ...day.reminders.map((r) => ({
-          text: `${r.time} ${r.description}`,
-          pill: "pill-reminder",
-        })),
-        ...day.tasks.map((t) => ({ text: t.description, pill: "pill-task" })),
-      ]
+  const items = day ? cellItems(day) : [];
+  const categories = day
+    ? ([
+        day.classes.length > 0 && "class",
+        day.events.some((e) => isExam(e.title)) && "exam",
+        day.events.some((e) => !isExam(e.title)) && "event",
+        day.deadlines.length > 0 && "deadline",
+        day.reminders.length > 0 && "reminder",
+        day.tasks.length > 0 && "task",
+      ].filter(Boolean) as Category[])
     : [];
-  const exams = day?.events.some((e) => isExam(e.title)) ?? false;
-  const otherEvents = day?.events.some((e) => !isExam(e.title)) ?? false;
   return (
     <button
       type="button"
       onClick={onPick}
-      className={`flex min-h-16 flex-col gap-0.5 border-b border-r border-line p-1.5 text-left transition-[background-color] duration-150 ease-out md:min-h-28 md:p-2 ${
+      aria-pressed={selected}
+      aria-current={today ? "date" : undefined}
+      aria-label={describeDay(date, day)}
+      className={`relative flex min-h-14 min-w-0 flex-col gap-1 border-r border-b border-line p-1 text-left transition-[background-color] duration-[var(--dur-fast)] ease-out focus-visible:z-10 focus-visible:outline-offset-[-2px] md:min-h-28 md:p-1.5 ${
         selected
-          ? "bg-brand-soft ring-2 ring-inset ring-accent"
-          : "hover:bg-hover"
-      } ${inMonth ? "" : "bg-sunken text-faint "}`}
+          ? "bg-accent-soft"
+          : inMonth
+            ? "hover:bg-hover"
+            : "bg-sunken/60 hover:bg-hover"
+      }`}
     >
-      <div className="flex items-center justify-between gap-1">
+      {selected && (
         <span
-          className={`grid h-6 w-6 place-items-center rounded-full text-xs font-semibold ${
-            today ? "bg-accent text-on-accent" : inMonth ? "text-ink" : ""
+          aria-hidden
+          className="pointer-events-none absolute inset-0 ring-2 ring-accent ring-inset"
+        />
+      )}
+      <span className="flex items-center justify-between gap-1">
+        <span
+          className={`tnum grid h-6 min-w-6 place-items-center rounded-full px-1 text-xs font-semibold ${
+            today ? "bg-now text-on-now" : inMonth ? "text-ink" : "text-faint"
           }`}
         >
           {fromIso(date).getUTCDate()}
         </span>
-        {isMonday && day && (
-          <span className="hidden truncate rounded bg-brand-soft px-1 text-[10px] font-semibold text-brand-text md:inline">
-            {shortWeek(day.week)}
+        {day?.spending && day.spending.cents > 0 && (
+          <span className="tnum hidden truncate text-[11px] text-muted md:inline">
+            {formatMoney(day.spending.cents)}
           </span>
         )}
-      </div>
-      {day?.spending && day.spending.cents > 0 && (
-        <span className="pill pill-spend w-fit max-w-full truncate rounded px-1 text-[10px] font-semibold md:text-[11px]">
-          <span className="hidden md:inline">S$</span>
-          {(day.spending.cents / 100).toFixed(2)}
-        </span>
-      )}
-      <div className="hidden flex-col gap-0.5 md:flex">
+      </span>
+      <span className="hidden min-w-0 flex-col gap-0.5 md:flex">
         {day && day.classes.length > 0 && (
-          <span className="pill pill-class truncate rounded px-1 text-[11px]">
-            {day.classes.length} class{day.classes.length === 1 ? "" : "es"}
+          <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted">
+            <Dot category="class" />
+            <span className="truncate">
+              {plural(day.classes.length, "class")}
+            </span>
           </span>
         )}
         {items.slice(0, 3).map((item, index) => (
           <span
             key={index}
-            className={`pill ${item.pill} truncate rounded px-1 text-[11px]`}
+            className="flex min-w-0 items-center gap-1.5 text-[11px] text-ink"
           >
-            {item.text}
+            <Dot category={item.category} />
+            <span className="truncate">{item.text}</span>
           </span>
         ))}
         {items.length > 3 && (
-          <span className="text-[11px] text-faint">
+          <span className="pl-3 text-[11px] text-muted">
             +{items.length - 3} more
           </span>
         )}
-      </div>
-      {day && (
-        <div className="mt-auto flex gap-0.5 md:hidden">
-          {day.classes.length > 0 && <Dot className="bg-cat-class" />}
-          {exams && <Dot className="bg-cat-exam" />}
-          {otherEvents && <Dot className="bg-cat-event" />}
-          {day.deadlines.length > 0 && <Dot className="bg-cat-deadline" />}
-          {day.reminders.length > 0 && <Dot className="bg-cat-reminder" />}
-          {day.tasks.length > 0 && <Dot className="bg-cat-task" />}
-        </div>
+      </span>
+      {categories.length > 0 && (
+        <span aria-hidden className="mt-auto flex flex-wrap gap-0.5 md:hidden">
+          {categories.map((category) => (
+            <Dot key={category} category={category} />
+          ))}
+        </span>
       )}
     </button>
   );
 }
 
-// Each part of the day panel opens and closes (an accordion).
-function Section({
+type Status = { tone: "ok" | "error"; text: string } | null;
+
+function Row({
+  time,
+  category,
   title,
-  dot,
+  detail,
+  actions,
+  muted,
   children,
 }: {
-  title: string;
-  // The category colour, matching the calendar's pills and dots.
-  dot: string;
-  children: ReactNode;
+  time: ReactNode;
+  category: Category;
+  title: ReactNode;
+  detail?: ReactNode;
+  actions?: ReactNode;
+  muted?: boolean;
+  children?: ReactNode;
 }) {
   return (
-    <Accordion
-      className="border-t border-line px-4 py-3"
-      title={
-        <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand-text">
-          <Dot className={dot} />
-          {title}
-        </h3>
-      }
-    >
-      <div className="pt-2">{children}</div>
-    </Accordion>
+    <li className="py-2">
+      <div className="flex items-start gap-3">
+        <span
+          className={`tnum w-11 shrink-0 pt-0.5 text-right text-[13px] font-semibold ${muted ? "text-faint" : "text-ink"}`}
+        >
+          {time}
+        </span>
+        <span className="pt-0.5" title={CATEGORY[category].label}>
+          <CategoryIcon category={category} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p
+            className={`text-sm font-medium ${muted ? "text-muted" : "text-ink"}`}
+          >
+            <span className="sr-only">{CATEGORY[category].label}: </span>
+            {title}
+          </p>
+          {detail && (
+            <p className="tnum mt-0.5 text-[13px] text-muted">{detail}</p>
+          )}
+        </div>
+        {actions && (
+          <div className="-my-1 flex shrink-0 items-center">{actions}</div>
+        )}
+      </div>
+      {children}
+    </li>
   );
-}
-
-function Empty({ children }: { children: ReactNode }) {
-  return <p className="text-sm text-faint">{children}</p>;
 }
 
 function DayPanel({
   date,
   day,
+  loading,
   onChanged,
 }: {
   date: string;
   day: CalendarDay | undefined;
+  loading: boolean;
   onChanged: () => void;
 }) {
   const { calendar: calendarOn } = useFeatures();
+  const confirm = useConfirm();
+  const { show } = useFeedback();
+  const reminders = useRemovable<number>();
   const [status, setStatus] = useState<Status>(null);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<"event" | "reminder" | "spending">(
+    calendarOn ? "event" : "reminder",
+  );
   const [amount, setAmount] = useState("");
+  const [amountRefused, setAmountRefused] = useState(0);
   const [reminderTime, setReminderTime] = useState("09:00");
   const [reminderText, setReminderText] = useState("");
   const [moving, setMoving] = useState<Record<number, string>>({});
-  // The event whose "Remind me" picker is open, and the chosen offset.
   const [remindFor, setRemindFor] = useState<{
     id: string;
     offset: number;
@@ -254,19 +331,13 @@ function DayPanel({
     repeat: "",
   });
 
-  useEffect(() => {
-    setStatus(null);
-    setAmount("");
-    setMoving({});
-    setRemindFor(null);
-  }, [date]);
-
+  // Runs a change; success is a toast, a refusal stays next to the form.
   const run = async (work: () => Promise<{ message?: string }>) => {
     setBusy(true);
     setStatus(null);
     try {
       const result = await work();
-      setStatus({ tone: "ok", text: result.message ?? "Done." });
+      show({ message: result.message ?? "Done", duration: 3500 });
       onChanged();
       return true;
     } catch (error) {
@@ -277,9 +348,6 @@ function DayPanel({
     }
   };
 
-  // A refused amount turns the field red and shakes it.
-  const [amountRefused, setAmountRefused] = useState(0);
-  const [amountInvalid, setAmountInvalid] = useState(false);
   const spend = (mode: "add" | "remove") =>
     run(() =>
       api<{ message: string }>("spending", {
@@ -287,465 +355,569 @@ function DayPanel({
         body: { date, amount, mode },
       }),
     ).then((ok) => {
-      if (ok) {
-        setAmount("");
-      } else {
-        setAmountInvalid(true);
-        setAmountRefused((count) => count + 1);
-      }
+      if (ok) setAmount("");
+      else setAmountRefused((count) => count + 1);
     });
 
-  return (
-    <div className="animate-settle rounded-2xl border border-line bg-surface shadow-card">
-      {/* 15 px top corners: the panel's 16 px minus its 1 px border. */}
-      <header className="rounded-t-[15px] bg-brand-soft px-4 py-3">
-        <h2 className="text-base font-semibold">
-          {formatDay(date, {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })}
-        </h2>
-        {day && <p className="text-xs text-muted">{day.week}</p>}
-        {status && <Notice tone={status.tone}>{status.text}</Notice>}
-      </header>
+  const future = date >= todayIso();
+  const visibleReminders = (day?.reminders ?? []).filter(
+    (r) => !reminders.isHidden(r.id),
+  );
+  const entries: Array<{ sort: number; node: ReactNode }> = [];
 
-      <Section title="Spending" dot="bg-cat-spend">
-        <p className="text-sm">
-          {day?.spending ? (
+  for (const [i, c] of (day?.classes ?? []).entries()) {
+    entries.push({
+      sort: Number(c.start.replace(":", "")),
+      node: (
+        <Row
+          key={`c${i}`}
+          time={c.start}
+          category="class"
+          title={`${c.moduleCode} ${c.lessonType}`}
+          detail={
+            <span className="inline-flex flex-wrap items-center gap-x-3">
+              <span>until {c.end}</span>
+              <span className="inline-flex items-center gap-1">
+                <MapPin {...ICON} size={12} />
+                {c.venue || "No venue"}
+              </span>
+            </span>
+          }
+        />
+      ),
+    });
+  }
+  for (const [i, d] of (day?.deadlines ?? []).entries()) {
+    entries.push({
+      sort: Number(d.time.replace(":", "")),
+      node: (
+        <Row
+          key={`d${i}`}
+          time={d.time}
+          category="deadline"
+          title={
+            d.url ? (
+              <a
+                href={d.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="hover:underline"
+              >
+                {d.moduleCode}: {d.name}
+              </a>
+            ) : (
+              `${d.moduleCode}: ${d.name}`
+            )
+          }
+          detail="Due on Canvas"
+        />
+      ),
+    });
+  }
+  for (const e of day?.events ?? []) {
+    const category: Category = isExam(e.title) ? "exam" : "event";
+    entries.push({
+      sort: e.allDay || !e.start ? -1 : Number(e.start.replace(":", "")),
+      node: (
+        <Row
+          key={`e${e.id}-${e.start}`}
+          time={
+            e.allDay ? (
+              <span className="text-[11px] text-muted">All day</span>
+            ) : (
+              e.start
+            )
+          }
+          category={category}
+          title={
+            e.url ? (
+              <a
+                href={e.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="hover:underline"
+              >
+                {cleanTitle(e.title)}
+              </a>
+            ) : (
+              cleanTitle(e.title)
+            )
+          }
+          detail={e.allDay ? undefined : `until ${e.end}`}
+          actions={
+            <>
+              {future && (
+                <Tooltip label="Remind me">
+                  <IconButton
+                    label={`Remind me about ${cleanTitle(e.title)}`}
+                    aria-expanded={remindFor?.id === e.id}
+                    onClick={() =>
+                      setRemindFor(
+                        remindFor?.id === e.id
+                          ? null
+                          : { id: e.id, offset: e.allDay ? 0 : 30 },
+                      )
+                    }
+                  >
+                    <BellRing {...ICON} />
+                  </IconButton>
+                </Tooltip>
+              )}
+              <Tooltip label="Delete event">
+                <IconButton
+                  label={`Delete ${cleanTitle(e.title)}`}
+                  variant="danger-quiet"
+                  disabled={busy}
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: "Delete this event?",
+                      body: `"${cleanTitle(e.title)}" is removed from Google Calendar, and its reminders are cancelled. This can't be undone.`,
+                      confirmLabel: "Delete event",
+                      danger: true,
+                    });
+                    if (ok) {
+                      void run(() =>
+                        api<{ message: string }>(
+                          `events/${encodeURIComponent(e.id)}`,
+                          {
+                            method: "DELETE",
+                          },
+                        ),
+                      );
+                    }
+                  }}
+                >
+                  <Trash2 {...ICON} />
+                </IconButton>
+              </Tooltip>
+            </>
+          }
+        >
+          {remindFor?.id === e.id && (
+            <form
+              className="mt-2 ml-14 flex animate-settle flex-wrap gap-2"
+              onSubmit={(submit) => {
+                submit.preventDefault();
+                void run(() =>
+                  api<{ message: string }>(
+                    `events/${encodeURIComponent(e.id)}/remind`,
+                    {
+                      method: "POST",
+                      body: { offset: remindFor.offset },
+                    },
+                  ),
+                ).then((ok) => ok && setRemindFor(null));
+              }}
+            >
+              <Select
+                value={remindFor.offset}
+                aria-label="When to remind you"
+                onChange={(change) =>
+                  setRemindFor({
+                    id: e.id,
+                    offset: Number(change.target.value),
+                  })
+                }
+              >
+                {(e.allDay ? ALL_DAY_OFFSETS : TIMED_OFFSETS).map(
+                  ([minutes, label]) => (
+                    <option key={minutes} value={minutes}>
+                      {label}
+                    </option>
+                  ),
+                )}
+              </Select>
+              <Button type="submit" variant="secondary" disabled={busy}>
+                Set reminder
+              </Button>
+            </form>
+          )}
+        </Row>
+      ),
+    });
+  }
+  for (const r of visibleReminders) {
+    const pending = r.status === "pending";
+    entries.push({
+      sort: Number(r.time.replace(":", "")),
+      node: (
+        <Row
+          key={`r${r.id}`}
+          time={r.time}
+          category="reminder"
+          muted={!pending}
+          title={r.description}
+          detail={
+            <span className="inline-flex flex-wrap items-center gap-2">
+              {pending ? (
+                "Reminder"
+              ) : (
+                <Badge>{r.status === "sent" ? "Sent" : r.status}</Badge>
+              )}
+              {r.eventId && (
+                <span title="Moves with its Google Calendar event, and is cancelled if the event is deleted. Moving it here unlinks it.">
+                  Follows its event
+                </span>
+              )}
+            </span>
+          }
+          actions={
+            pending && (
+              <>
+                <Tooltip label="Move">
+                  <IconButton
+                    label={`Move reminder: ${r.description}`}
+                    aria-expanded={moving[r.id] !== undefined}
+                    onClick={() =>
+                      setMoving({ ...moving, [r.id]: moving[r.id] ?? r.time })
+                    }
+                  >
+                    <Clock {...ICON} />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip label="Cancel reminder">
+                  <IconButton
+                    label={`Cancel reminder: ${r.description}`}
+                    variant="danger-quiet"
+                    onClick={() =>
+                      reminders.remove(
+                        r.id,
+                        "Reminder cancelled",
+                        () => api(`reminders/${r.id}`, { method: "DELETE" }),
+                        { onDone: onChanged },
+                      )
+                    }
+                  >
+                    <Trash2 {...ICON} />
+                  </IconButton>
+                </Tooltip>
+              </>
+            )
+          }
+        >
+          {moving[r.id] !== undefined && (
+            <form
+              className="mt-2 ml-14 flex animate-settle gap-2"
+              onSubmit={(submit) => {
+                submit.preventDefault();
+                void run(() =>
+                  api<{ message: string }>(`reminders/${r.id}`, {
+                    method: "PATCH",
+                    body: { date, time: moving[r.id] },
+                  }),
+                ).then((ok) => {
+                  if (ok) {
+                    const next = { ...moving };
+                    delete next[r.id];
+                    setMoving(next);
+                  }
+                });
+              }}
+            >
+              <Input
+                type="time"
+                value={moving[r.id]}
+                aria-label="New time"
+                onChange={(change) =>
+                  setMoving({ ...moving, [r.id]: change.target.value })
+                }
+                className="w-36"
+              />
+              <Button type="submit" variant="secondary" disabled={busy}>
+                Save time
+              </Button>
+            </form>
+          )}
+        </Row>
+      ),
+    });
+  }
+  for (const t of day?.tasks ?? []) {
+    entries.push({
+      sort: -2,
+      node: (
+        <Row
+          key={`t${t.id}`}
+          time={<span className="text-[11px] text-muted">Due</span>}
+          category="task"
+          title={t.description}
+          detail={t.module ? `Task · ${t.module}` : "Task"}
+        />
+      ),
+    });
+  }
+  entries.sort((a, b) => a.sort - b.sort);
+
+  return (
+    <section
+      aria-label={formatDay(date, {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      })}
+      className="rounded-xl border border-line bg-surface"
+    >
+      <header className="flex items-start justify-between gap-3 px-4 pt-4 pb-3">
+        <div key={date} className="min-w-0 animate-fade">
+          <h2 className="text-base font-semibold tracking-tight">
+            {formatDay(date, {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            })}
+          </h2>
+          {day && (
+            <p className="text-[13px] text-muted">{weekLabel(day.week)}</p>
+          )}
+        </div>
+        <div className="tnum flex shrink-0 items-center gap-1.5 rounded-lg bg-sunken px-2 py-1 text-[13px] ring-1 ring-line ring-inset">
+          <Wallet {...ICON} size={14} className="text-cat-spend" />
+          {loading ? (
+            <span className="text-muted">…</span>
+          ) : day?.spending ? (
             <span className="font-semibold">
               {formatMoney(day.spending.cents)}
             </span>
           ) : (
-            <span className="text-faint">Nothing logged</span>
+            <span className="text-muted">Not logged</span>
           )}
-        </p>
-        <Shake trigger={amountRefused} className="mt-2 flex gap-2">
-          <Input
-            value={amount}
-            onChange={(e) => {
-              setAmount(e.target.value);
-              setAmountInvalid(false);
+        </div>
+      </header>
+
+      <div key={date} className="animate-fade border-t border-line px-4">
+        {loading ? (
+          <div aria-busy="true" className="space-y-3 py-4">
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+        ) : entries.length === 0 ? (
+          <p className="flex items-center gap-2 py-4 text-sm text-faint">
+            <CalendarX2 {...ICON} />
+            Nothing on this day.
+          </p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {entries.map((entry) => entry.node)}
+          </ul>
+        )}
+      </div>
+
+      <div className="space-y-3 border-t border-line px-4 py-4">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold">Add to this day</h3>
+          <Segmented
+            label="What to add"
+            size="sm"
+            value={tab}
+            onChange={(value) => {
+              setTab(value);
+              setStatus(null);
             }}
-            placeholder="e.g. 5.40 3"
-            inputMode="decimal"
-            invalid={amountInvalid}
-            className="min-w-0 flex-1"
+            options={[
+              { value: "event", label: "Event" },
+              { value: "reminder", label: "Reminder" },
+              { value: "spending", label: "Spending" },
+            ]}
           />
-          <Button disabled={busy || !amount} onClick={() => void spend("add")}>
-            Add
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={busy || !amount}
-            onClick={() => void spend("remove")}
-          >
-            Remove
-          </Button>
-        </Shake>
-      </Section>
+        </div>
 
-      <Section title="Classes" dot="bg-cat-class">
-        {day && day.classes.length > 0 ? (
-          <ul className="space-y-1 text-sm">
-            {day.classes.map((c, i) => (
-              <li key={i}>
-                <span className="font-medium">
-                  {c.start}–{c.end}
-                </span>{" "}
-                {c.moduleCode} {c.lessonType}
-                <span className="text-muted"> · {c.venue || "no venue"}</span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <Empty>No classes</Empty>
-        )}
-      </Section>
-
-      <Section title="Deadlines" dot="bg-cat-deadline">
-        {day && day.deadlines.length > 0 ? (
-          <ul className="space-y-1 text-sm">
-            {day.deadlines.map((d, i) => (
-              <li key={i} className="text-danger">
-                {d.time} · {d.moduleCode}:{" "}
-                {d.url ? (
-                  <a
-                    href={d.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline"
-                  >
-                    {d.name}
-                  </a>
-                ) : (
-                  d.name
-                )}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <Empty>No deadlines</Empty>
-        )}
-      </Section>
-
-      <Section title="Events" dot="bg-cat-event">
-        {day && day.events.length > 0 ? (
-          <ul className="space-y-1.5 text-sm">
-            {day.events.map((e) => (
-              <li key={`${e.id}-${e.start}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <span>
-                    <span className="font-medium">
-                      {e.allDay ? "All day" : `${e.start}–${e.end}`}
-                    </span>{" "}
-                    {e.url ? (
-                      <a
-                        href={e.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="hover:underline"
-                      >
-                        {e.title}
-                      </a>
-                    ) : (
-                      e.title
-                    )}
-                  </span>
-                  <span className="flex shrink-0 gap-2 text-xs">
-                    {date >= todayIso() && (
-                      <button
-                        type="button"
-                        className="text-accent-text hover:underline"
-                        onClick={() =>
-                          setRemindFor(
-                            remindFor?.id === e.id
-                              ? null
-                              : { id: e.id, offset: e.allDay ? 0 : 30 },
-                          )
-                        }
-                      >
-                        Remind me
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="text-danger hover:underline"
-                      disabled={busy}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `Delete "${e.title}" from Google Calendar? Its reminders are cancelled too.`,
-                          )
-                        ) {
-                          void run(() =>
-                            api<{ message: string }>(
-                              `events/${encodeURIComponent(e.id)}`,
-                              {
-                                method: "DELETE",
-                              },
-                            ),
-                          );
-                        }
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </span>
-                </div>
-                {remindFor?.id === e.id && (
-                  <form
-                    className="mt-1.5 flex flex-wrap gap-2"
-                    onSubmit={(submit) => {
-                      submit.preventDefault();
-                      void run(() =>
-                        api<{ message: string }>(
-                          `events/${encodeURIComponent(e.id)}/remind`,
-                          {
-                            method: "POST",
-                            body: { offset: remindFor.offset },
-                          },
-                        ),
-                      ).then((ok) => ok && setRemindFor(null));
-                    }}
-                  >
-                    <select
-                      value={remindFor.offset}
-                      onChange={(change) =>
-                        setRemindFor({
-                          id: e.id,
-                          offset: Number(change.target.value),
-                        })
+        {tab === "event" &&
+          (calendarOn ? (
+            <form
+              key="event"
+              className="animate-fade space-y-2"
+              onSubmit={(submit) => {
+                submit.preventDefault();
+                void run(() =>
+                  api<{ message: string }>("events", {
+                    method: "POST",
+                    body: { date, ...event },
+                  }),
+                ).then(
+                  (ok) =>
+                    ok && setEvent((current) => ({ ...current, title: "" })),
+                );
+              }}
+            >
+              <Input
+                value={event.title}
+                onChange={(e) => setEvent({ ...event, title: e.target.value })}
+                placeholder="Event title"
+                aria-label="Event title"
+              />
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <label className="inline-flex h-10 items-center gap-2 pr-1">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-[var(--accent)]"
+                    checked={event.allDay}
+                    onChange={(e) =>
+                      setEvent({ ...event, allDay: e.target.checked })
+                    }
+                  />
+                  All day
+                </label>
+                {!event.allDay && (
+                  <>
+                    <Input
+                      type="time"
+                      value={event.start}
+                      aria-label="Starts"
+                      onChange={(e) =>
+                        setEvent({ ...event, start: e.target.value })
                       }
-                      className="rounded-lg border border-line-strong bg-surface px-2 py-2 text-sm"
-                    >
-                      {(e.allDay ? ALL_DAY_OFFSETS : TIMED_OFFSETS).map(
-                        ([minutes, label]) => (
-                          <option key={minutes} value={minutes}>
-                            {label}
-                          </option>
-                        ),
-                      )}
-                    </select>
-                    <Button type="submit" disabled={busy}>
-                      Set reminder
-                    </Button>
-                  </form>
+                      className="w-32"
+                    />
+                    <span className="text-muted">to</span>
+                    <Input
+                      type="time"
+                      value={event.end}
+                      aria-label="Ends"
+                      onChange={(e) =>
+                        setEvent({ ...event, end: e.target.value })
+                      }
+                      className="w-32"
+                    />
+                  </>
                 )}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <Empty>No events</Empty>
-        )}
-        {calendarOn ? (
-          <form
-            className="mt-3 space-y-2 rounded-lg bg-sunken p-3"
-            onSubmit={(submit) => {
-              submit.preventDefault();
-              void run(() =>
-                api<{ message: string }>("events", {
-                  method: "POST",
-                  body: { date, ...event },
-                }),
-              ).then(
-                (ok) =>
-                  ok && setEvent((current) => ({ ...current, title: "" })),
-              );
-            }}
-          >
-            <Input
-              value={event.title}
-              onChange={(e) => setEvent({ ...event, title: e.target.value })}
-              placeholder="New event title"
-            />
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <label className="flex items-center gap-1.5">
-                <input
-                  type="checkbox"
-                  checked={event.allDay}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select
+                  value={event.repeat}
+                  aria-label="Repeats"
                   onChange={(e) =>
-                    setEvent({ ...event, allDay: e.target.checked })
+                    setEvent({ ...event, repeat: e.target.value })
                   }
-                />
-                All day
-              </label>
-              {!event.allDay && (
-                <>
-                  <Input
-                    type="time"
-                    value={event.start}
-                    onChange={(e) =>
-                      setEvent({ ...event, start: e.target.value })
-                    }
-                    className="w-36"
-                  />
-                  <span>to</span>
-                  <Input
-                    type="time"
-                    value={event.end}
-                    onChange={(e) =>
-                      setEvent({ ...event, end: e.target.value })
-                    }
-                    className="w-36"
-                  />
-                </>
-              )}
-              <select
-                value={event.repeat}
-                onChange={(e) => setEvent({ ...event, repeat: e.target.value })}
-                className="rounded-lg border border-line-strong bg-surface px-2 py-2 text-sm"
-              >
-                {REPEATS.map((repeat) => (
-                  <option key={repeat} value={repeat}>
-                    {repeat ? `Repeats ${repeat}` : "Doesn't repeat"}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <Button type="submit" disabled={busy || !event.title}>
-              Add to Google Calendar
-            </Button>
-          </form>
-        ) : (
-          <div className="mt-3">
+                >
+                  {REPEATS.map((repeat) => (
+                    <option key={repeat} value={repeat}>
+                      {repeat ? `Repeats ${repeat}` : "Doesn't repeat"}
+                    </option>
+                  ))}
+                </Select>
+                <Button
+                  type="submit"
+                  className="ml-auto"
+                  disabled={busy || !event.title}
+                >
+                  Add event
+                </Button>
+              </div>
+            </form>
+          ) : (
             <FeatureOff>
               Connect Google Calendar in Settings to add events here.
             </FeatureOff>
+          ))}
+
+        {tab === "reminder" && (
+          <form
+            key="reminder"
+            className="animate-fade space-y-2"
+            onSubmit={(submit) => {
+              submit.preventDefault();
+              void run(() =>
+                api<{ message: string }>("reminders", {
+                  method: "POST",
+                  body: { date, time: reminderTime, description: reminderText },
+                }),
+              ).then((ok) => ok && setReminderText(""));
+            }}
+          >
+            <div className="flex gap-2">
+              <Input
+                type="time"
+                value={reminderTime}
+                aria-label="Time"
+                onChange={(e) => setReminderTime(e.target.value)}
+                className="w-32"
+              />
+              <Input
+                value={reminderText}
+                onChange={(e) => setReminderText(e.target.value)}
+                placeholder="Remind me to…"
+                aria-label="Reminder"
+                className="min-w-0 flex-1"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] text-muted">
+                The bot texts you at this time.
+              </p>
+              <Button type="submit" disabled={busy || !reminderText}>
+                Add reminder
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {tab === "spending" && (
+          <div key="spending" className="animate-fade space-y-2">
+            <div className="flex gap-2">
+              <Input
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="e.g. 5.40 3"
+                aria-label="Amounts in S$"
+                inputMode="decimal"
+                invalid={status?.tone === "error"}
+                shake={amountRefused}
+                className="min-w-0 flex-1"
+              />
+              <Button
+                disabled={busy || !amount}
+                onClick={() => void spend("add")}
+              >
+                Add
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={busy || !amount}
+                onClick={() => void spend("remove")}
+              >
+                Remove
+              </Button>
+            </div>
+            <p className="text-[13px] text-muted">
+              Several amounts are added up. Remove takes them off this day's
+              total.
+            </p>
           </div>
         )}
-      </Section>
 
-      <Section title="Reminders" dot="bg-cat-reminder">
-        {day && day.reminders.length > 0 ? (
-          <ul className="space-y-2 text-sm">
-            {day.reminders.map((r) => (
-              <li key={r.id}>
-                <div className="flex items-start justify-between gap-2">
-                  <span>
-                    <span className="font-medium">{r.time}</span>{" "}
-                    {r.description}
-                    {r.status !== "pending" && (
-                      <span className="ml-1 text-xs text-faint">
-                        ({r.status})
-                      </span>
-                    )}
-                    {r.eventId && (
-                      <span
-                        className="ml-1 text-xs text-faint"
-                        title="Moves with its Google Calendar event, and is cancelled if the event is deleted. Moving it here unlinks it."
-                      >
-                        (follows event)
-                      </span>
-                    )}
-                  </span>
-                  {r.status === "pending" && (
-                    <span className="flex shrink-0 gap-2 text-xs">
-                      <button
-                        type="button"
-                        className="text-accent-text hover:underline"
-                        onClick={() =>
-                          setMoving({
-                            ...moving,
-                            [r.id]: moving[r.id] ?? r.time,
-                          })
-                        }
-                      >
-                        Move
-                      </button>
-                      <button
-                        type="button"
-                        className="text-danger hover:underline"
-                        disabled={busy}
-                        onClick={() =>
-                          void run(() =>
-                            api<{ message: string }>(`reminders/${r.id}`, {
-                              method: "DELETE",
-                            }),
-                          )
-                        }
-                      >
-                        Cancel
-                      </button>
-                    </span>
-                  )}
-                </div>
-                {moving[r.id] !== undefined && (
-                  <form
-                    className="mt-1.5 flex gap-2"
-                    onSubmit={(submit) => {
-                      submit.preventDefault();
-                      void run(() =>
-                        api<{ message: string }>(`reminders/${r.id}`, {
-                          method: "PATCH",
-                          body: { date, time: moving[r.id] },
-                        }),
-                      ).then((ok) => {
-                        if (ok) {
-                          const next = { ...moving };
-                          delete next[r.id];
-                          setMoving(next);
-                        }
-                      });
-                    }}
-                  >
-                    <Input
-                      type="time"
-                      value={moving[r.id]}
-                      onChange={(e) =>
-                        setMoving({ ...moving, [r.id]: e.target.value })
-                      }
-                      className="w-36"
-                    />
-                    <Button type="submit" disabled={busy}>
-                      Save time
-                    </Button>
-                  </form>
-                )}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <Empty>No reminders</Empty>
-        )}
-        <form
-          className="mt-3 flex flex-wrap gap-2"
-          onSubmit={(submit) => {
-            submit.preventDefault();
-            void run(() =>
-              api<{ message: string }>("reminders", {
-                method: "POST",
-                body: { date, time: reminderTime, description: reminderText },
-              }),
-            ).then((ok) => ok && setReminderText(""));
-          }}
-        >
-          <Input
-            type="time"
-            value={reminderTime}
-            onChange={(e) => setReminderTime(e.target.value)}
-            className="w-36"
-          />
-          <Input
-            value={reminderText}
-            onChange={(e) => setReminderText(e.target.value)}
-            placeholder="Remind me to…"
-            className="min-w-0 flex-1"
-          />
-          <Button type="submit" disabled={busy || !reminderText}>
-            Add
-          </Button>
-        </form>
-        <p className="mt-1.5 text-xs text-faint">
-          The bot texts you at this time.
-        </p>
-      </Section>
-
-      <Section title="Tasks due" dot="bg-cat-task">
-        {day && day.tasks.length > 0 ? (
-          <ul className="space-y-1 text-sm">
-            {day.tasks.map((t) => (
-              <li key={t.id}>
-                {t.description}
-                {t.module && <span className="text-muted"> [{t.module}]</span>}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <Empty>No tasks due</Empty>
-        )}
-      </Section>
-    </div>
+        {status && <Notice tone={status.tone}>{status.text}</Notice>}
+      </div>
+    </section>
   );
 }
 
 export function CalendarPage() {
   const today = todayIso();
   const [month, setMonth] = useState(() => {
-    const date = new Date(`${today}T00:00:00Z`);
+    const date = fromIso(today);
     return { year: date.getUTCFullYear(), month: date.getUTCMonth() };
   });
   const [selected, setSelected] = useState(today);
   // Which way the month moved: the new one slides in from that side.
   const [direction, setDirection] = useState<"left" | "right" | null>(null);
-  const [range, setRange] = useState<CalendarRange | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const [start, end] = useMemo(
     () => monthGrid(month.year, month.month),
     [month],
   );
-
-  const load = useCallback(() => {
-    api<CalendarRange>(`calendar/${start}/${end}`)
-      .then((data) => {
-        setRange(data);
-        setError(null);
-      })
-      .catch((failure) => setError(errorText(failure)));
-  }, [start, end]);
-  useEffect(load, [load]);
+  const {
+    data: range,
+    error,
+    reload,
+  } = useLoad(
+    () => api<CalendarRange>(`calendar/${start}/${end}`),
+    [start, end],
+  );
+  // A range from another month is kept on screen (faded) until the new one
+  // arrives, so the grid never collapses.
+  const fresh =
+    range && Object.prototype.hasOwnProperty.call(range.days, start);
 
   const dates: string[] = [];
   for (let date = start; date <= end; date = addDays(date, 1)) dates.push(date);
@@ -764,21 +936,23 @@ export function CalendarPage() {
     month: "long",
     year: "numeric",
   });
+  const showingToday =
+    month.year * 12 + month.month ===
+    fromIso(today).getUTCFullYear() * 12 + fromIso(today).getUTCMonth();
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        <div className="flex gap-2">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1
+          aria-live="polite"
+          className="text-2xl font-semibold tracking-[-0.015em] md:text-[28px]"
+        >
+          {title}
+        </h1>
+        <div className="flex items-center gap-1.5">
           <Button
             variant="secondary"
-            onClick={() => shift(-1)}
-            aria-label="Previous month"
-          >
-            <ChevronLeft {...ICON} />
-          </Button>
-          <Button
-            variant="secondary"
+            disabled={showingToday && selected === today}
             onClick={() => {
               const date = fromIso(today);
               const target = date.getUTCFullYear() * 12 + date.getUTCMonth();
@@ -795,30 +969,42 @@ export function CalendarPage() {
           >
             Today
           </Button>
-          <Button
+          <IconButton
             variant="secondary"
+            label="Previous month"
+            onClick={() => shift(-1)}
+          >
+            <ChevronLeft {...ICON} />
+          </IconButton>
+          <IconButton
+            variant="secondary"
+            label="Next month"
             onClick={() => shift(1)}
-            aria-label="Next month"
           >
             <ChevronRight {...ICON} />
-          </Button>
+          </IconButton>
         </div>
-      </div>
-      {error && <Notice tone="error">{error}</Notice>}
+      </header>
+      {error && <LoadError message={error} onRetry={reload} />}
       {range?.eventsError && <Notice tone="error">{range.eventsError}</Notice>}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
-        <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
-          <div className="grid grid-cols-7 border-b border-line bg-brand-soft text-center text-[11px] font-semibold uppercase tracking-wide text-brand-text">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_23rem]">
+        <div className="overflow-hidden rounded-xl border border-line bg-surface">
+          <div
+            aria-hidden
+            className="grid grid-cols-7 border-b border-line text-center text-[11px] font-semibold tracking-[0.06em] text-muted uppercase"
+          >
             {WEEKDAYS.map((weekday) => (
               <div key={weekday} className="py-2">
-                {weekday}
+                <span className="md:hidden">{weekday[0]}</span>
+                <span className="max-md:hidden">{weekday}</span>
               </div>
             ))}
           </div>
           <div
             key={`${month.year}-${month.month}`}
-            className={`grid grid-cols-7 transition-opacity duration-150 ${range ? "" : "opacity-50"} ${
+            aria-busy={!fresh}
+            className={`-mr-px -mb-px grid grid-cols-7 transition-opacity duration-[var(--dur-base)] ${fresh ? "" : "opacity-50"} ${
               direction === "right"
                 ? "animate-slide-from-right"
                 : direction === "left"
@@ -830,7 +1016,7 @@ export function CalendarPage() {
               <DayCell
                 key={date}
                 date={date}
-                day={range?.days[date]}
+                day={fresh ? range?.days[date] : undefined}
                 inMonth={inMonth(date)}
                 selected={date === selected}
                 today={date === today}
@@ -838,13 +1024,31 @@ export function CalendarPage() {
               />
             ))}
           </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-line px-3 py-2 text-[11px] text-muted">
+            {(
+              [
+                "class",
+                "event",
+                "exam",
+                "deadline",
+                "reminder",
+                "task",
+              ] as Category[]
+            ).map((category) => (
+              <span key={category} className="inline-flex items-center gap-1.5">
+                <Dot category={category} />
+                {CATEGORY[category].label}
+              </span>
+            ))}
+          </div>
         </div>
-        <div className="lg:sticky lg:top-6 lg:self-start">
+        <div className="lg:sticky lg:top-8">
           <DayPanel
             key={selected}
             date={selected}
-            day={range?.days[selected]}
-            onChanged={load}
+            day={fresh ? range?.days[selected] : undefined}
+            loading={!fresh}
+            onChanged={reload}
           />
         </div>
       </div>

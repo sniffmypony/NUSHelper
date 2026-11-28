@@ -2,10 +2,24 @@ import { ChevronRight } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ICON } from "./icons";
 
-// Motion pieces from web/DESIGN.md §1–2. Everything moves with transform,
-// opacity or filter only.
+// Motion pieces (web/DESIGN.md §5). CSS handles hover, press and simple
+// entrances; Motion (motion/react, loaded through LazyMotion in main.tsx)
+// handles exits, layout reflow and shared indicators. Everything moves with
+// transform, opacity or filter.
 
-const reducedMotion = () =>
+// Spring presets for Motion. No overshoot except the tick mark.
+export const SPRING = {
+  snap: { type: "spring", visualDuration: 0.22, bounce: 0 },
+  sheet: { type: "spring", visualDuration: 0.32, bounce: 0.05 },
+  tick: { type: "spring", visualDuration: 0.2, bounce: 0.25 },
+} as const;
+
+// Durations in seconds, matching the CSS --dur-* variables.
+export const DUR = { fast: 0.12, base: 0.18, slow: 0.24, space: 0.32 };
+export const EASE_OUT = [0.22, 1, 0.36, 1] as const;
+export const EASE_IN = [0.5, 0, 0.75, 0] as const;
+
+export const reducedMotion = () =>
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // Shakes its contents like a head shake each time `trigger` goes up: for
@@ -29,7 +43,7 @@ export function Shake({
 
 // The same shake for one element (Input and Select take `shake`).
 export function useShake<T extends HTMLElement>(trigger: number) {
-  const ref = useRef<T>(null);
+  const ref = useRef<T | null>(null);
   useEffect(() => {
     if (!trigger || !ref.current || reducedMotion()) return;
     ref.current.animate(
@@ -41,7 +55,7 @@ export function useShake<T extends HTMLElement>(trigger: number) {
         { transform: "translateX(2px)" },
         { transform: "translateX(0)" },
       ],
-      { duration: 360, easing: "cubic-bezier(0.23, 1, 0.32, 1)" },
+      { duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
     );
   }, [trigger]);
   return ref;
@@ -91,7 +105,7 @@ export function Accordion({
   return (
     <details className={`accordion ${className}`} open={open}>
       <summary
-        className={`flex select-none items-center gap-1.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${summaryClassName}`}
+        className={`flex min-h-10 select-none items-center gap-1.5 rounded-md ${summaryClassName}`}
       >
         <ChevronRight
           {...ICON}
@@ -140,7 +154,7 @@ export function ScrollFade({
     <div
       ref={ref}
       data-more={more}
-      className={`scroll-fade overflow-x-auto ${className}`}
+      className={`scroll-fade no-scrollbar overflow-x-auto ${className}`}
     >
       {children}
     </div>
@@ -149,6 +163,8 @@ export function ScrollFade({
 
 // Tooltips: the first waits a moment; while one was just showing, the next
 // appears at once (and without the entrance), so moving along feels quick.
+// They only repeat a control's accessible name, so touch screens lose
+// nothing by not showing them.
 const FIRST_DELAY_MS = 500;
 const WARM_MS = 800;
 let lastHidden = 0;
@@ -156,9 +172,11 @@ let showing = 0;
 
 export function Tooltip({
   label,
+  side = "top",
   children,
 }: {
   label: string;
+  side?: "top" | "bottom";
   children: ReactNode;
 }) {
   const id = useId();
@@ -194,15 +212,18 @@ export function Tooltip({
       aria-describedby={state === "hidden" ? undefined : id}
       onPointerEnter={(event) => event.pointerType === "mouse" && show()}
       onPointerLeave={hide}
-      onFocus={show}
+      onFocus={(event) =>
+        event.target.matches(":focus-visible") ? show() : undefined
+      }
       onBlur={hide}
+      onKeyDown={(event) => event.key === "Escape" && hide()}
     >
       {children}
       {state !== "hidden" && (
         <span
           id={id}
           role="tooltip"
-          className={`pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-line bg-raised px-2 py-1 text-xs font-medium text-ink shadow-pop ${state === "settle" ? "animate-settle" : ""}`}
+          className={`pointer-events-none absolute left-1/2 z-50 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-xs font-medium text-canvas ${side === "top" ? "bottom-full mb-1.5" : "top-full mt-1.5"} ${state === "settle" ? "animate-fade" : ""}`}
         >
           {label}
         </span>
