@@ -29,6 +29,7 @@ import {
   type WebDependencies,
   type WebRequest,
 } from "../src/web/router.js";
+import type { EffortSetting } from "../src/assistant/effort.js";
 
 const TOKEN = "123456:test-bot-token";
 const OWNER = "424242";
@@ -78,6 +79,7 @@ class MemoryStore implements SettingsStore {
 
 function setup(now = NOW) {
   const store = new MemoryStore();
+  let effort: EffortSetting = "auto";
   const deps: WebDependencies = {
     botToken: () => TOKEN,
     ownerId: () => OWNER,
@@ -125,6 +127,12 @@ function setup(now = NOW) {
       lastErrorAt: null,
     })),
     listModels: async () => ["qwen3.6:35b", "x-test-4"],
+    effort: {
+      get: async () => effort,
+      set: async (value) => {
+        effort = value;
+      },
+    },
     testModel: vi.fn(async () => ({ ms: 420 })),
     calendarInfo: () => ({
       calendarId: "me@example.com",
@@ -571,6 +579,39 @@ describe("website API", () => {
       (await call({ route: "settings", cookie: cookieFor(NOW, NOW, 1) }))
         .status,
     ).toBe(200);
+  });
+
+  it("reads and changes the assistant's thinking effort", async () => {
+    const { call, cookieFor } = setup();
+    const cookie = cookieFor();
+    expect((await call({ route: "ai/effort", cookie })).body).toEqual({
+      effort: "auto",
+    });
+    expect(
+      (
+        await call({
+          method: "POST",
+          route: "ai/effort",
+          cookie,
+          body: { effort: "High" },
+        })
+      ).body,
+    ).toEqual({ effort: "high" });
+    expect((await call({ route: "ai/effort", cookie })).body).toEqual({
+      effort: "high",
+    });
+    const refused = await call({
+      method: "POST",
+      route: "ai/effort",
+      cookie,
+      body: { effort: "maximum" },
+    });
+    expect(refused.status).toBe(400);
+    expect((await call({ route: "ai/effort", cookie })).body).toEqual({
+      effort: "high",
+    });
+    // Signed out: refused.
+    expect((await call({ route: "ai/effort" })).status).toBe(401);
   });
 
   it("lists and tests models, checks Calendar and saves a timetable", async () => {

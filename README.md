@@ -105,7 +105,7 @@ Rich messages (LaTeX, formatting) need a Telegram app from June 2026 or later; o
 
 #### Thinking effort
 
-The assistant chooses how hard the model thinks (`reasoning_effort`): **low** for bot actions and chat, so they stay quick, and **medium** for study questions, photos and files. Study answers have a **Think harder** button that asks again at **high**. `/effort low`, `/effort medium` or `/effort high` uses one level for every message; `/effort auto` goes back to the default.
+The assistant chooses how hard the model thinks (`reasoning_effort`): **low** for bot actions and chat, so they stay quick, and **medium** for study questions, photos and files. Study answers have a **Think harder** button that asks again at **high**. `/effort low`, `/effort medium` or `/effort high` uses one level for every message; `/effort auto` goes back to the default. On the website, the **Thinking** menu under Chat's message box changes the same setting.
 
 One message may take up to 270 seconds (Vercel stops the function at 300). Replies are streamed, so a long think isn't mistaken for a hang. If a level runs out of time, the bot answers with the next lower level (high → medium → low) and says so, unless the slow attempt had already changed something (added a to-do, sent a file) that a retry would repeat. After 20 seconds a "Working on it" note appears; it is deleted when the answer arrives.
 
