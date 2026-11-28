@@ -23,6 +23,7 @@ function deps(overrides: Partial<SetupDependencies> = {}): SetupDependencies {
     features: () => ({ ai: true, calendar: true, canvas: true }),
     dispatchLastRun: async () => minutesAgo(1),
     hasTimetable: async () => true,
+    assistantGoogle: () => true,
     ...overrides,
   };
 }
@@ -36,7 +37,7 @@ afterEach(() => replaceSettingOverrides(new Map()));
 
 describe("the setup checklist", () => {
   it("is all done on a set-up copy", async () => {
-    expect(Object.values(await done(deps()))).toEqual(Array(6).fill(true));
+    expect(Object.values(await done(deps()))).toEqual(Array(7).fill(true));
   });
 
   it("notices a job that stopped, never ran, or can't be checked", async () => {
@@ -69,7 +70,7 @@ describe("the setup checklist", () => {
     const items = await setupChecklist(deps(), NOW);
     expect(
       items.filter((item) => item.optional).map((item) => item.key),
-    ).toEqual(["calendar", "canvas", "timetable"]);
+    ).toEqual(["calendar", "assistant-google", "canvas", "timetable"]);
   });
 });
 

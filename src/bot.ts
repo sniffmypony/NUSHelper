@@ -629,6 +629,7 @@ registerAssistantHandlers(bot, {
           calendarLine++,
           ownerIdValue,
           false,
+          true,
         ),
       listCalendarEvents: (startDate, days) =>
         listCalendarEvents(startDate || todayInSingapore(), days),

@@ -48,6 +48,8 @@ export interface SetupDependencies {
   // database can't say (no pg_cron).
   dispatchLastRun(): Promise<Date | null | undefined>;
   hasTimetable(): Promise<boolean>;
+  // The assistant's own Google sign-in (needed from February 2027).
+  assistantGoogle(): boolean;
 }
 
 // The job runs every minute; a few missed runs are fine.
@@ -111,6 +113,15 @@ export async function setupChecklist(
       label: "Connect Google Calendar",
       done: on.calendar,
       detail: "Events, birthdays and finals on your calendar.",
+      href: "/settings",
+      optional: true,
+    },
+    {
+      key: "assistant-google",
+      label: "Connect Google for the assistant",
+      done: deps.assistantGoogle(),
+      detail:
+        "From February 2027 the assistant can only use your calendar through Google's MCP server, signed in as you.",
       href: "/settings",
       optional: true,
     },
