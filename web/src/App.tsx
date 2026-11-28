@@ -6,6 +6,7 @@ import { navigate, usePath } from "./navigation";
 import { CalendarPage } from "./pages/Calendar";
 import { DeadlinesPage } from "./pages/Deadlines";
 import { LoginPage } from "./pages/Login";
+import { PrivacyPage } from "./pages/Privacy";
 import { SettingsPage } from "./pages/Settings";
 import { SpendingPage } from "./pages/Spending";
 import { TasksPage } from "./pages/Tasks";
@@ -56,6 +57,8 @@ export function App() {
     }
   }, [me, path]);
 
+  // Public: the privacy policy Google's sign-in screen links to.
+  if (path === "/privacy") return <PrivacyPage />;
   if (!me) return null;
   if (!me.authenticated) {
     return <LoginPage onSignedIn={refresh} linkError={linkError} />;

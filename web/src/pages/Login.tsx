@@ -91,6 +91,11 @@ export function LoginPage({
           Private to the bot's owner. You stay signed in for 60 days.
         </p>
         <p className="mt-2 text-xs text-faint">
+          <a className="underline hover:text-muted" href="/privacy">
+            Privacy policy
+          </a>
+        </p>
+        <p className="mt-2 text-xs text-faint">
           First time? The button needs your bot to know this site: in @BotFather
           send /setdomain and then {window.location.host}.
         </p>
