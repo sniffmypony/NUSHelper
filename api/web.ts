@@ -27,11 +27,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           csrfHeader: Array.isArray(header) ? header[0] : header,
           body: req.body,
           search: typeof req.query.q === "string" ? req.query.q : undefined,
+          query: Object.fromEntries(
+            Object.entries(req.query).filter(
+              (entry): entry is [string, string] =>
+                entry[0] !== "route" && typeof entry[1] === "string",
+            ),
+          ),
         },
         webDependencies,
       ),
   );
   if (response.setCookie) res.setHeader("Set-Cookie", response.setCookie);
+  if (response.redirect) {
+    res.setHeader("Location", response.redirect);
+    return res.status(302).end();
+  }
   if (response.download) {
     const { filename, contentType, body } = response.download;
     res.setHeader("Content-Type", contentType);

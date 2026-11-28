@@ -32,6 +32,186 @@ type Status = { tone: "ok" | "error" | "info"; text: string } | null;
 
 // Shown in the Google Calendar card rather than with the other keys.
 const SERVICE_KEY = "GOOGLE_SERVICE_ACCOUNT_JSON_BASE64";
+// Shown in the assistant's Google access card.
+const ASSISTANT_SECRET = "GOOGLE_OAUTH_CLIENT_SECRET";
+
+interface GoogleAccessStatus {
+  clientId: boolean;
+  clientSecret: boolean;
+  connected: boolean;
+  account: string | null;
+}
+
+// Where Google's sign-in sent the browser back to: ?google=…
+function googleReturn(): Status {
+  const params = new URLSearchParams(window.location.search);
+  const outcome = params.get("google");
+  if (!outcome) return null;
+  window.history.replaceState(null, "", "/settings");
+  if (outcome === "connected") {
+    return { tone: "ok", text: "Connected. Press Check to try it." };
+  }
+  if (outcome === "denied") {
+    return { tone: "error", text: "Google sign-in was cancelled." };
+  }
+  if (outcome === "expired") {
+    return {
+      tone: "error",
+      text: "That sign-in expired or came from another browser. Press Connect again.",
+    };
+  }
+  return {
+    tone: "error",
+    text: params.get("reason") ?? "Couldn't connect to Google.",
+  };
+}
+
+// From February 2027 Google requires AI tools to reach Calendar through its
+// MCP server, signed in as you: this connects that sign-in.
+function AssistantGoogleCard({
+  clientId,
+  clientSecret,
+  fresh,
+  onSaved,
+}: {
+  clientId: SettingRow;
+  clientSecret: SecretRow | undefined;
+  fresh: boolean;
+  onSaved: () => void;
+}) {
+  const [status, setStatus] = useState<GoogleAccessStatus | null>(null);
+  const [message, setMessage] = useState<Status>(googleReturn);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    api<GoogleAccessStatus>("google")
+      .then(setStatus)
+      .catch((error) => setMessage({ tone: "error", text: errorText(error) }));
+  }, []);
+  useEffect(load, [load]);
+
+  const run = async (work: () => Promise<void>) => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await work();
+    } catch (error) {
+      setMessage({ tone: "error", text: errorText(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const ready = Boolean(status?.clientId && status.clientSecret);
+
+  return (
+    <Card
+      title="Assistant's Google access"
+      description="From February 2027 Google requires AI assistants to reach your calendar through its MCP server, signed in as you. The rest of the bot keeps using the service account above."
+    >
+      <TextSettingRow
+        setting={clientId}
+        onSaved={() => {
+          onSaved();
+          load();
+        }}
+        placeholder="…apps.googleusercontent.com"
+        url
+      />
+      {clientSecret && (
+        <KeyRow
+          secret={clientSecret}
+          fresh={fresh}
+          onSaved={() => {
+            onSaved();
+            load();
+          }}
+        />
+      )}
+      <Row
+        label="Google sign-in"
+        help="Google warns the app isn't verified, because it's yours: choose Advanced → Go to NUSHelper."
+      >
+        <p className="text-sm text-muted">
+          {status === null
+            ? "Checking…"
+            : status.connected
+              ? `Connected${status.account ? ` as ${status.account}` : ""}.`
+              : ready
+                ? "Not connected."
+                : "Add the client ID and secret first."}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button
+            variant={status?.connected ? "secondary" : "primary"}
+            disabled={busy || !ready || !fresh}
+            onClick={() =>
+              void run(async () => {
+                const { url } = await api<{ url: string }>("google/connect", {
+                  method: "POST",
+                });
+                window.location.assign(url);
+              })
+            }
+          >
+            {status?.connected ? "Reconnect" : "Connect"}
+          </Button>
+          {status?.connected && (
+            <>
+              <Button
+                variant="secondary"
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    const result = await api<{
+                      ok: boolean;
+                      count?: number | null;
+                      error?: string;
+                    }>("google/check", { method: "POST" });
+                    setMessage(
+                      result.ok
+                        ? {
+                            tone: "ok",
+                            text:
+                              typeof result.count === "number"
+                                ? `Works: found ${result.count >= 5 ? "5 or more events" : `${result.count} event${result.count === 1 ? "" : "s"}`} in the next week.`
+                                : "Works: Google Calendar answered.",
+                          }
+                        : { tone: "error", text: result.error ?? "Failed." },
+                    );
+                  })
+                }
+              >
+                Check
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={busy || !fresh}
+                onClick={() => {
+                  if (!window.confirm("Disconnect the assistant from Google?"))
+                    return;
+                  void run(async () => {
+                    await api("google/disconnect", { method: "POST" });
+                    setMessage({ tone: "ok", text: "Disconnected." });
+                    load();
+                  });
+                }}
+              >
+                Disconnect
+              </Button>
+            </>
+          )}
+        </div>
+        {!fresh && (
+          <p className="mt-2 text-xs text-muted">
+            Connecting needs a sign-in in the last 10 minutes (Keys above).
+          </p>
+        )}
+        {message && <Notice tone={message.tone}>{message.text}</Notice>}
+      </Row>
+    </Card>
+  );
+}
 
 const SETTING_LABELS: Record<string, string> = {
   LLM_MODEL: "Main AI model",
@@ -39,6 +219,9 @@ const SETTING_LABELS: Record<string, string> = {
   NUS_MATRICULATION_YEAR: "Matriculation year",
   LLM_API_KEY: "AI provider API key",
   LLM_BASE_URL: "AI provider address",
+  GOOGLE_OAUTH_CLIENT_ID: "Assistant's Google client ID",
+  GOOGLE_OAUTH_CLIENT_SECRET: "Assistant's Google client secret",
+  google: "Assistant's Google sign-in",
   CANVAS_BASE_URL: "Canvas address",
   GOOGLE_SERVICE_ACCOUNT_JSON_BASE64: "Google service-account key",
   CANVAS_API_TOKEN: "Canvas access token",
@@ -734,7 +917,10 @@ export function SettingsPage({
           </div>
         )}
         {data.secrets
-          .filter((secret) => secret.key !== SERVICE_KEY)
+          .filter(
+            (secret) =>
+              secret.key !== SERVICE_KEY && secret.key !== ASSISTANT_SECRET,
+          )
           .map((secret) => (
             <KeyRow
               key={secret.key}
@@ -749,6 +935,14 @@ export function SettingsPage({
         calendar={data.calendar}
         setting={setting("GOOGLE_CALENDAR_ID")}
         serviceKey={data.secrets.find((secret) => secret.key === SERVICE_KEY)}
+        fresh={me.fresh}
+        onSaved={load}
+      />
+      <AssistantGoogleCard
+        clientId={setting("GOOGLE_OAUTH_CLIENT_ID")}
+        clientSecret={data.secrets.find(
+          (secret) => secret.key === ASSISTANT_SECRET,
+        )}
         fresh={me.fresh}
         onSaved={load}
       />

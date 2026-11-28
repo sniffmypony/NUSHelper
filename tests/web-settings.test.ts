@@ -94,6 +94,24 @@ function setup(now = NOW) {
       lastError: null,
       lastErrorAt: null,
     })),
+    google: {
+      status: () => ({
+        clientId: true,
+        clientSecret: true,
+        connected: false,
+        account: null,
+      }),
+      start: vi.fn(() => ({
+        url: "https://accounts.google.com/o/oauth2/v2/auth?x=1",
+        cookie: "nh_google=n; Path=/api/web/google",
+      })),
+      finish: vi.fn(async () => ({
+        redirect: "/settings?google=connected",
+        cookie: "nh_google=; Max-Age=0",
+      })),
+      disconnect: vi.fn(async () => {}),
+      check: vi.fn(async () => ({ count: 3 })),
+    },
     features: () => ({ ai: true, calendar: false, canvas: false }),
     dispatchLastRun: async () => new Date(now * 1000 - 60_000),
     hasTimetable: async () => false,
@@ -316,6 +334,10 @@ describe("website API", () => {
         lastFour: "7777",
       }),
       expect.objectContaining({
+        key: "GOOGLE_OAUTH_CLIENT_SECRET",
+        source: "unset",
+      }),
+      expect.objectContaining({
         key: "GOOGLE_SERVICE_ACCOUNT_JSON_BASE64",
         source: "unset",
         lastFour: null,
@@ -459,6 +481,50 @@ describe("website API", () => {
       ok: false,
       error: "Bad Request: bad webhook: HTTPS url must be provided",
     });
+  });
+
+  it("connects Google only after a fresh sign-in, and takes Google's redirect back", async () => {
+    const { call, cookieFor, deps } = setup();
+    const stale = cookieFor(NOW - 11 * 60, NOW - 11 * 60);
+    expect(
+      (await call({ method: "POST", route: "google/connect", cookie: stale }))
+        .status,
+    ).toBe(401);
+    const started = await call({
+      method: "POST",
+      route: "google/connect",
+      cookie: cookieFor(),
+    });
+    expect(started.body).toEqual({
+      url: "https://accounts.google.com/o/oauth2/v2/auth?x=1",
+    });
+    expect(started.setCookie).toContain("nh_google=");
+    // No session cookie comes back from Google: the route is public and
+    // checks the signed state instead.
+    const back = await call({
+      route: "google/callback",
+      query: { code: "c", state: "s" },
+      cookie: "nh_google=n",
+    });
+    expect(back).toMatchObject({
+      status: 302,
+      redirect: "/settings?google=connected",
+    });
+    expect(deps.google.finish).toHaveBeenCalledWith(
+      { code: "c", state: "s" },
+      "nh_google=n",
+      NOW,
+    );
+    expect(
+      (
+        await call({
+          method: "POST",
+          route: "google/check",
+          cookie: cookieFor(),
+        })
+      ).body,
+    ).toEqual({ ok: true, count: 3 });
+    expect((await call({ route: "google" })).status).toBe(401);
   });
 
   it("tells only the owner which features are set up", async () => {

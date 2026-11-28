@@ -30,6 +30,7 @@ import type { PlannerActions } from "./planner-actions.js";
 import { plannerRoute } from "./planner-routes.js";
 import type { WebhookStatus } from "../telegram-webhook.js";
 import { setupChecklist, type Features } from "./setup.js";
+import type { GoogleAccess } from "./google-access.js";
 
 // The website's API (/api/web/...). Everything except the sign-in needs the
 // owner's session cookie; changes also need the X-NUSHelper header, which a
@@ -42,6 +43,9 @@ export interface WebRequest {
   csrfHeader?: string;
   body?: unknown;
   search?: string; // ?q= on a GET
+  // The rest of the query string (Google's redirect back sends code and
+  // state).
+  query?: Record<string, string>;
 }
 
 export interface WebResponse {
@@ -52,6 +56,8 @@ export interface WebResponse {
   stream?: (emit: (event: ChatEvent) => void) => Promise<void>;
   // A file to save (CSV export).
   download?: { filename: string; contentType: string; body: string };
+  // Send the browser here (after Google's sign-in).
+  redirect?: string;
 }
 
 export interface WebDependencies {
@@ -68,6 +74,8 @@ export interface WebDependencies {
   features(): Features;
   dispatchLastRun(): Promise<Date | null | undefined>;
   hasTimetable(): Promise<boolean>;
+  // The assistant's own Google sign-in (Calendar MCP).
+  google: GoogleAccess;
   listModels(): Promise<string[]>;
   testModel(model: string): Promise<{ ms: number }>;
   calendarInfo(): { calendarId: string; serviceAccountEmail: string | null };
@@ -135,6 +143,23 @@ export async function handleWebRequest(
         "Couldn't load your bot from Telegram. Check TELEGRAM_BOT_TOKEN in Vercel.",
       );
     }
+  }
+
+  // Google's redirect back after the owner signs in. No session cookie
+  // arrives here (it's SameSite=Strict); the signed state and this
+  // browser's own cookie are checked instead.
+  if (method === "GET" && route === "google/callback") {
+    const done = await deps.google.finish(
+      request.query ?? {},
+      request.cookie,
+      now,
+    );
+    return {
+      status: 302,
+      body: null,
+      redirect: done.redirect,
+      setCookie: done.cookie,
+    };
   }
 
   if (method === "POST" && route === "auth/telegram") {
@@ -327,6 +352,39 @@ export async function handleWebRequest(
         return json(200, { ok: true, ...(await deps.testModel(model!)) });
       } catch (error) {
         return json(200, { ok: false, error: reason(error) });
+      }
+    }
+
+    if (route.startsWith("google")) {
+      if (method === "GET" && route === "google") {
+        return json(200, deps.google.status());
+      }
+      if (method === "POST" && route === "google/connect") {
+        const stale = needFresh();
+        if (stale) return stale;
+        try {
+          const { url, cookie } = deps.google.start(session.uid, now);
+          return json(200, { url }, cookie);
+        } catch (error) {
+          return fail(400, error instanceof Error ? error.message : "failed");
+        }
+      }
+      if (method === "POST" && route === "google/disconnect") {
+        const stale = needFresh();
+        if (stale) return stale;
+        await deps.google.disconnect();
+        return json(200, { ok: true });
+      }
+      if (method === "POST" && route === "google/check") {
+        try {
+          return json(200, { ok: true, ...(await deps.google.check()) });
+        } catch (error) {
+          const message =
+            error instanceof Error && error.message.length < 300
+              ? error.message
+              : reason(error);
+          return json(200, { ok: false, error: message });
+        }
       }
     }
 
