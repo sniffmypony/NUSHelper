@@ -8,7 +8,7 @@ import { optionalEnv } from "../env.js";
 // to the website. It is the fallback for Telegram Login, whose confirmation
 // message doesn't always arrive. Only the owner's chat can receive it.
 
-export const LINK_TTL_MS = 10 * 60_000;
+export const LINK_TTL_MS = 20 * 60_000;
 
 export interface LoginLinkStore {
   add(tokenHash: string, expiresAt: Date): Promise<void>;

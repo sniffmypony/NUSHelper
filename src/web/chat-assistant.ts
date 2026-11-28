@@ -1,4 +1,5 @@
 import { Telegram } from "telegraf";
+import { QUIET } from "../telegram-quiet.js";
 import { runAssistant, type Attachment } from "../assistant/agent.js";
 import { describeDocument, readDocument } from "../assistant/documents.js";
 import {
@@ -54,6 +55,7 @@ export const webAssist: Assist = async (input) => {
           const message = await telegram.sendDocument(
             chatId,
             inputFile(documents[0]),
+            QUIET,
           );
           return [documentFileId(message)];
         }
@@ -63,6 +65,7 @@ export const webAssist: Assist = async (input) => {
             type: "document" as const,
             media: inputFile(document),
           })),
+          QUIET,
         );
         return Array.isArray(messages) ? messages.map(documentFileId) : [];
       },

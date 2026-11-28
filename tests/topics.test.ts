@@ -9,6 +9,7 @@ vi.mock("../src/assistant/store.js", () => ({
 
 import { telegramFor } from "../src/assistant/handlers.js";
 import { TelegramDeliveryError } from "../src/telegram.js";
+import { QUIET } from "../src/telegram-quiet.js";
 import {
   conversationKey,
   describeTopicSetup,
@@ -207,6 +208,25 @@ describe("replying in the topic the user wrote in", () => {
       rich_message: { markdown: "**hi**" },
       message_thread_id: 7,
     });
+  });
+
+  it("sends requested files quietly, in the topic", async () => {
+    const { ctx, telegram } = ctxWith({
+      is_topic_message: true,
+      message_thread_id: 7,
+    });
+    const api = telegramFor(ctx);
+    await api.sendDocument(42, "file-id", QUIET);
+    await api.sendMediaGroup(42, [{ type: "document", media: "a" }], QUIET);
+    expect(telegram.sendDocument).toHaveBeenCalledWith(42, "file-id", {
+      disable_notification: true,
+      message_thread_id: 7,
+    });
+    expect(telegram.sendMediaGroup).toHaveBeenCalledWith(
+      42,
+      [{ type: "document", media: "a" }],
+      { disable_notification: true, message_thread_id: 7 },
+    );
   });
 
   it("sends exactly as before when there is no topic", async () => {

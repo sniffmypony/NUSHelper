@@ -1,4 +1,5 @@
 import type { Context, Telegraf } from "telegraf";
+import { QUIET } from "../telegram-quiet.js";
 import { assistantStore } from "../assistant/store.js";
 import { parseExpenditureAmounts } from "../expenditure.js";
 import { acknowledge, callbackId, setButtons } from "../telegram-buttons.js";
@@ -29,7 +30,7 @@ export function registerApplePayHandlers(bot: Telegraf, ownerId: string): void {
     }
     const reply = await applySgdReply(applePayStore, cents, ownerId, now);
     if (reply === null) return next();
-    await ctx.reply(reply);
+    await ctx.reply(reply, QUIET);
   });
 
   bot.action(/^ap:(undo|skip|sgd|ok):(\d{1,10})$/, async (ctx) => {
@@ -40,21 +41,21 @@ export function registerApplePayHandlers(bot: Telegraf, ownerId: string): void {
     if (verb === "undo") {
       const text = await undoPayment(applePayStore, id, ownerId);
       await setButtons(ctx, []);
-      await ctx.reply(text);
+      await ctx.reply(text, QUIET);
       return;
     }
     if (verb === "ok") {
       const text = await countPayment(applePayStore, id, ownerId);
       await setButtons(ctx, []);
-      await ctx.reply(text);
+      await ctx.reply(text, QUIET);
       return;
     }
     if (verb === "skip") {
       const text = await skipPayment(applePayStore, id);
       await setButtons(ctx, []);
-      await ctx.reply(text);
+      await ctx.reply(text, QUIET);
       return;
     }
-    await ctx.reply(await askForSgd(applePayStore, id, new Date()));
+    await ctx.reply(await askForSgd(applePayStore, id, new Date()), QUIET);
   });
 }

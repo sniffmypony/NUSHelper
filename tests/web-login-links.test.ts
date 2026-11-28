@@ -32,7 +32,7 @@ const NOW = new Date("2026-11-23T15:00:00Z");
 describe("one-time sign-in links", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it("work once, store only a hash, and expire after 10 minutes", async () => {
+  it("work once, store only a hash, and expire after 20 minutes", async () => {
     const store = new MemoryLinks();
     const token = await createLoginToken(store, NOW);
     expect(token).toMatch(/^[\w-]{43}$/);
@@ -41,6 +41,16 @@ describe("one-time sign-in links", () => {
 
     expect(await consumeLoginToken(store, token, NOW)).toBe(true);
     expect(await consumeLoginToken(store, token, NOW)).toBe(false);
+
+    expect(LINK_TTL_MS).toBe(20 * 60_000);
+    const later = await createLoginToken(store, NOW);
+    expect(
+      await consumeLoginToken(
+        store,
+        later,
+        new Date(NOW.getTime() + 19 * 60_000),
+      ),
+    ).toBe(true);
 
     const late = await createLoginToken(store, NOW);
     expect(

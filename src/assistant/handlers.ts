@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { QUIET } from "../telegram-quiet.js";
 import { waitUntil } from "@vercel/functions";
 import type { Context, Telegraf } from "telegraf";
 import { CanvasAuthError, CanvasClient } from "../canvas/client.js";
@@ -91,10 +92,16 @@ export interface AssistantTelegram {
   deleteMessage?(chatId: number, messageId: number): Promise<unknown>;
   sendChatAction(chatId: number, action: ChatAction): Promise<unknown>;
   // A string is a Telegram file id or a URL Telegram fetches itself.
-  sendDocument(chatId: number, document: TelegramInputFile): Promise<unknown>;
+  // extra: e.g. QUIET for files the owner asked for.
+  sendDocument(
+    chatId: number,
+    document: TelegramInputFile,
+    extra?: { disable_notification?: boolean },
+  ): Promise<unknown>;
   sendMediaGroup(
     chatId: number,
     media: Array<{ type: "document"; media: TelegramInputFile }>,
+    extra?: { disable_notification?: boolean },
   ): Promise<unknown>;
   // Bot API 10.1 rich message: Markdown with $...$ / $$...$$ LaTeX.
   sendRichMessage(
@@ -142,14 +149,10 @@ export function telegramFor(ctx: Context): AssistantTelegram {
       topic
         ? api.sendChatAction(chatId, action, topic)
         : api.sendChatAction(chatId, action),
-    sendDocument: (chatId, document) =>
-      topic
-        ? api.sendDocument(chatId, document, topic)
-        : api.sendDocument(chatId, document),
-    sendMediaGroup: (chatId, media) =>
-      topic
-        ? api.sendMediaGroup(chatId, media, topic)
-        : api.sendMediaGroup(chatId, media),
+    sendDocument: (chatId, document, extra) =>
+      api.sendDocument(chatId, document, { ...extra, ...topic }),
+    sendMediaGroup: (chatId, media, extra) =>
+      api.sendMediaGroup(chatId, media, { ...extra, ...topic }),
     sendRichMessage: (chatId, markdown, extra) =>
       api.callApi("sendRichMessage", {
         chat_id: chatId,
@@ -592,9 +595,11 @@ export async function answerAssistantMessage(
         sendDocuments: async (documents) => {
           try {
             if (documents.length === 1) {
+              // Files the owner asked for: no notification.
               const message = await telegram.sendDocument(
                 chatId,
                 inputFile(documents[0]),
+                QUIET,
               );
               return [documentFileId(message)];
             }
@@ -604,6 +609,7 @@ export async function answerAssistantMessage(
                 type: "document",
                 media: inputFile(document),
               })),
+              QUIET,
             );
             return Array.isArray(messages) ? messages.map(documentFileId) : [];
           } finally {
