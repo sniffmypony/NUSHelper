@@ -15,6 +15,9 @@ motion respected). Reuse the shared components in `web/src/components/`.
 ## Working rules
 
 - Database queries run one at a time (`await` each). Never `Promise.all`
-  queries: the single pooled connection hangs on Supabase's pooler.
+  queries: the single pooled connection hangs on Supabase's pooler. The
+  client also sets `max_pipeline: 0` (`src/db/client.ts`) so queries from
+  concurrent requests on one Vercel instance wait their turn instead of
+  being pipelined; keep it.
 - Run `pnpm test`, `pnpm run typecheck`, `pnpm run lint` and
   `pnpm run format:check` before opening a PR.
