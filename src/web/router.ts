@@ -31,6 +31,7 @@ import { plannerRoute } from "./planner-routes.js";
 import type { WebhookStatus } from "../telegram-webhook.js";
 import { setupChecklist, type Features } from "./setup.js";
 import type { GoogleAccess } from "./google-access.js";
+import { isEffortSetting, type EffortSetting } from "../assistant/effort.js";
 
 // The website's API (/api/web/...). Everything except the sign-in needs the
 // owner's session cookie; changes also need the X-NUSHelper header, which a
@@ -79,6 +80,12 @@ export interface WebDependencies {
   google: GoogleAccess;
   listModels(): Promise<string[]>;
   testModel(model: string): Promise<{ ms: number }>;
+  // The assistant's thinking effort: the same setting as /effort in the
+  // owner's Telegram chat, which the website's Chat also uses.
+  effort: {
+    get(): Promise<EffortSetting>;
+    set(effort: EffortSetting): Promise<void>;
+  };
   calendarInfo(): { calendarId: string; serviceAccountEmail: string | null };
   // Checks the bot can read a calendar: the current one, or `id`.
   checkCalendar(id?: string): Promise<void>;
@@ -341,6 +348,19 @@ export async function handleWebRequest(
 
     if (method === "GET" && route === "ai/models") {
       return json(200, { models: await deps.listModels() });
+    }
+
+    if (method === "GET" && route === "ai/effort") {
+      return json(200, { effort: await deps.effort.get() });
+    }
+
+    if (method === "POST" && route === "ai/effort") {
+      const effort = text(request.body, "effort")?.toLowerCase() ?? "";
+      if (!isEffortSetting(effort)) {
+        return fail(400, "Choose auto, low, medium or high.");
+      }
+      await deps.effort.set(effort);
+      return json(200, { effort });
     }
 
     if (method === "POST" && route === "ai/test") {

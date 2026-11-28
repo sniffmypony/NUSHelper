@@ -35,6 +35,7 @@ import {
   type ChatSummary,
   type Upload,
 } from "../chat/api";
+import { EffortMenu } from "../chat/Effort";
 import { Markdown } from "../chat/Markdown";
 import { useConfirm } from "../components/dialog";
 import { FeatureOff } from "../components/FeatureOff";
@@ -499,15 +500,18 @@ function Composer({
               }
             }}
           />
-          <Tooltip label="Attach a photo or file">
-            <IconButton
-              label="Attach a photo or file"
-              onClick={() => fileInput.current?.click()}
-              disabled={busy}
-            >
-              <Paperclip {...ICON} />
-            </IconButton>
-          </Tooltip>
+          <div className="flex items-center gap-1">
+            <Tooltip label="Attach a photo or file">
+              <IconButton
+                label="Attach a photo or file"
+                onClick={() => fileInput.current?.click()}
+                disabled={busy}
+              >
+                <Paperclip {...ICON} />
+              </IconButton>
+            </Tooltip>
+            <EffortMenu />
+          </div>
           <IconButton
             type="submit"
             label={busy ? "Answering" : "Send"}

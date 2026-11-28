@@ -25,6 +25,7 @@ import type { WebDependencies } from "./router.js";
 import { performDelete } from "../assistant/buttons.js";
 import { assistantErrorMessage } from "../assistant/handlers.js";
 import { webAssist } from "./chat-assistant.js";
+import { assistantSettingsStore } from "../assistant/store.js";
 import { chatStore } from "./chat-store.js";
 import { plannerActions } from "./planner-actions.js";
 import { websiteUrl } from "./login-links.js";
@@ -132,6 +133,13 @@ export const webDependencies: WebDependencies = {
     const models: string[] = [];
     for await (const model of aiClient().models.list()) models.push(model.id);
     return models.sort((a, b) => a.localeCompare(b));
+  },
+
+  effort: {
+    // The owner's Telegram chat id, as the bot's /effort command saves it.
+    get: () => assistantSettingsStore.effort(telegramOwnerId()),
+    set: (effort) =>
+      assistantSettingsStore.setEffort(telegramOwnerId(), effort),
   },
 
   async testModel(model) {
